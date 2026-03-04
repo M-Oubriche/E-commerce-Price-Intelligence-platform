@@ -49,7 +49,7 @@ price-intelligence-platform/
 ├── dbt/                      # Models, tests, macros
 ├── scrapers/                 # Scraping logic
 ├── analytics/                # Notebooks and reports
-├── dashboard/                # Frontend (Angular) + Backend (FastAPI)
+├── app/                      # Frontend (Angular) + Backend (FastAPI)
 ├── infrastructure/           # Terraform, Monitoring, Scripts
 ├── tests/                    # Global tests
 ├── docker-compose.yml        # Local environment
