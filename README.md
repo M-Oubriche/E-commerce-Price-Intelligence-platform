@@ -10,7 +10,7 @@ A production-grade hybrid batch + streaming data platform for real-time e-commer
 | ------------------------------------------- | -------------- | ---------- |
 | Phase 1: Project Setup & Infrastructure     | Complete       | 03-03-2026 |
 | Phase 2: Local Environment (Docker Compose) | Complete       | 06-03-2026 |
-| Phase 3: CI/CD Pipeline (maybe)             | 🚧 In Progress | —          |
+| Phase 3: CI/CD Pipeline (maybe)             | In Progress    | —          |
 
 ---
 
