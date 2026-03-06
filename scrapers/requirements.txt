@@ -1,0 +1,26 @@
+
+# Core Scraping
+scrapy==2.11.2
+beautifulsoup4==4.12.3
+lxml==5.1.0
+
+
+# JavaScript-rendered pages
+selenium==4.18.1
+webdriver-manager==4.0.1
+
+
+# HTTP
+requests==2.31.0
+
+
+# Data handling
+pandas==2.2.1
+
+
+# Validation
+pydantic==2.6.3
+
+
+# Environment & Config
+python-dotenv==1.0.1
