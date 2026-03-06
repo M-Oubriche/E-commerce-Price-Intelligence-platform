@@ -1,0 +1,29 @@
+
+# PHASE: Scraper
+# Other services(dbt, NIFI ....) added in later phases
+
+services:
+
+  scraper:
+    build:
+      context: .
+      dockerfile: docker/Dockerfiles/scraper.Dockerfile
+
+    container_name: price_scraper
+
+    # Keep terminal open for interactive use
+    stdin_open: true
+    tty: true
+
+    volumes:
+      # Live code sync — changes reflect instantly in container
+      - ./scrapers:/app/scrapers
+      # Output folder — scraped data lands on host machine
+      - ./data/raw:/data/raw
+
+    env_file:
+      - .env
+
+    working_dir: /app/scrapers
+
+    command: bash

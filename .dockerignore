@@ -1,0 +1,42 @@
+
+# Git
+.git/
+.github/
+.gitignore
+
+
+# Data files — (this folder used for test-until we implement NIFI)
+data/
+
+
+# Secrets
+.env
+**/keyfile.json
+**/service-account.json
+
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+.venv/
+venv/
+
+
+# Other services (not needed)
+airflow/
+nifi/
+dbt/
+analytics/
+app/
+infrastructure/
+tests/
+
+
+# IDE / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

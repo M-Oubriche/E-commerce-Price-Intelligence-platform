@@ -6,10 +6,11 @@ A production-grade hybrid batch + streaming data platform for real-time e-commer
 
 ## Project Status
 
-| Phase                                       | Status          | Date       |
-| ------------------------------------------- | --------------- | ---------- |
-| Phase 1: Project Setup & Infrastructure     | Complete        | 03-03-2026 |
-| Phase 2: Local Environment (Docker Compose) | In Progress ... | —          |
+| Phase                                       | Status         | Date       |
+| ------------------------------------------- | -------------- | ---------- |
+| Phase 1: Project Setup & Infrastructure     | Complete       | 03-03-2026 |
+| Phase 2: Local Environment (Docker Compose) | Complete       | 06-03-2026 |
+| Phase 3: CI/CD Pipeline (maybe)             | 🚧 In Progress | —          |
 
 ---
 
@@ -67,14 +68,56 @@ price-intelligence-platform/
 Before running this project locally, make sure you have:
 
 - [ ] Git
-- [ ] Docker Desktop (with Docker Compose)
-- [ ] A GCP account _(required for Bigtable deployment)_
+- [ ] Docker Desktop (with Docker Compose v2+)
+- [ ] A free API key from [exchangerate-api.com](https://exchangerate-api.com)
+- [ ] A GCP account _(required for Bigtable deployment — Phase 4)_
+
+> Note: API key: To convert any price to USD automatically.
 
 ---
 
 ## Getting Started Locally
 
-> Step-by-step local setup instructions will be added here once Docker Compose is configured (Phase 2).
+### 1. Clone the repository
+
+- git clone https://github.com/M-Oubriche/E-commerce-Price-Intelligence-platform.git
+- cd price-intelligence-platform
+
+### 2. Create your local environment file
+
+`Copy-Item .env.example .env`
+
+Then open `.env` and fill in your real values:
+
+- `EXCHANGE_RATE_API_KEY` → your key from exchangerate-api.com
+- Everything else is already set correctly
+
+### 3. Build the scraper image
+
+`docker compose build`
+
+> First build takes 5-10 minutes — Chrome installation is large. This is normal.
+
+### 4. Run the scraper container
+
+`docker compose run scraper`
+
+### 5. Verify everything works
+
+Inside the container run:
+
+> - python --version # Expected: Python 3.11.xx
+> - scrapy version # Expected: Scrapy 2.11.2
+> - google-chrome --version # Expected: Google Chrome 1xx.x
+
+### 6. Exit the container
+
+> exit
+
+### Scraped data location
+
+All output files land here on your local machine:
+data/raw/
 
 ---
 
