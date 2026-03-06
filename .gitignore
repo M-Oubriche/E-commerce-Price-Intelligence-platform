@@ -2,3 +2,7 @@
 #Scraped Data Files
 data/raw/*
 !data/raw/.gitkeep
+
+#.env
+.env
+*.env
