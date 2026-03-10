@@ -97,6 +97,9 @@ All 4 categories have exactly 6 spec fields each, keeping the schema consistent 
 | Motherboard      | socket, chipset, form_factor, ram_slots, max_ram_gb                         |
 | Cooling          | type (air\|liquid), tdp_support_watts, fan_size_mm, socket_support          |
 | HDD              | capacity_gb, rpm, interface, cache_mb, form_factor                          |
+| Laptop           | cpu_model, ram_gb, storage_gb, screen_size_inches, gpu_model, battery_wh    |
+| Desktop          | cpu_model, ram_gb, storage_gb, gpu_model, form_factor, os                   |
+| Mobile           | soc_model, ram_gb, storage_gb, screen_size_inches, battery_mah, camera_mp   |
 | Other/Peripheral | flexible key-value pairs, no fixed schema                                   |
 
 
