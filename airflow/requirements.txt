@@ -1,0 +1,14 @@
+# airflow/requirements.txt
+
+# This is an extension/plugin package for Airflow
+# It provides operators, hooks, and sensors for interacting with Google Cloud services
+# such as BigQuery, Cloud Storage, and Bigtable.
+apache-airflow-providers-google==10.17.0
+
+# Data handling inside DAGs
+# e.g. reading scraped JSON/CSV files before pushing to Bigtable
+pandas==2.1.4
+
+# Data validation — DAGs will validate records against our data model
+# defined in the Data Model Specification before any write
+pydantic==2.6.3
