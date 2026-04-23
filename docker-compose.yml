@@ -1,8 +1,7 @@
 # docker-compose.yml
-# Phase 1: Scraper + PostgreSQL + Airflow
+# Phase 1: Scraper + PostgreSQL + Airflow + NiFi
 #
 # Services added later (separate phases):
-#   - Apache NiFi
 #   - Google Cloud Bigtable Emulator
 #   - dbt
 
@@ -176,6 +175,67 @@ services:
       - platform_net
     command: scheduler
 
+  # APACHE NIFI — Real-time streaming ingestion
+  # we are using single-node, not Clustering to avoid complexity
+  # Single-node handles our data volumes comfortably
+  # Ports
+  # 8080: taken by Airflow webserver
+  # 8090: NiFi UI (http://localhost:8090/nifi)
+  # 9090: ListenHTTP processor entry point: 
+  #       Scraper POSTs JSON here: http://nifi:9090 (inside Docker)
+  nifi:
+    build:
+      context: .
+      dockerfile: docker/Dockerfiles/nifi.Dockerfile
+    container_name: price_nifi
+    restart: unless-stopped
+    environment:
+      # HTTP mode (HTTPS disabled for local dev)
+      NIFI_WEB_HTTP_PORT: "8090"
+      NIFI_WEB_HTTPS_PORT: "" # HTTPS disabled
+      NIFI_WEB_HTTP_HOST: "0.0.0.0" # Listen on all interfaces in container
+
+      # Single user login
+      # These become your NiFi UI username and password
+      SINGLE_USER_CREDENTIALS_USERNAME: ${NIFI_USERNAME}
+      SINGLE_USER_CREDENTIALS_PASSWORD: ${NIFI_PASSWORD}
+
+      # JVM Memory
+      NIFI_JVM_HEAP_INIT: "512m"
+      NIFI_JVM_HEAP_MAX: "1g"
+
+      # Cluster mode (off - no need)
+      NIFI_CLUSTER_IS_NODE: "false"
+      NIFI_ELECTION_MAX_WAIT: "1 min"
+
+    volumes:
+      # nifi_conf: the entire flow lives here
+      # nifi_database: NiFi's internal component registry and state
+      # nifi_provenance: data lineage records
+      # Essential for debugging when data doesn't arrive in Bigtable
+      - nifi_conf:/opt/nifi/nifi-current/conf
+      - nifi_database:/opt/nifi/nifi-current/database_repository
+      - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
+
+      # NiFi flow templates
+      - ./nifi/templates:/opt/nifi/nifi-current/conf/templates
+
+    ports:
+      - "8090:8090" # NiFi UI: http://localhost:8090/nifi
+      - "9090:9090" # ListenHTTP: scraper POSTs JSON here
+
+    networks:
+      - platform_net
+
+    healthcheck:
+      # NiFi takes 60-90 seconds to fully boot
+      # /nifi-api/system-diagnostics returns 200 only when fully ready
+      test: [ "CMD", "curl", "--fail", "http://localhost:8090/nifi-api/system-diagnostics" ]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 90s
+
 # NETWORKS
 #
 # All services share one bridge network called platform_net.
@@ -194,3 +254,8 @@ networks:
 volumes:
   postgres_data:
   airflow_logs:
+
+  # NiFi
+  nifi_conf:
+  nifi_database:
+  nifi_provenance:
