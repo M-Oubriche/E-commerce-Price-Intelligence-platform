@@ -1,0 +1,17 @@
+[
+  {
+    "scraper": "Jumia",
+    "category": "laptop",
+    "url": "https://www.jumia.ma/ordinateurs-portables/"
+  },
+  {
+    "scraper": "Ultrapc",
+    "category": "gpu",
+    "url": "https://www.ultrapc.ma/105-cartes-graphiques-gpu"
+  },
+  {
+    "scraper": "newegg",
+    "category": "cpu",
+    "url": "https://www.newegg.com/Processors-Desktops/SubCategory/ID-343"
+  }
+]

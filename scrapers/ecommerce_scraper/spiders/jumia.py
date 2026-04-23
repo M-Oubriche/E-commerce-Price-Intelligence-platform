@@ -3,11 +3,14 @@ import requests
 from bs4 import BeautifulSoup
 from typing import Iterator, Optional
 from datetime import datetime, timezone
+import json
+import re
 
 from ..base import BaseScraper
 from ..models import (
     RawLandingRecord, IngestionType, Currency, Category, 
-    Product, Pricing, Availability, Seller, SellerType, Ratings
+    Product, Pricing, Availability, Seller, SellerType, Ratings,
+    Specs, LaptopSpecs, MonitorSpecs
 )
 
 class JumiaScraper(BaseScraper):
@@ -18,8 +21,11 @@ class JumiaScraper(BaseScraper):
     
     def __init__(self, conversion_rate_to_usd: float = 0.10):
         self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
-            "Accept-Language": "en-US,en;q=0.9,fr;q=0.8"
+            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+            "Accept-Language": "en-US,en;q=0.9,fr;q=0.8",
+            "Referer": "https://www.jumia.ma/",
+            "Connection": "keep-alive"
         }
         self.conversion_rate = conversion_rate_to_usd
         
@@ -36,23 +42,26 @@ class JumiaScraper(BaseScraper):
             page_url = f"{url}?page={page}" if "?" not in url else f"{url}&page={page}"
             response = requests.get(page_url, headers=self.headers)
             if response.status_code != 200:
-                print(f"Failed to fetch {page_url}")
                 continue
                 
             soup = BeautifulSoup(response.text, 'html.parser')
-            # Adjust typical structure based on Jumia UI (may require actual reverse engineering if changed)
             items = soup.find_all("article", class_="prd _fb col c-prd")
             
             if not items:
                 break
                 
             for item in items:
-                yield self._parse_item(item, category)
+                record = self._parse_item(item, category)
+                if record:
+                    yield record
 
     def _parse_item(self, item, category: Category) -> RawLandingRecord:
         link_tag = item.find("a", class_="core")
-        source_url = "https://www.jumia.ma" + link_tag.get("href", "") if link_tag else ""
+        if not link_tag:
+            return None
         
+        source_url = "https://www.jumia.ma" + link_tag.get("href", "")
+        item_id = item.get("data-id", "Unknown")
         name_tag = item.find("h3", class_="name")
         name = name_tag.text.strip() if name_tag else "Unknown Product"
         
@@ -66,21 +75,91 @@ class JumiaScraper(BaseScraper):
         discount_percent = float(discount_tag.text.strip("%- ")) if discount_tag else 0.0
         
         img_tag = item.find("img", class_="img")
-        img_url = img_tag.get("data-src", "") if img_tag else ""
+        img_url = img_tag.get("data-src", "") or img_tag.get("src", "")
         
-        # Jumia brand is sometimes in the product name or data attributes
-        brand = item.get("data-brand", "Unknown")
-        item_id = item.get("data-id", "Unknown")
+        # Detail Scraping
+        brand = "Unknown"
+        avg_rating = None
+        review_count = 0
+        quantity = None
+        seller_name = "Jumia"
+        seller_rating = None
+        specs_data = {}
+        
+        try:
+            resp = requests.get(source_url, headers=self.headers, timeout=10)
+            if resp.status_code == 200:
+                p_soup = BeautifulSoup(resp.text, "html.parser")
+                
+                # 1. JSON-LD for Metadata
+                scripts = p_soup.find_all("script", type="application/ld+json")
+                for script in scripts:
+                    try:
+                        data = json.loads(script.string)
+                        graph = data.get("@graph", [data] if isinstance(data, dict) else [])
+                        for obj in graph:
+                            if obj.get("@type") == "Product":
+                                brand = obj.get("brand", {}).get("name", brand)
+                                if "aggregateRating" in obj:
+                                    avg_rating = float(obj["aggregateRating"].get("ratingValue", 0))
+                                    review_count = int(obj["aggregateRating"].get("reviewCount", 0))
+                                break
+                    except: continue
 
-        rating_tag = item.find("div", class_="stars _s")
-        rating = None
-        if rating_tag:
-            # "4 out of 5" -> 4.0
-            text = rating_tag.text
-            try:
-                rating = float(text.split(" ")[0])
-            except ValueError:
-                pass
+                # 2. Quantity
+                stock_text_tag = p_soup.find("p", class_="-df -i-ctr -fs12 -pbs -m")
+                if stock_text_tag:
+                    q_match = re.search(r"(\d+)", stock_text_tag.text)
+                    if q_match:
+                        quantity = int(q_match.group(1))
+
+                # 3. Seller
+                seller_tag = p_soup.find("p", class_="-m -pts -pbs") or p_soup.find("a", class_="-m -pts -pbs")
+                if seller_tag:
+                    seller_name = seller_tag.get_text(strip=True)
+                
+                seller_note_tag = p_soup.find("div", string=re.compile(r"vendeur", re.I))
+                if seller_note_tag and seller_note_tag.find_next("div"):
+                     s_match = re.search(r"(\d+)", seller_note_tag.find_next("div").text)
+                     if s_match:
+                         seller_rating = float(s_match.group(1)) / 10.0 # scale as needed
+
+                # 4. Specs
+                spec_list = p_soup.find("ul", class_="-pvl -hr")
+                if not spec_list:
+                    h2_spec = p_soup.find("h2", string=re.compile(r"Descriptif technique", re.I))
+                    if h2_spec:
+                        spec_list = h2_spec.find_next("ul")
+                
+                if spec_list:
+                    for li in spec_list.find_all("li"):
+                        parts = li.get_text(strip=True).split(":", 1)
+                        if len(parts) == 2:
+                            specs_data[parts[0].strip()] = parts[1].strip()
+
+        except Exception as e:
+            print(f"Error scraping detail page {source_url}: {e}")
+
+        # Map Specs to Category Model
+        specs = None
+        if category == Category.LAPTOP:
+            l_specs = LaptopSpecs()
+            l_specs.cpu_model = specs_data.get("Processeur") or specs_data.get("Modèle")
+            ram_text = specs_data.get("Mémoire vive (RAM)") or specs_data.get("RAM")
+            if ram_text:
+                r_match = re.search(r"(\d+)", ram_text)
+                if r_match: l_specs.ram_gb = float(r_match.group(1))
+            specs = Specs(Laptop=l_specs, Other=specs_data)
+        elif category == Category.MONITOR:
+            m_specs = MonitorSpecs()
+            m_specs.resolution = specs_data.get("Résolution")
+            size_text = specs_data.get("Taille de l'écran")
+            if size_text:
+                s_match = re.search(r"(\d+(?:\.\d+)?)", size_text)
+                if s_match: m_specs.size_inches = float(s_match.group(1))
+            specs = Specs(Monitor=m_specs, Other=specs_data)
+        else:
+            specs = Specs(Other=specs_data)
 
         converted_price = raw_price * self.conversion_rate
         original_price_usd = original_price_mad * self.conversion_rate
@@ -105,23 +184,19 @@ class JumiaScraper(BaseScraper):
                 conversion_rate_used=self.conversion_rate
             ),
             availability=Availability(
-                in_stock=True, # Listed items are generally in stock
+                in_stock=True,
+                quantity=quantity,
                 shipping_available=True
             ),
             seller=Seller(
-                seller_name="Jumia Marketplace",
+                seller_name=seller_name,
                 seller_type=SellerType.MARKETPLACE,
+                seller_rating=seller_rating,
                 seller_location="MA"
             ),
             ratings=Ratings(
-                avg_rating=rating
-            )
+                avg_rating=avg_rating,
+                review_count=review_count
+            ),
+            specs=specs
         )
-
-
-def main():
-    scraper = JumiaScraper()
-    scraper.scrape()
-
-if __name__ == "__main__":
-    main()
