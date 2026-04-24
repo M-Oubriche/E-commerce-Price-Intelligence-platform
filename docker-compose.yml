@@ -1,8 +1,7 @@
 # docker-compose.yml
-# Phase 1: Scraper + PostgreSQL + Airflow + NiFi
+# Phase 1: Scraper + PostgreSQL + Airflow + NiFi + Bigtable Emulator
 #
 # Services added later (separate phases):
-#   - Google Cloud Bigtable Emulator
 #   - dbt
 
 x-airflow-env:
@@ -189,6 +188,9 @@ services:
       dockerfile: docker/Dockerfiles/nifi.Dockerfile
     container_name: price_nifi
     restart: unless-stopped
+    depends_on:
+      bigtable-emulator:
+        condition: service_healthy
     environment:
       # HTTP mode (HTTPS disabled for local dev)
       NIFI_WEB_HTTP_PORT: "8090"
@@ -207,6 +209,11 @@ services:
       # Cluster mode (off - no need)
       NIFI_CLUSTER_IS_NODE: "false"
       NIFI_ELECTION_MAX_WAIT: "1 min"
+
+      # Bigtable connection
+      BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
+      BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
+      BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
 
     volumes:
       # nifi_conf: the entire flow lives here
@@ -235,6 +242,24 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
+
+  # GOOGLE CLOUD BIGTABLE EMULATOR
+  bigtable-emulator:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    container_name: bigtable_emulator
+    restart: unless-stopped
+    command: >
+      gcloud beta emulators bigtable start --host-port=0.0.0.0:8086 --project=${BIGTABLE_PROJECT_ID}
+    ports:
+      - "8086:8086"
+    networks:
+      - platform_net
+    healthcheck:
+      test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/8086'" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
 
 # NETWORKS
 #
