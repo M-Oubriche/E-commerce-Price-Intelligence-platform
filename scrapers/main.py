@@ -9,7 +9,8 @@ from ecommerce_scraper.spiders import JumiaScraper, PC21Scraper, NeweggScraper, 
 from ecommerce_scraper.models import Category
 
 # Load environment variables from .env file
-load_dotenv()
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # Configure logging
 logging.basicConfig(
@@ -63,7 +64,7 @@ def run_scrapers():
         "materielnet": MaterielNetScraper
     }
     
-    links_file = Path(__file__).parent / "manual_links.jslon"
+    links_file = Path(__file__).parent / "manual_links.json"
     if not links_file.exists():
         logger.error(f"Configuration file not found at {links_file}.")
         return
@@ -92,7 +93,7 @@ def run_scrapers():
             
         # Try to match the category string to Category enum
         try:
-            category_enum = Category(category_str)
+            category_enum = Category.from_str(category_str)
         except ValueError:
             logger.warning(f"Unknown category '{category_str}', using Category.OTHER.")
             category_enum = Category.OTHER

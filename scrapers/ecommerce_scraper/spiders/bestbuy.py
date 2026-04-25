@@ -21,10 +21,22 @@ class BestBuyScraper(BaseScraper):
         if not self.api_key:
             raise ValueError(
                 "BESTBUY_API_KEY environment variable is not set. "
-                "Please ensure it is defined in your .env file and that "
-                "python-dotenv is correctly loading it."
+                "Check your .env file."
             )
             
+        # If a full URL is passed instead of a query, try to extract the ID
+        if "bestbuy.com" in query:
+            import re
+            # Try to find id=XXXX or search for abcatXXXX / pcmcatXXXX patterns
+            match = re.search(r"id=((?:abcat|pcmcat)\d+)", query)
+            if not match:
+                match = re.search(r"((?:abcat|pcmcat)\d+)", query)
+            
+            if match:
+                query = f"categoryPath.id={match.group(1)}"
+            else:
+                print(f"Warning: Could not extract BestBuy category ID from URL: {query}")
+
         for page in range(1, max_pages + 1):
             url = f"{self.base_url}({query})"
             params = {
@@ -37,7 +49,7 @@ class BestBuyScraper(BaseScraper):
             
             response = requests.get(url, params=params)
             if response.status_code != 200:
-                print(f"Failed to fetch BestBuy API: {response.status_code}")
+                print(f"Failed to fetch BestBuy API: {response.status_code} - {response.text}")
                 break
                 
             data = response.json()

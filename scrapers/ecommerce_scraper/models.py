@@ -32,6 +32,14 @@ class Category(str, Enum):
     PERIPHERAL = "Peripheral"
     OTHER = "Other"
 
+    @classmethod
+    def from_str(cls, label: str):
+        label_lower = label.lower()
+        for category in cls:
+            if category.value.lower() == label_lower:
+                return category
+        raise ValueError(f"{label} is not a valid Category")
+
 class SellerType(str, Enum):
     OFFICIAL = "official"
     MARKETPLACE = "marketplace"
