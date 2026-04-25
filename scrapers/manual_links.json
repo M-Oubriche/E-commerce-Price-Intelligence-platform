@@ -333,5 +333,189 @@
     "scraper": "materielnet",
     "category": "Other",
     "url": ""
+  },
+    {
+    "scraper": "newegg",
+    "category": "CPU",
+    "url": "https://www.newegg.com/p/pl?N=100006676&cm_sp=shop-all-products-_-categroy-_-CPU-Processor-top"
+  },
+    {
+    "scraper": "newegg",
+    "category": "GPU",
+    "url": "https://www.newegg.com/p/pl?N=100006662&cm_sp=shop-all-products-_-categroy-_-GPU-Video-Graphics-Device-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "RAM",
+    "url": "https://www.newegg.com/p/pl?N=100006650&cm_sp=shop-all-products-_-categroy-_-Memory-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "HDD",
+    "url": "https://www.newegg.com/p/pl?N=100006670&cm_sp=shop-all-products-_-categroy-_-Hard-Drive-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "SSD",
+    "url": "https://www.newegg.com/p/pl?N=100011692&cm_sp=shop-all-products-_-categroy-_-SSD-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Monitor",
+    "url": "https://www.newegg.com/p/pl?N=101702291&cm_sp=shop-all-products-_-categroy-_-Monitor-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Keyboard",
+    "url": "https://www.newegg.com/p/pl?N=101702374%20600010468",
+    "url2": "https://www.newegg.com/p/pl?N=101737621%20600010468"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Mouse",
+    "url": "https://www.newegg.com/Gaming-Mouse/SubCategory/ID-3527?cm_sp=Cat_Keyboard-Mice_3-_-VisNav-_-Gaming-Mice",
+    "url2": "https://www.newegg.com/Mouse/SubCategory/ID-65?cm_sp=Cat_Keyboard-Mice_4-_-VisNav-_-Mice"
+  },
+    {
+    "scraper": "newegg",
+    "category": "PSU",
+    "url": "https://www.newegg.com/Power-Supplies/SubCategory/ID-58"
+  },
+    {
+    "scraper": "newegg",
+    "category": "case",
+    "url": "https://www.newegg.com/Computer-Cases/SubCategory/ID-7"
+  },
+    {
+    "scraper": "newegg",
+    "category": "cooling",
+    "url": "https://www.newegg.com/p/pl?N=100006648&cm_sp=shop-all-products-_-categroy-_-Fans-PC-Cooling-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Motherboard",
+    "url": "https://www.newegg.com/p/pl?N=100006654&cm_sp=shop-all-products-_-categroy-_-Motherboard-top"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Laptop",
+    "url": "https://www.newegg.com/p/pl?N=100006550%20100006740&isdeptsrh=1"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Desktop",
+    "url": "https://www.newegg.com/p/pl?N=100019095&cm_sp=shop-all-products-_-categroy-_-Desktop-Computer-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Mobile",
+    "url": "https://www.newegg.com/p/pl?N=100161569&cm_sp=shop-all-products-_-categroy-_-Cell-Phones-bottom"
+  },
+    {
+    "scraper": "newegg",
+    "category": "Peripheral",
+    "url": "https://www.newegg.com/Computer-Peripherals/Store/ID-380?PMSubCP=0&cm_sp=Tab_Computer-Systems_4-_-VisNav-_-Peripherals_2"
+  },
+  {
+    "scraper": "newegg",
+    "category": "Other",
+    "url": ""
+  },
+  {
+    "scraper": "pc21",
+    "category": "GPU",
+    "url": "https://www.pc21.fr/composant-pc/cartes-graphiques-videos/g113/",
+    "url2": "https://www.pc21.fr/gaming/carte-graphique-gaming/g691/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "CPU",
+    "url": "https://www.pc21.fr/composant-pc/processeurs/g40/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "RAM",
+    "url": "https://www.pc21.fr/composant-pc/carte-memoire-ram/g33/",
+    "url2": "https://www.pc21.fr/gaming/memoire-ram-gaming/g1268/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "SSD",
+    "url": "https://www.pc21.fr/composant-pc/disque-ssd-interne/g525/",
+    "url2": "https://www.pc21.fr/gaming/disque-dur-ssd/g812/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "HDD",
+    "url": "https://www.pc21.fr/composant-pc/disque-dur-interne/g38/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Monitor",
+    "url": "https://www.pc21.fr/ecran/u8/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Keyboard",
+    "url": "https://www.pc21.fr/gaming/clavier-gaming/g443/",
+    "url2": "https://www.pc21.fr/peripherique/clavier/g963/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Mouse",
+    "url": "https://www.pc21.fr/gaming/souris-gaming/g441/",
+    "url2": "https://www.pc21.fr/peripherique/souris-filaire-et-sans-fil/g960/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "PSU",
+    "url": "https://www.pc21.fr/gaming/alimentation-pc-interne/g710/",
+    "url2": "https://www.pc21.fr/composant-pc/alimentation-interne/g37/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Case",
+    "url": "https://www.pc21.fr/pc-fixe/boitier-pc/g39/",
+    "url2": "https://www.pc21.fr/gaming/boitier-pc-gaming/g1307/"
+
+  },
+  {
+    "scraper": "pc21",
+    "category": "Cooling",
+    "url": "https://www.pc21.fr/composant-pc/refroidissement-watercooling/g112/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Motherboard",
+    "url": "https://www.pc21.fr/gaming/carte-mere-gaming/g709/",
+    "url2": "https://www.pc21.fr/composant-pc/cartes-meres/g36/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Laptop",
+    "url": "https://www.pc21.fr/gaming/pc-portable-gaming/g428/",
+    "url2": "https://www.pc21.fr/pc-portable/u26/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Desktop",
+    "url": "https://www.pc21.fr/pc-fixe/ordinateurs-de-bureau/g8/",
+    "url2": "https://www.pc21.fr/pc-fixe/stations-de-travail/g49/",
+    "url3": "https://www.pc21.fr/pc-fixe/pc-fixe-gaming/g693/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Mobile",
+    "url": "https://www.pc21.fr/smartphone/u28/"
+  },
+  {
+    "scraper": "pc21",
+    "category": "Peripheral",
+    "url": "https://www.pc21.fr/peripherique/u24/"  
+  },
+  {
+    "scraper": "pc21",
+    "category": "Other",
+    "url": ""
   }
 ]
