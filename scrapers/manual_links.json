@@ -252,106 +252,86 @@
   {
     "scraper": "materielnet",
     "category": "GPU",
-    "url": ""
+    "url": "https://www.materiel.net/carte-graphique/l426/"
   },
   {
     "scraper": "materielnet",
     "category": "CPU",
-    "url": ""
+    "url": "https://www.materiel.net/processeur/l441/"
   },
   {
     "scraper": "materielnet",
     "category": "RAM",
-    "url": ""
+    "url": "https://www.materiel.net/memoire/l442/"
   },
   {
     "scraper": "materielnet",
     "category": "SSD",
-    "url": ""
+    "url": "https://www.materiel.net/disque-ssd/l429/"
   },
   {
     "scraper": "materielnet",
     "category": "HDD",
-    "url": ""
+    "url": "https://www.materiel.net/stockage/c428/"
   },
   {
     "scraper": "materielnet",
     "category": "Monitor",
-    "url": ""
+    "url": "https://www.materiel.net/ecran-pc/l474/+fv417-946/"
   },
   {
     "scraper": "materielnet",
     "category": "Keyboard",
-    "url": ""
+    "url": "https://www.materiel.net/clavier-pc/l479/"
   },
   {
     "scraper": "materielnet",
     "category": "Mouse",
-    "url": ""
+    "url": "https://www.materiel.net/souris-pc/l480/"
   },
   {
     "scraper": "materielnet",
     "category": "PSU",
-    "url": ""
+    "url": "https://www.materiel.net/alimentation-pc/l445/"
   },
   {
     "scraper": "materielnet",
     "category": "Case",
-    "url": ""
+    "url": "https://www.materiel.net/boitier-pc/l446/"
   },
   {
     "scraper": "materielnet",
     "category": "Cooling",
-    "url": ""
+    "url": "https://www.materiel.net/refroidissement-pc/c457/"
   },
   {
     "scraper": "materielnet",
     "category": "Motherboard",
-    "url": ""
+    "url": "https://www.materiel.net/carte-mere/l443/"
   },
   {
     "scraper": "materielnet",
     "category": "Laptop",
-    "url": ""
+    "url": "https://www.materiel.net/ordinateur-portable/c408/"
   },
   {
     "scraper": "materielnet",
     "category": "Desktop",
-    "url": ""
+    "url": "https://www.materiel.net/ordinateur-de-bureau/c401/"
   },
   {
     "scraper": "materielnet",
     "category": "Mobile",
-    "url": ""
+    "url": "https://www.materiel.net/telephones/c530/"
   },
   {
     "scraper": "materielnet",
     "category": "Peripheral",
-    "url": ""
+    "url": "https://www.materiel.net/peripheriques-pc/c472/"
   },
   {
     "scraper": "materielnet",
     "category": "Other",
-    "url": ""
-  },
-  {
-    "scraper": "jumia",
-    "category": "GPU",
-    "url": ""
-  },
-  {
-    "scraper": "pc21",
-    "category": "GPU",
-    "url": ""
-  },
-  {
-    "scraper": "newegg",
-    "category": "GPU",
-    "url": ""
-  },
-  {
-    "scraper": "bestbuy",
-    "category": "GPU",
     "url": ""
   }
 ]
