@@ -6,3 +6,19 @@ data/raw/*
 #.env
 .env
 *.env
+
+# Python cache &environments
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+env/
+.env_python/
+
+# Airflow specific (in case of local standalone testing)
+airflow/logs/
+airflow/airflow.cfg
+airflow/airflow.db
+airflow/webserver_config.py
+airflow-webserver.pid

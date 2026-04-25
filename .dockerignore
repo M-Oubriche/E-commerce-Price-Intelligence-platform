@@ -26,7 +26,11 @@ venv/
 
 
 # Other services (not needed)
+# by ignoring the airflow folder we garantee a fast build
+# and we rely on docker-compose.yml volumes to load the live code instantly at runtime
 airflow/
+# and the requirements.txt file is all what we need in our container
+!airflow/requirements.txt
 nifi/
 dbt/
 analytics/
