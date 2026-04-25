@@ -63,7 +63,7 @@ def run_scrapers():
         "materielnet": MaterielNetScraper
     }
     
-    links_file = Path(__file__).parent / "manual_links.json"
+    links_file = Path(__file__).parent / "manual_links.jslon"
     if not links_file.exists():
         logger.error(f"Configuration file not found at {links_file}.")
         return

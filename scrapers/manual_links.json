@@ -1,17 +1,357 @@
 [
   {
-    "scraper": "Jumia",
-    "category": "laptop",
-    "url": "https://www.jumia.ma/ordinateurs-portables/"
+    "scraper": "jumia",
+    "category": "gpu",
+    "url": "https://www.jumia.ma/les-composants-ordinateur-cartes-graphiques/"
   },
   {
-    "scraper": "Ultrapc",
+    "scraper": "jumia",
+    "category": "cpu",
+    "url": "https://www.jumia.ma/les-composants-ordinateur-processeurs-cpu/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "ram",
+    "url": "https://www.jumia.ma/mlp-memoire-ram/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "ssd",
+    "url": "https://www.jumia.ma/disques-durs-internes/",
+    "url2": "https://www.jumia.ma/mlp-k-ssd-interne/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "hdd",
+    "url": "https://www.jumia.ma/disques-durs-externes/",
+    "url2": "https://www.jumia.ma/mlp-disque-dur-hdd/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "monitor",
+    "url": "https://www.jumia.ma/ecrans-d-ordinateurs/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "keyboard",
+    "url": "https://www.jumia.ma/claviers-pc/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "mouse",
+    "url": "https://www.jumia.ma/souris/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "psu",
+    "url": "https://www.jumia.ma/les-composants-ordinateur-alimentations/#catalog-listing"
+  },
+  {
+    "scraper": "jumia",
+    "category": "case",
+    "url": "https://www.jumia.ma/boitiers-ordinateur/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "cooling",
+    "url": "https://www.jumia.ma/portables-refroidissement/#catalog-listing"
+  },
+  {
+    "scraper": "jumia",
+    "category": "motherboard",
+    "url": "https://www.jumia.ma/mlp-informatique-carte-mere-pc-gamer/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "laptop",
+    "url": "https://www.jumia.ma/pc-portables/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "desktop",
+    "url": "https://www.jumia.ma/informatique-ordinateurs-fixes/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "mobile",
+    "url": "https://www.jumia.ma/smartphones/"
+  },
+  {
+    "scraper": "jumia",
+    "category": "peripheral",
+    "url": "https://www.jumia.ma/category-url-fr-networking-accessories/",
+    "url2": "https://www.jumia.ma/peripheriques-logiciels-accessoires/"
+  },
+  {
+    "scraper": "bestbuy",
     "category": "gpu",
-    "url": "https://www.ultrapc.ma/105-cartes-graphiques-gpu"
+    "url": "https://www.bestbuy.com/site/computer-cards-components/video-graphics-cards/abcat0507002.c?id=abcat0507002"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "cpu",
+    "url": "https://www.bestbuy.com/site/computer-cards-components/computer-pc-processors/abcat0507010.c?id=abcat0507010"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "ram",
+    "url": "https://www.bestbuy.com/site/computer-cards-components/computer-memory/abcat0506000.c?id=abcat0506000"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "ssd",
+    "url": "https://www.bestbuy.com/site/hard-drives/internal-solid-state-drives/pcmcat1538498095184.c?id=pcmcat1538498095184"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "hdd",
+    "url": "https://www.bestbuy.com/site/hard-drives/external-portable-hard-drives/pcmcat186100050005.c?id=pcmcat186100050005"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "monitor",
+    "url": "https://www.bestbuy.com/site/computer-monitors/all-monitors/pcmcat143700050048.c?id=pcmcat143700050048#"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "keyboard",
+    "url": "https://www.bestbuy.com/site/mice-keyboards/computer-keyboards/abcat0513004.c?id=abcat0513004"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "mouse",
+    "url": "https://www.bestbuy.com/site/mice-keyboards/mice/pcmcat338200050008.c?id=pcmcat338200050008"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "psu",
+    "url": "https://www.bestbuy.com/site/computer-cards-components/computer-power-supplies/abcat0507009.c?id=abcat0507009"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "case",
+    "url": "https://www.bestbuy.com/site/computer-cards-components/computer-cases-drive-enclosures/abcat0507006.c?id=abcat0507006"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "cooling",
+    "url": "https://www.bestbuy.com/site/computer-cards-components/fans-cooling-kits/abcat0507007.c?id=abcat0507007"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "motherboard",
+    "url": "https://www.bestbuy.com/site/computer-cards-components/motherboards/abcat0507008.c?id=abcat0507008",
+    "url2-CPU": "https://www.bestbuy.com/site/fans-cooling-kits/cpu-fans-heatsinks/pcmcat339900050006.c?id=pcmcat339900050006",
+    "url3-waterCooling": "https://www.bestbuy.com/site/fans-cooling-kits/water-cooling/pcmcat339900050008.c?id=pcmcat339900050008"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "laptop",
+    "url": "https://www.bestbuy.com/site/laptop-computers/all-laptops/pcmcat138500050001.c?id=pcmcat138500050001#"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "desktop",
+    "url": "https://www.bestbuy.com/site/desktop-computers/all-desktops/pcmcat143400050013.c?id=pcmcat143400050013"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "mobile",
+    "url": "https://www.bestbuy.com/site/electronics/mobile-cell-phones/abcat0800000.c?id=abcat0800000"
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "peripheral",
+    "url": "https://www.bestbuy.com/site/desktop-computers/all-desktops/pcmcat143400050013.c?id=pcmcat143400050013"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "GPU",
+    "url": "https://www.ultrapc.ma/39-cartes-graphiques"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "CPU",
+    "url": "https://www.ultrapc.ma/21-processeurs"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "RAM",
+    "url": "https://www.ultrapc.ma/35-memoire-vive-pc"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "SSD",
+    "url": "https://www.ultrapc.ma/139-disques-ssd"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "HDD",
+    "url": "https://www.ultrapc.ma/138-disques-durs-internes"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Monitor",
+    "url": "https://www.ultrapc.ma/62-moniteurs"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Keyboard",
+    "url": "https://www.ultrapc.ma/95-claviers"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Mouse",
+    "url": "https://www.ultrapc.ma/96-souris"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "PSU",
+    "url": "https://www.ultrapc.ma/43-alimentations-pc"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Case",
+    "url": "https://www.ultrapc.ma/48-boitier-pc"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Cooling",
+    "url": ""
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Motherboard",
+    "url": "https://www.ultrapc.ma/28-cartes-meres"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Laptop",
+    "url": "https://www.ultrapc.ma/19-pc-portables"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Desktop",
+    "url": "https://www.ultrapc.ma/12-pc-pro"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Mobile",
+    "url": ""
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Peripheral",
+    "url": "https://www.ultrapc.ma/58-peripheriques"
+  },
+  {
+    "scraper": "ultrapc",
+    "category": "Other",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "GPU",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "CPU",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "RAM",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "SSD",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "HDD",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Monitor",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Keyboard",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Mouse",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "PSU",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Case",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Cooling",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Motherboard",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Laptop",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Desktop",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Mobile",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Peripheral",
+    "url": ""
+  },
+  {
+    "scraper": "materielnet",
+    "category": "Other",
+    "url": ""
+  },
+  {
+    "scraper": "jumia",
+    "category": "GPU",
+    "url": ""
+  },
+  {
+    "scraper": "pc21",
+    "category": "GPU",
+    "url": ""
   },
   {
     "scraper": "newegg",
-    "category": "cpu",
-    "url": "https://www.newegg.com/Processors-Desktops/SubCategory/ID-343"
+    "category": "GPU",
+    "url": ""
+  },
+  {
+    "scraper": "bestbuy",
+    "category": "GPU",
+    "url": ""
   }
 ]
