@@ -12,3 +12,6 @@ pandas==2.1.4
 # Data validation — DAGs will validate records against our data model
 # defined in the Data Model Specification before any write
 pydantic==2.6.3
+
+# Docker provider for triggering the scraper container
+apache-airflow-providers-docker==3.12.0
