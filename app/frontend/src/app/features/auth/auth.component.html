@@ -1,0 +1,247 @@
+<div class="auth-wrapper">
+  <!-- Immersive Background -->
+  <div class="background-orbs">
+    <div class="orb blue"></div>
+    <div class="orb purple"></div>
+    <div class="orb teal"></div>
+  </div>
+
+  <div class="floating-icons-layer">
+    <svg *ngFor="let icon of floatingIcons" 
+         class="floating-icon" 
+         [style.left.%]="icon.x" 
+         [style.top.%]="icon.y"
+         [style.width.px]="icon.size" 
+         [style.height.px]="icon.size"
+         [style.animation-duration]="icon.duration + 's'"
+         [style.animation-delay]="-icon.delay + 's'"
+         [style.opacity]="icon.opacity"
+         [style.color]="icon.color"
+         viewBox="0 0 24 24" 
+         fill="currentColor">
+      <path [attr.d]="icon.path"></path>
+    </svg>
+  </div>
+
+  <!-- Form Card -->
+  <div class="auth-card" [@crossFade]="mode">
+    <div class="card-header">
+      <div class="logo" routerLink="/">
+        PulsePrice<span class="logo-dot">.</span>
+      </div>
+      <div class="divider"></div>
+    </div>
+
+    <!-- SUCCESS STATE -->
+    <div *ngIf="mode === 'success'" class="success-state" [@fadeSlideUp]>
+      <div class="checkmark-wrapper">
+        <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+          <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+          <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+        </svg>
+      </div>
+      <h2>You're in!</h2>
+      <p>Taking you to your dashboard...</p>
+    </div>
+
+    <!-- MAIN FORM MODES -->
+    <div *ngIf="mode !== 'success'" class="card-body">
+      
+      <!-- Greeting -->
+      <div class="greeting" [@fadeSlideUp]>
+        <h2 *ngIf="mode === 'login'">Good to see you again <span class="wave">👋</span></h2>
+        <h2 *ngIf="mode === 'signup' && signupStep === 1">Welcome to PulsePrice</h2>
+        <h2 *ngIf="mode === 'signup' && signupStep === 2">Almost there!</h2>
+        <h2 *ngIf="mode === 'forgot'">Reset password</h2>
+
+        <p *ngIf="mode === 'login'">Log in and pick up where you left off.</p>
+        <p *ngIf="mode === 'signup' && signupStep === 1">Let's set up your free account in 2 minutes.</p>
+        <p *ngIf="mode === 'signup' && signupStep === 2">Fill in your details to get started.</p>
+        <p *ngIf="mode === 'forgot'">Enter your email and we'll send you a reset link.</p>
+      </div>
+
+      <!-- Google Button (Prominent & First) -->
+      <div *ngIf="mode !== 'forgot'" class="social-auth" [@fadeSlideUp]>
+        <button class="btn-google" (click)="loginWithGoogle()" [disabled]="isGoogleLoading">
+          <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.16v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.16C1.43 8.55 1 10.22 1 12s.43 3.45 1.16 4.93l3.68-2.84z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.16 7.07l3.68 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+          </svg>
+          <span *ngIf="!isGoogleLoading">Continue with Google</span>
+          <span class="spinner dark" *ngIf="isGoogleLoading"></span>
+        </button>
+        <div class="divider-text"><span>or continue with email</span></div>
+      </div>
+
+      <!-- SIGNUP STEP 1: Account Selection -->
+      <div *ngIf="mode === 'signup' && signupStep === 1" [@fadeSlideUp]>
+        <div class="account-cards">
+          <div class="account-card" [class.selected]="accountType === 'BUYER'" (click)="selectAccountType('BUYER')">
+            <div class="card-icon shopper">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+            </div>
+            <div class="card-text">
+              <h3>I'm a Shopper</h3>
+              <p>Find the best prices, track deals, get alerts.</p>
+            </div>
+            <div class="check-badge" *ngIf="accountType === 'BUYER'">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+          </div>
+
+          <div class="account-card" [class.selected]="accountType === 'BUSINESS'" (click)="selectAccountType('BUSINESS')">
+            <div class="card-icon business">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+            </div>
+            <div class="card-text">
+              <h3>I'm a Reseller</h3>
+              <p>Track competitors, protect margins, export data.</p>
+            </div>
+            <div class="check-badge" *ngIf="accountType === 'BUSINESS'">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn-primary w-full mt-8" [disabled]="!accountType" (click)="continueToStep2()">
+          Continue &rarr;
+        </button>
+      </div>
+
+      <!-- SIGNUP STEP 2: Form -->
+      <div *ngIf="mode === 'signup' && signupStep === 2" [@fadeSlideUp]>
+        <div class="account-type-summary">
+          <span class="type-badge" [class.business]="accountType === 'BUSINESS'">
+            {{ accountType === 'BUSINESS' ? 'Business Account' : 'Shopper Account' }}
+          </span>
+          <button (click)="signupStep = 1" class="btn-link">Change</button>
+        </div>
+
+        <form [formGroup]="signupForm" (ngSubmit)="onSignup()">
+          <div class="form-group">
+            <input type="text" id="name" formControlName="name" placeholder=" " [class.invalid]="sf['name'].invalid && sf['name'].touched">
+            <label for="name">Full name</label>
+            <div class="error-msg" *ngIf="sf['name'].invalid && sf['name'].touched" [@errorFade]>
+              Name is required
+            </div>
+          </div>
+
+          <div class="form-group">
+            <input type="email" id="s-email" formControlName="email" placeholder=" " [class.invalid]="sf['email'].invalid && sf['email'].touched">
+            <label for="s-email">Email address</label>
+            <div class="error-msg" *ngIf="sf['email'].invalid && sf['email'].touched" [@errorFade]>
+              Valid email is required
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="input-wrapper">
+              <input [type]="showPassword ? 'text' : 'password'" id="s-pass" formControlName="password" placeholder=" " [class.invalid]="sf['password'].invalid && sf['password'].touched">
+              <label for="s-pass">Password</label>
+              <button type="button" class="btn-icon" (click)="togglePasswordVisibility('password')">
+                <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+              </button>
+            </div>
+            <div class="password-strength">
+              <div class="strength-bars">
+                <div class="bar" *ngFor="let i of [0,1,2,3]" [style.background-color]="getStrengthColor(i)"></div>
+              </div>
+              <span class="strength-label" [style.color]="getStrengthColor(getPasswordStrength()-1)">
+                {{ getStrengthLabel() }}
+              </span>
+            </div>
+            <div class="error-msg" *ngIf="sf['password'].invalid && sf['password'].touched" [@errorFade]>
+              Min 8 chars with at least one number
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="input-wrapper">
+              <input [type]="showConfirmPassword ? 'text' : 'password'" id="s-confirm" formControlName="confirmPassword" placeholder=" " [class.invalid]="signupForm.errors?.['mismatch'] && sf['confirmPassword'].touched">
+              <label for="s-confirm">Confirm password</label>
+              <button type="button" class="btn-icon" (click)="togglePasswordVisibility('confirm')">
+                <svg *ngIf="!showConfirmPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                <svg *ngIf="showConfirmPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+              </button>
+            </div>
+            <div class="error-msg" *ngIf="signupForm.errors?.['mismatch'] && sf['confirmPassword'].touched" [@errorFade]>
+              Passwords must match
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary mt-4" [disabled]="signupForm.invalid || isSubmitting">
+            <span class="spinner" *ngIf="isSubmitting"></span>
+            <span *ngIf="!isSubmitting">Create my account &rarr;</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- LOGIN FORM -->
+      <div *ngIf="mode === 'login'" [@fadeSlideUp]>
+        <form [formGroup]="loginForm" (ngSubmit)="onLogin()">
+          <div class="form-group">
+            <input type="email" id="l-email" formControlName="email" placeholder=" " [class.invalid]="lf['email'].invalid && lf['email'].touched">
+            <label for="l-email">Email address</label>
+            <div class="error-msg" *ngIf="lf['email'].invalid && lf['email'].touched" [@errorFade]>
+              Valid email is required
+            </div>
+          </div>
+
+          <div class="form-group">
+            <div class="input-wrapper">
+              <input [type]="showPassword ? 'text' : 'password'" id="l-pass" formControlName="password" placeholder=" " [class.invalid]="lf['password'].invalid && lf['password'].touched">
+              <label for="l-pass">Password</label>
+              <button type="button" class="btn-icon" (click)="togglePasswordVisibility('password')">
+                <svg *ngIf="!showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                <svg *ngIf="showPassword" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+              </button>
+            </div>
+            <div class="forgot-pwd">
+              <button type="button" class="btn-link" (click)="showForgotPassword()">Forgot password?</button>
+            </div>
+            <div class="error-msg" *ngIf="lf['password'].invalid && lf['password'].touched" [@errorFade]>
+              Password is required
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary mt-4" [disabled]="loginForm.invalid || isSubmitting">
+            <span class="spinner" *ngIf="isSubmitting"></span>
+            <span *ngIf="!isSubmitting">Log in &rarr;</span>
+          </button>
+        </form>
+      </div>
+
+      <!-- FORGOT PASSWORD -->
+      <div *ngIf="mode === 'forgot'" [@fadeSlideUp]>
+        <form [formGroup]="forgotForm" (ngSubmit)="onForgot()">
+          <div class="form-group">
+            <input type="email" id="f-email" formControlName="email" placeholder=" " [class.invalid]="forgotForm.get('email')?.invalid && forgotForm.get('email')?.touched">
+            <label for="f-email">Email address</label>
+            <div class="error-msg" *ngIf="forgotForm.get('email')?.invalid && forgotForm.get('email')?.touched" [@errorFade]>
+              Valid email is required
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary mt-4" [disabled]="forgotForm.invalid || isSubmitting">
+            <span class="spinner" *ngIf="isSubmitting"></span>
+            <span *ngIf="!isSubmitting">Send reset link</span>
+          </button>
+          
+          <button type="button" class="btn-outline w-full mt-4" (click)="switchMode('login')">
+            Back to login
+          </button>
+        </form>
+      </div>
+
+      <!-- Footer Links -->
+      <div class="card-footer" [@fadeSlideUp]>
+        <p *ngIf="mode === 'login'">Don't have an account? <a (click)="switchMode('signup')">Sign up free</a></p>
+        <p *ngIf="mode === 'signup'">Already have an account? <a (click)="switchMode('login')">Log in</a></p>
+      </div>
+
+    </div>
+  </div>
+</div>

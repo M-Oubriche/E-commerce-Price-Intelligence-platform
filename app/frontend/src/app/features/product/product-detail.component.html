@@ -1,0 +1,383 @@
+<app-public-navbar></app-public-navbar>
+
+<div class="product-page">
+  <!-- Breadcrumb -->
+  <div class="breadcrumb">
+    <a routerLink="/">Home</a>
+    <span>›</span>
+    <a [routerLink]="['/search']" [queryParams]="{category: product.category.toLowerCase()}">
+      {{ product.category }}
+    </a>
+    <span>›</span>
+    <span class="current">{{ product.name }}</span>
+  </div>
+
+  <div class="product-layout">
+    <!-- LEFT COLUMN -->
+    <div class="left-column">
+      <!-- 1. Product header -->
+      <div class="product-header card">
+        <div class="product-header-inner">
+          <div class="product-image-gallery">
+            <img [src]="product.image" [alt]="product.name" class="main-image" onerror="this.style.display='none'">
+            <div class="image-thumbnails">
+              <img *ngFor="let img of product.images" [src]="img" class="thumb" (click)="selectImage(img)" onerror="this.style.display='none'">
+            </div>
+          </div>
+          <div class="product-meta">
+            <div class="product-badges">
+              <span class="badge category-badge">{{ product.category }}</span>
+              <span class="badge brand-badge">{{ product.brand }}</span>
+              <span class="badge fake-badge" *ngIf="product.isFakeDeal">Fake deal detected</span>
+            </div>
+            <h1 class="product-title">{{ product.name }}</h1>
+            <div class="product-rating">
+              <span class="stars">★★★★☆</span>
+              <span class="rating-count">4.5 / 5 · 2,847 reviews</span>
+            </div>
+            <p class="product-description">{{ product.description }}</p>
+            <div class="product-specs">
+              <div class="spec-row" *ngFor="let spec of product.specs">
+                <span class="spec-label">{{ spec.label }}</span>
+                <span class="spec-value">{{ spec.value }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. Price comparison table -->
+      <div class="card price-table-section">
+        <div class="section-header">
+          <h2 class="section-title">Prices across all stores</h2>
+          <span class="section-sub">{{ product.storeCount }} stores · updated 3 hours ago</span>
+        </div>
+
+        <div class="price-table">
+          <div
+            class="price-row"
+            *ngFor="let store of product.stores; let i = index"
+            [class.best-price]="i === 0"
+            [class.worst-price]="i === product.stores.length - 1"
+          >
+            <div class="store-info">
+              <div class="store-rank">{{ i + 1 }}</div>
+              <div class="store-name-wrap">
+                <span class="store-name">{{ store.name }}</span>
+              </div>
+            </div>
+
+            <div class="store-availability">
+              <span class="in-stock" *ngIf="store.inStock">In stock</span>
+              <span class="out-stock" *ngIf="!store.inStock">Out of stock</span>
+            </div>
+
+            <div class="store-price-wrap">
+              <span class="store-price">{{ store.price | currency }}</span>
+              <span class="price-vs-week" [class.positive]="store.vsLastWeek < 0" [class.negative]="store.vsLastWeek > 0">
+                {{ store.vsLastWeek > 0 ? '+' : '' }}{{ store.vsLastWeek | currency }} vs last week
+              </span>
+            </div>
+
+            <div class="best-badge-wrap" *ngIf="i === 0">
+              <span class="best-price-badge">Best price</span>
+            </div>
+
+            <a [href]="store.url" target="_blank" class="buy-btn" [class.disabled]="!store.inStock">
+              Buy now →
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT STICKY PANEL -->
+    <div class="right-column">
+      <div class="sticky-panel">
+        <div class="card price-action-panel">
+          <h3 class="panel-product-name">{{ product.name }}</h3>
+
+          <div class="panel-price-block">
+            <span class="panel-price">{{ product.bestPrice | currency }}</span>
+            <span class="panel-store">on {{ product.bestStore }}</span>
+            <div class="panel-price-change" [class.down]="product.priceChange < 0" [class.up]="product.priceChange > 0">
+              {{ product.priceChange < 0 ? '↓' : '↑' }} {{ product.priceChange | currency }} vs last week
+            </div>
+          </div>
+
+          <div class="panel-score-pill" [class]="'score-' + scoreCategory">
+            Deal Score {{ product.dealScore }}/10 · {{ scoreLabel }}
+          </div>
+
+          <a [href]="product.bestStoreUrl" target="_blank" class="panel-buy-btn">
+            Buy now — {{ product.bestPrice | currency }} on {{ product.bestStore }} →
+          </a>
+
+          <div class="panel-divider"></div>
+
+          <div class="panel-alert-section">
+            <div *ngIf="!isLoggedIn && !showAlertModal">
+              <button class="panel-alert-btn" (click)="showAlertModal = true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                Set price alert
+              </button>
+            </div>
+
+            <div class="alert-inline-modal" *ngIf="!isLoggedIn && showAlertModal">
+              <p class="modal-title">Set a price alert</p>
+              <p class="modal-sub">Sign up free to get notified when this product drops to your target price.</p>
+              <div class="modal-price-input">
+                <span class="input-prefix">$</span>
+                <input type="number" [value]="suggestedAlertPrice" class="target-input" placeholder="Target price">
+              </div>
+              <a routerLink="/auth" [queryParams]="{mode: 'signup', returnUrl: currentUrl}" class="modal-signup-btn">Sign up to enable alerts →</a>
+              <a routerLink="/auth" [queryParams]="{mode: 'login', returnUrl: currentUrl}" class="modal-login-link">Already have an account? Log in</a>
+            </div>
+
+            <div *ngIf="isLoggedIn">
+              <button class="panel-alert-btn active" *ngIf="!alertSet" (click)="showAlertForm = !showAlertForm">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+                  <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+                </svg>
+                Set price alert
+              </button>
+              <div class="alert-set-confirm" *ngIf="alertSet">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                  <polyline points="20 6 9 17 4 12"/>
+                </svg>
+                Alert set for {{ alertTargetPrice | currency }}
+              </div>
+              <div class="alert-form" *ngIf="showAlertForm && !alertSet">
+                <div class="modal-price-input">
+                  <span class="input-prefix">$</span>
+                  <input type="number" [(ngModel)]="alertTargetPrice" class="target-input">
+                </div>
+                <button class="modal-signup-btn" (click)="createAlert()">Create alert</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel-divider"></div>
+
+          <button
+            class="panel-track-btn"
+            [class.tracking]="isTracking"
+            (click)="toggleTrack()"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+            </svg>
+            {{ isTracking ? 'Tracking ✓' : 'Track this product' }}
+          </button>
+
+          <div class="panel-divider"></div>
+
+          <div class="panel-trust">
+            <div class="trust-row">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Updated 3 hours ago</span>
+            </div>
+            <div class="trust-row">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>214 stores checked</span>
+            </div>
+            <div class="trust-row">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
+              <span>Price data verified</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Full width sections — outside the grid -->
+  <div class="full-width-section">
+    <!-- 3. Price history chart -->
+    <div class="card price-history-section">
+      <div class="section-header">
+        <h2 class="section-title">Price history</h2>
+        <div class="history-tabs">
+          <button
+            *ngFor="let tab of historyTabs"
+            class="history-tab"
+            [class.active]="activeTab === tab.label"
+            [class.locked]="tab.requiresAuth && !isLoggedIn"
+            (click)="selectTab(tab)"
+          >
+            <svg *ngIf="tab.requiresAuth && !isLoggedIn" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            {{ tab.label }}
+          </button>
+        </div>
+      </div>
+
+      <div class="chart-container" *ngIf="!isTabLocked">
+        <div class="chart-stats-row">
+          <div class="chart-stat">
+            <span class="chart-stat-label">Current</span>
+            <span class="chart-stat-value current">{{ product.currentPrice | currency }}</span>
+          </div>
+          <div class="chart-stat">
+            <span class="chart-stat-label">Lowest</span>
+            <span class="chart-stat-value low">{{ chartLowest | currency }}</span>
+          </div>
+          <div class="chart-stat">
+            <span class="chart-stat-label">Highest</span>
+            <span class="chart-stat-value high">{{ chartHighest | currency }}</span>
+          </div>
+          <div class="chart-stat">
+            <span class="chart-stat-label">Average</span>
+            <span class="chart-stat-value">{{ chartAverage | currency }}</span>
+          </div>
+        </div>
+
+        <div class="svg-chart-wrap">
+          <svg [attr.viewBox]="'0 0 600 180'" class="price-chart-svg" preserveAspectRatio="none">
+            <line *ngFor="let y of chartGridLines" [attr.x1]="0" [attr.y1]="y" [attr.x2]="600" [attr.y2]="y" class="grid-line"/>
+            <path [attr.d]="chartAreaPath" class="chart-area"/>
+            <path [attr.d]="chartLinePath" class="chart-line"/>
+            <g *ngFor="let point of chartPoints; let i = index">
+              <circle
+                [attr.cx]="point.x" [attr.cy]="point.y" r="4"
+                class="chart-point"
+                [class.lowest-point]="point.isLowest"
+                [class.highest-point]="point.isHighest"
+              />
+              <g *ngIf="point.isLowest">
+                <text [attr.x]="point.x" [attr.y]="point.y + 16" class="point-label lowest-label" text-anchor="middle">Lowest</text>
+                <text [attr.x]="point.x" [attr.y]="point.y + 28" class="point-label-value" text-anchor="middle">{{ point.price | currency }}</text>
+              </g>
+              <g *ngIf="point.isHighest">
+                <text [attr.x]="point.x" [attr.y]="point.y - 10" class="point-label highest-label" text-anchor="middle">Highest</text>
+                <text [attr.x]="point.x" [attr.y]="point.y - 22" class="point-label-value" text-anchor="middle">{{ point.price | currency }}</text>
+              </g>
+            </g>
+            <text *ngFor="let point of chartPoints" [attr.x]="point.x" y="170" class="date-label" text-anchor="middle">{{ point.date }}</text>
+          </svg>
+        </div>
+      </div>
+
+      <div class="chart-locked" *ngIf="isTabLocked">
+        <div class="locked-chart-bg">
+          <svg viewBox="0 0 600 180" class="blurred-chart">
+            <path d="M0 120 C100 100 200 60 300 80 C400 100 500 40 600 60" class="blurred-line"/>
+          </svg>
+        </div>
+        <div class="locked-content">
+          <div class="lock-icon-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+          </div>
+          <h3>Unlock full price history</h3>
+          <p>Sign up free to see {{ activeTab }} price history and spot the best time to buy.</p>
+          <div class="locked-actions">
+            <a routerLink="/auth" [queryParams]="{mode: 'signup', returnUrl: currentUrl}" class="btn-signup">Sign up free →</a>
+            <a routerLink="/auth" [queryParams]="{mode: 'login', returnUrl: currentUrl}" class="btn-login">Log in</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="full-width-section">
+    <!-- 4. Deal score section -->
+    <div class="card deal-score-section">
+      <h2 class="section-title" style="margin-bottom: 20px">Smart deal analysis</h2>
+
+      <div class="score-layout">
+        <div class="score-circle-wrap">
+          <svg viewBox="0 0 120 120" class="score-circle-svg">
+            <circle cx="60" cy="60" r="50" class="score-track"/>
+            <circle
+              cx="60" cy="60" r="50"
+              class="score-fill"
+              [attr.stroke]="scoreColor"
+              [style.strokeDasharray]="scoreDashArray"
+              [style.strokeDashoffset]="scoreDashOffset"
+            />
+          </svg>
+          <div class="score-center">
+            <span class="score-number">{{ product.dealScore }}</span>
+            <span class="score-max">/ 10</span>
+            <span class="score-label" [style.color]="scoreColor">{{ scoreLabel }}</span>
+          </div>
+        </div>
+
+        <div class="score-breakdown">
+          <div class="breakdown-row" *ngFor="let factor of scoreFactors">
+            <div class="breakdown-info">
+              <span class="breakdown-label">{{ factor.label }}</span>
+              <span class="breakdown-score" [style.color]="factor.color">{{ factor.score }}/10</span>
+            </div>
+            <div class="breakdown-bar">
+              <div class="breakdown-fill" [style.width]="(factor.score / 10 * 100) + '%'" [style.background]="factor.color"></div>
+            </div>
+            <p class="breakdown-desc">{{ factor.description }}</p>
+          </div>
+        </div>
+
+        <div class="deal-verdict">
+          <div class="verdict-card fake" *ngIf="product.isFakeDeal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            <div>
+              <strong>Fake discount detected</strong>
+              <p>This price was similar 30 days ago. The "discount" is misleading.</p>
+            </div>
+          </div>
+          <div class="verdict-card genuine" *ngIf="!product.isFakeDeal">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="20" height="20">
+              <polyline points="20 6 9 17 4 12"/>
+            </svg>
+            <div>
+              <strong>Genuine price drop</strong>
+              <p>Price history confirms this is a real discount vs the 90-day average.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="full-width-section">
+    <!-- 5. Similar products -->
+    <div class="card similar-section">
+      <div class="section-header">
+        <h2 class="section-title">Similar products</h2>
+        <a routerLink="/search" [queryParams]="{category: product.category}" class="see-all-link">See all →</a>
+      </div>
+
+      <div class="similar-grid">
+        <div
+          class="similar-card"
+          *ngFor="let similar of similarProducts"
+          [routerLink]="['/product', similar.id]"
+        >
+          <div class="similar-img-wrap">
+            <img [src]="similar.image" [alt]="similar.name" onerror="this.style.display='none'">
+            <span class="similar-score" [class]="similar.dealScore >= 8 ? 'score-high' : 'score-mid'">
+              {{ similar.dealScore }}
+            </span>
+          </div>
+          <div class="similar-info">
+            <span class="similar-category">{{ similar.category }}</span>
+            <span class="similar-name">{{ similar.name }}</span>
+            <span class="similar-price">{{ similar.bestPrice | currency }}</span>
+            <span class="similar-store">from {{ similar.store }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
