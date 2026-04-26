@@ -1,0 +1,517 @@
+:root {
+  /* Landing Page Aligned Palette */
+  --main-bg: #0A0F1E;
+  --sidebar-bg: #111827;
+  --panel-bg: #1A2235;
+  --card-bg: #1A2235;
+  
+  --accent-purple: #7C3AED;
+  --accent-purple-light: rgba(124, 58, 237, 0.15);
+  --accent-blue: #3B82F6;
+  --accent-blue-light: rgba(59, 130, 246, 0.15);
+  
+  --text-primary: #F8FAFC;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  
+  --border: #1E293B;
+  --border-light: rgba(255, 255, 255, 0.05);
+}
+
+/* Global Styles */
+body {
+  margin: 0;
+  background-color: var(--main-bg);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255, 255, 255, 0.2); }
+
+.main-content::-webkit-scrollbar { width: 6px; }
+.main-content::-webkit-scrollbar-track { background: transparent; }
+.main-content::-webkit-scrollbar-thumb { background: rgba(124, 58, 237, 0.2); border-radius: 3px; }
+
+// ══════════════════════════════════════
+// LIGHT MODE OVERRIDES
+// ══════════════════════════════════════
+
+// Global CSS variable overrides — all components using var() will inherit these
+html.light-mode {
+  --main-bg: #FAFAF8;
+  --sidebar-bg: #F5F4F0;
+  --panel-bg: #FFFFFF;
+  --card-bg: #FFFFFF;
+  --panel-border: #E8E6E0;
+
+  // Surfaces (used by navbar, dropdowns, hover states)
+  --bg-primary: #FAFAF8;
+  --bg-secondary: #F5F4F0;
+  --bg-card: #FFFFFF;
+  --bg-elevated: #F5F4F0;
+  --bg-hover: #EEECEA;
+
+  // Accents
+  --accent-purple: #7C3AED;
+  --accent-purple-light: rgba(124, 58, 237, 0.1);
+  --accent-blue: #1D3461;
+  --accent-blue-light: rgba(29, 52, 97, 0.08);
+  --accent-green: #1A7F5A;
+  --accent-amber: #C17D0E;
+  --accent-red: #D93025;
+  --accent-red-light: rgba(217, 48, 37, 0.08);
+
+  // Text
+  --text-primary: #1C1C1E;
+  --text-secondary: #6B6B6B;
+  --text-muted: #9E9E9E;
+
+  // Borders
+  --border: #E8E6E0;
+  --border-mid: #D4D0C8;
+  --border-light: rgba(0, 0, 0, 0.05);
+
+  // Shadows
+  --shadow-hover: 0 8px 32px rgba(0, 0, 0, 0.1);
+
+  // Scrollbar
+  ::-webkit-scrollbar-thumb { background: rgba(0, 0, 0, 0.12); }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0, 0, 0, 0.2); }
+
+  // Body background
+  background-color: #FAFAF8;
+  color: #1C1C1E;
+}
+
+html.light-mode .navbar {
+  background: #FFFFFF !important;
+  border-bottom: 1px solid #E8E6E0 !important;
+
+  // Logo — "Pulse" is brand navy, "Price" is dark readable
+  .logo-pulse { color: #1D3461 !important; }
+  .logo-price { color: #1C1C1E !important; }
+
+  // Search bar — warm beige, never dark
+  .search-bar,
+  input[type="text"],
+  .nav-search,
+  .search-input-wrap input {
+    background: #F5F4F0 !important;
+    border: 1px solid #E8E6E0 !important;
+    color: #1C1C1E !important;
+    &::placeholder { color: #9E9E9E !important; }
+  }
+
+  // Search icon
+  .search-icon, .search-ico { color: #9E9E9E !important; }
+
+  // Nav links
+  .nav-links a {
+    color: #6B6B6B !important;
+    &:hover { color: #1C1C1E !important; }
+  }
+
+  // Theme toggle button
+  .theme-btn {
+    background: #F5F4F0 !important;
+    border-color: #E8E6E0 !important;
+    svg { color: #6B6B6B !important; }
+    &:hover { background: #EEECEA !important; svg { color: #1C1C1E !important; } }
+  }
+
+  // Log in button
+  .btn-ghost {
+    color: #1C1C1E !important;
+    border-color: #E8E6E0 !important;
+    background: transparent !important;
+    &:hover { background: #F5F4F0 !important; }
+  }
+
+  // Get started free button
+  .btn-primary {
+    background: #1D3461 !important;
+    color: #FFFFFF !important;
+    border: none !important;
+    &:hover { background: #162850 !important; }
+  }
+
+  // Scrolled state
+  &.scrolled {
+    background: rgba(255,255,255,0.97) !important;
+    backdrop-filter: blur(12px) !important;
+    border-bottom-color: #E8E6E0 !important;
+  }
+
+  // Mobile hamburger
+  .hamburger,
+  .hamburger::before,
+  .hamburger::after { background: #1C1C1E !important; }
+
+  // User avatar dropdown text
+  .dashboard-text { color: #1C1C1E !important; }
+}
+
+// Mobile drawer
+html.light-mode .mobile-drawer {
+  background: #FFFFFF !important;
+  border-left-color: #E8E6E0 !important;
+  .drawer-links a { color: #1C1C1E !important; }
+  .drawer-divider { border-color: #E8E6E0 !important; }
+  .mobile-signup-btn { color: #1D3461 !important; }
+}
+
+// HERO SECTION
+html.light-mode .hero-section {
+  background: #FAFAF8 !important;
+
+  // Main headline — darkest color for maximum impact
+  h1 { color: #1C1C1E !important; }
+  .text-gradient {
+    background: linear-gradient(135deg, #1D3461, #7C3AED) !important;
+    -webkit-background-clip: text !important;
+    background-clip: text !important;
+    -webkit-text-fill-color: transparent !important;
+  }
+
+  // Subtitle — secondary gray, readable but not competing with headline
+  .subheadline { color: #6B6B6B !important; }
+
+  // CTA buttons
+  .btn-primary.btn-lg {
+    background: #1D3461 !important;
+    color: #FFFFFF !important;
+    &:hover { background: #162850 !important; }
+  }
+  .btn-ghost.btn-lg {
+    color: #1C1C1E !important;
+    border-color: #E8E6E0 !important;
+    &:hover { background: #F5F4F0 !important; }
+  }
+
+  // Search mockup — white card on beige background
+  .search-mockup {
+    background: #FFFFFF !important;
+    border-color: #E8E6E0 !important;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.06) !important;
+  }
+  .mock-search-bar {
+    background: #F5F4F0 !important;
+    border-color: #E8E6E0 !important;
+    .typewriter-text { color: #1C1C1E !important; }
+    .type-cursor { color: #1D3461 !important; }
+    .search-ico { color: #1D3461 !important; }
+  }
+  .result-card {
+    background: #FFFFFF !important;
+    border-color: #E8E6E0 !important;
+    .store { color: #6B6B6B !important; }
+    .price { color: #1C1C1E !important; }
+    &.best {
+      background: #F0FAF5 !important;
+      border-color: #1A7F5A !important;
+    }
+  }
+  .best-badge { background: #1A7F5A !important; }
+
+  // Floating product cards
+  .product-card {
+    background: #FFFFFF !important;
+    border-color: #E8E6E0 !important;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.08) !important;
+    h4 { color: #1C1C1E !important; }
+  }
+
+  // Floating background icons — barely visible
+  .floating-icons .floating-icon { opacity: 0.04 !important; color: #1D3461 !important; }
+}
+
+// TRUST BAR
+html.light-mode .trust-bar {
+  background: #F5F4F0 !important;
+  border-color: #E8E6E0 !important;
+  .names-track span { color: #9E9E9E !important; opacity: 1 !important; }
+  .tracked-label { color: #1D3461 !important; font-weight: 700 !important; }
+}
+
+// FEATURES SECTION
+html.light-mode .features-section {
+  background: #FAFAF8 !important;
+  .section-title { color: #1C1C1E !important; }
+}
+html.light-mode .feature-card {
+  background: #FFFFFF !important;
+  border-color: #E8E6E0 !important;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.05) !important;
+  .feature-icon {
+    background: rgba(29,52,97,0.08) !important;
+    svg { color: #1D3461 !important; }
+  }
+  h3 { color: #1C1C1E !important; }
+  p { color: #6B6B6B !important; }
+  &:hover { border-color: #1D3461 !important; box-shadow: 0 8px 24px rgba(29,52,97,0.1) !important; }
+}
+
+// HOW IT WORKS
+html.light-mode .how-section {
+  background: #FAFAF8 !important;
+  .section-title { color: #1C1C1E !important; }
+  .step-num { background: #1D3461 !important; color: #FFFFFF !important; }
+  .step-item {
+    h3 { color: #1C1C1E !important; }
+    p { color: #6B6B6B !important; }
+    &::after { border-top-color: #E8E6E0 !important; }
+  }
+}
+
+// CATEGORIES
+html.light-mode .categories-section {
+  background: #FAFAF8 !important;
+  .section-title { color: #1C1C1E !important; }
+}
+html.light-mode .category-card {
+  background: #FFFFFF !important;
+  border-color: #E8E6E0 !important;
+  .cat-name { color: #1C1C1E !important; }
+  &:hover { border-color: #1D3461 !important; transform: translateY(-4px); }
+}
+
+// DATA FRESHNESS BANNER
+html.light-mode .data-fresness-banner {
+  background: #F0FAF5 !important;
+  border-color: #D0EDE0 !important;
+  .fresh-item {
+    color: #1C1C1E !important;
+    .check-ico { color: #1A7F5A !important; }
+  }
+}
+
+// TESTIMONIALS
+html.light-mode .testimonials-section {
+  background: #F5F4F0 !important;
+  .section-title { color: #1C1C1E !important; }
+}
+html.light-mode .testimonial-card {
+  background: #FFFFFF !important;
+  border-left-color: #1D3461 !important;
+  .stars { color: #C17D0E !important; }
+  .quote { color: #1C1C1E !important; }
+  .author-name { color: #1C1C1E !important; }
+  .author-role { color: #6B6B6B !important; }
+  .author-avatar { background: #1D3461 !important; }
+}
+
+// FAQ
+html.light-mode .faq-section {
+  background: #FAFAF8 !important;
+  .section-title { color: #1C1C1E !important; }
+}
+html.light-mode .faq-item {
+  border-bottom-color: #E8E6E0 !important;
+  .faq-header h3 { color: #1C1C1E !important; }
+  .faq-header:hover h3 { color: #1D3461 !important; }
+  .chevron { color: #6B6B6B !important; }
+  &.open .chevron { color: #1D3461 !important; }
+  .faq-body p { color: #6B6B6B !important; }
+}
+
+// ENTREPRENEURS SECTION
+html.light-mode .biz-section { background: #F5F4F0 !important; }
+html.light-mode .biz-card {
+  background: #FFFFFF !important;
+  border-color: rgba(29,52,97,0.2) !important;
+  .biz-title { color: #1C1C1E !important; }
+  .biz-subtitle { color: #6B6B6B !important; }
+  .biz-feature h4 { color: #1C1C1E !important; }
+  .biz-feature p { color: #6B6B6B !important; }
+  .btn-primary { background: #1D3461 !important; color: #FFFFFF !important; }
+}
+
+// STATS BAR
+html.light-mode .stats-bar {
+  background: #FAFAF8 !important;
+  border-color: #E8E6E0 !important;
+  .stat-num { color: #1D3461 !important; }
+  .stat-label { color: #6B6B6B !important; }
+}
+
+// FINAL CTA
+html.light-mode .final-cta-section {
+  background: #FFFFFF !important;
+  h2 { color: #1C1C1E !important; }
+  .btn-primary { background: #1D3461 !important; color: #FFFFFF !important; }
+  .cta-muted { color: #6B6B6B !important; }
+  .cta-glow { background: radial-gradient(circle, rgba(29,52,97,0.06) 0%, transparent 70%) !important; }
+}
+
+// FOOTER
+html.light-mode .footer {
+  background: #F5F4F0 !important;
+  border-top-color: #E8E6E0 !important;
+  .logo-pulse { color: #1D3461 !important; }
+  .logo-price { color: #1C1C1E !important; }
+  .tagline { color: #6B6B6B !important; }
+  .footer-col h4 { color: #1C1C1E !important; }
+  .footer-col a { color: #6B6B6B !important; &:hover { color: #1D3461 !important; } }
+  .footer-bottom { border-top-color: #E8E6E0 !important; p { color: #9E9E9E !important; } }
+}
+
+// DASHBOARD TOPBAR
+html.light-mode .topbar {
+  background: #FFFFFF !important;
+  border-bottom: 1px solid #E8E6E0 !important;
+  .topbar-title { color: #1C1C1E !important; }
+  input {
+    background: #F5F4F0 !important;
+    border-color: #E8E6E0 !important;
+    color: #1C1C1E !important;
+    &::placeholder { color: #9E9E9E !important; }
+    &:focus { border-color: #1D3461 !important; background: #FFFFFF !important; }
+  }
+  .search-icon, svg { color: #9E9E9E !important; }
+  .topbar-icon-btn {
+    background: #F5F4F0 !important;
+    border-color: #E8E6E0 !important;
+    svg { color: #6B6B6B !important; }
+    &:hover { background: #EEECEA !important; }
+  }
+  .topbar-avatar { border-color: #E8E6E0 !important; }
+}
+
+// DASHBOARD MAIN + ALL PAGES
+html.light-mode .main-content { background: #FAFAF8 !important; }
+
+// All cards universally
+html.light-mode {
+  .bento-panel, .panel-drops, .panel-alerts, .panel-deals,
+  .insights-section, .recent-section, .search-zone,
+  .impact-strip, .alert-card, .product-card,
+  .settings-section, .card, .sidebar-widget,
+  .deal-card, .featured-hero, .notif-dropdown,
+  .alert-drawer {
+    background: #FFFFFF !important;
+    border-color: #E8E6E0 !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05) !important;
+  }
+
+  // Secondary surfaces inside cards
+  .spec-row, .price-row, .drop-row:hover,
+  .insight-card, .recent-card, .similar-card,
+  .chart-stat, .svg-chart-wrap, .breakdown-bar,
+  .mode-tab, .condition-card, .drawer-input,
+  .cat-card, .form-group input, .topbar-search input {
+    background: #F5F4F0 !important;
+    border-color: #E8E6E0 !important;
+  }
+
+  // All primary text in dashboard
+  .product-name, .drop-name, .alert-name,
+  .insight-product, .recent-name, .panel-product-name,
+  .store-name, .section-title h1, .section-title h2,
+  .breakdown-label, .product-title, h1, h2, h3, h4 {
+    color: #1C1C1E !important;
+  }
+
+  // All secondary text in dashboard
+  .drop-cat, .alert-condition, .insight-message,
+  .recent-store, .store-shipping, .panel-store,
+  .trust-row, .breakdown-desc, .product-description,
+  p, .section-sub {
+    color: #6B6B6B !important;
+  }
+
+  // All muted labels
+  .panel-title, .widget-title, .product-category,
+  .recent-category, .chart-stat-label, .spec-label {
+    color: #9E9E9E !important;
+  }
+
+  // All prices — forest green
+  .drop-price, .product-price, .similar-price,
+  .deal-price, .panel-price, .recent-price,
+  .store-price, .current-price { color: #1A7F5A !important; }
+
+  // All accent links and actions
+  .panel-action, .card-link, .manage-link,
+  .section-clear, .insight-link, .see-all-link { color: #1D3461 !important; }
+
+  // All primary buttons
+  .btn-primary, .panel-buy-btn, .modal-signup-btn,
+  .create-btn, .drawer-submit, .search-btn {
+    background: #1D3461 !important;
+    color: #FFFFFF !important;
+    &:hover { background: #162850 !important; }
+  }
+
+  // Filter pills
+  .filter-pill, .pill, .tab:not(.active), .history-tab:not(.active) {
+    background: #FFFFFF !important;
+    border-color: #E8E6E0 !important;
+    color: #6B6B6B !important;
+  }
+  .filter-pill.active, .pill.active, .tab.active, .history-tab.active {
+    background: #1D3461 !important;
+    border-color: #1D3461 !important;
+    color: #FFFFFF !important;
+  }
+
+  // Progress bars
+  .progress-track, .breakdown-bar { background: #E8E6E0 !important; }
+
+  // Borders and dividers
+  .panel-divider, .card-footer, .notif-header,
+  .toggle-row, .faq-item { border-color: #E8E6E0 !important; }
+
+  // Drop price tags
+  .drop-tag, .price-change.down {
+    background: #F0FAF5 !important;
+    color: #1A7F5A !important;
+  }
+
+  // Best price row
+  .price-row.best-price {
+    background: #F0FAF5 !important;
+    border-left-color: #1A7F5A !important;
+  }
+}
+
+// CINEMATIC THEME SWITCHING (Modern Browsers)
+// This uses the View Transition API for a cinematic cross-fade effect
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.45s;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+::view-transition-old(root) {
+  mix-blend-mode: plus-lighter; // Creates a magical glow effect during the switch
+}
+
+::view-transition-new(root) {
+  mix-blend-mode: normal;
+}
+
+// SMOOTH THEME SWITCHING (Fallback)
+// This class is added temporarily via ThemeService when the toggle is clicked
+html.theme-transitioning * {
+  transition: background-color 0.45s cubic-bezier(0.4, 0, 0.2, 1), 
+              border-color 0.45s cubic-bezier(0.4, 0, 0.2, 1), 
+              color 0.45s cubic-bezier(0.4, 0, 0.2, 1), 
+              box-shadow 0.45s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+// Ensure media and certain heavy elements don't transition to prevent flickering/jank
+html.theme-transitioning img,
+html.theme-transitioning svg,
+html.theme-transitioning video,
+html.theme-transitioning iframe,
+html.theme-transitioning .floating-icon,
+html.theme-transitioning .avatar-circle,
+html.theme-transitioning canvas,
+html.theme-transitioning .logo {
+  transition: none !important;
+}

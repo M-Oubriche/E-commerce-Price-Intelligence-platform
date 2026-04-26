@@ -1,0 +1,106 @@
+@import 'variables';
+@import 'typography';
+
+// 1. Core Reset & Base
+*, *::before, *::after {
+  box-sizing: border-box;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: $font-sans;
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-x: hidden;
+  
+  // Refined Scrollbar
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 3px;
+    &:hover {
+      background: var(--accent-blue);
+    }
+  }
+}
+
+// 2. Architectural Grid Utilities
+.border-outline {
+  border: 1px solid var(--border);
+}
+
+.border-bottom {
+  border-bottom: 1px solid var(--border);
+}
+
+.border-top {
+  border-top: 1px solid var(--border);
+}
+
+// 3. Layout Utilities
+.container-fluid {
+  padding-left: clamp($space-lg, 5vw, $space-2xl);
+  padding-right: clamp($space-lg, 5vw, $space-2xl);
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+// 4. Visual Utilities
+.shadow-sm { box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+.shadow-md { box-shadow: 0 4px 16px rgba(0,0,0,0.3); }
+.shadow-lg { box-shadow: var(--shadow-card); }
+.shadow-float { box-shadow: var(--shadow-hover); }
+
+// Global Interaction
+button, a, .clickable {
+  transition: var(--ease) 150ms;
+  cursor: pointer;
+  
+  &:active {
+    transform: scale(0.97);
+  }
+}
+
+.card, .interactive-card {
+  transition: var(--ease) 200ms;
+  &:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.icon-btn:active {
+  transform: scale(0.92);
+}
+
+// Skeleton Shimmer
+@keyframes shimmer {
+  0% { background-position: -468px 0; }
+  100% { background-position: 468px 0; }
+}
+
+.skeleton {
+  background: var(--bg-elevated);
+  background-image: linear-gradient(to right, var(--bg-elevated) 0%, var(--bg-hover) 20%, var(--bg-elevated) 40%, var(--bg-elevated) 100%);
+  background-repeat: no-repeat;
+  background-size: 800px 104px;
+  display: inline-block;
+  position: relative;
+  animation: shimmer 1.5s infinite linear;
+}
+
+.muted { color: var(--text-secondary); }
+.highlight { color: var(--accent-blue); font-weight: 500; }

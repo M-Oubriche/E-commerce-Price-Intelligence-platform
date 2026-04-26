@@ -1,0 +1,385 @@
+<!-- NAVBAR -->
+<app-public-navbar></app-public-navbar>
+
+<main>
+  <!-- HERO SECTION -->
+  <section class="hero-section">
+    <div class="floating-icons" aria-hidden="true">
+      <svg
+        *ngFor="let icon of floatingIcons"
+        [attr.viewBox]="icon.viewBox"
+        [style.width.px]="icon.size"
+        [style.height.px]="icon.size"
+        [style.left.vw]="icon.x"
+        [style.top.vh]="icon.y"
+        [style.opacity]="icon.opacity"
+        [style.color]="icon.color"
+        [style.animationDuration]="icon.duration + 's'"
+        [style.animationDelay]="icon.delay + 's'"
+        class="floating-icon"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.5"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <g [innerHTML]="icon.svg | safeHtml"></g>
+      </svg>
+    </div>
+
+    <div class="container hero-grid">
+      <div class="hero-text" appScrollReveal>
+        <h1>Stop Overpaying for<br><span class="text-gradient">Electronics.</span></h1>
+        <p class="subheadline">
+          The smartest way to buy electronics. Compare 200+ stores instantly, expose fake deals, and never miss a price drop.
+        </p>
+
+        <div class="hero-actions">
+          <a routerLink="/deals" class="btn-primary btn-lg">Start Saving Now</a>
+          <button (click)="scrollToSection('how-it-works')" class="btn-ghost btn-lg">How it works</button>
+        </div>
+
+        <!-- Search Mockup -->
+        <div class="search-mockup">
+          <div class="mock-search-bar">
+            <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <span class="typewriter-text">{{ typewriterText }}<span class="type-cursor">|</span></span>
+          </div>
+
+          <!-- Results wrapper with fixed height to prevent layout shift -->
+          <div class="mock-results-wrapper">
+            <div class="mock-results" *ngIf="showStoreCards" @staggerFade>
+              <div class="stagger-item result-card">
+                <span class="store">Amazon</span>
+                <span class="price">$999</span>
+              </div>
+              <div class="stagger-item result-card best">
+                <span class="store">eBay</span>
+                <span class="price">$949</span>
+                <div class="best-badge">Best Price</div>
+              </div>
+              <div class="stagger-item result-card">
+                <span class="store">Jumia</span>
+                <span class="price">$1050</span>
+              </div>
+              <div class="stagger-item result-card">
+                <span class="store">AliExpress</span>
+                <span class="price">$980</span>
+              </div>
+            </div>
+            <!-- Invisible placeholder reserves space before cards appear -->
+            <div class="mock-results mock-results-placeholder" *ngIf="!showStoreCards" aria-hidden="true">
+              <div class="result-card placeholder-card"></div>
+              <div class="result-card placeholder-card"></div>
+              <div class="result-card placeholder-card"></div>
+              <div class="result-card placeholder-card"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="hero-visuals desktop-only">
+        <!-- Real Search Bar - Now positioned on the right -->
+        <div class="hero-search-wrapper">
+          <div class="hero-search-bar" [class.focused]="isFocused" [class.has-results]="suggestions.length > 0">
+            <div class="search-inner">
+              <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+              </svg>
+              <input
+                #searchInput
+                type="text"
+                [(ngModel)]="searchQuery"
+                (input)="onSearchInput()"
+                (keydown.enter)="onSearchSubmit()"
+                (focus)="isFocused = true"
+                (blur)="onBlur()"
+                placeholder="Search for any electronics..."
+                autocomplete="off"
+              />
+              <button
+                *ngIf="searchQuery.length > 0"
+                class="clear-btn"
+                (click)="clearSearch()"
+              >✕</button>
+              <button class="search-submit-btn" (click)="onSearchSubmit()">
+                Search
+              </button>
+            </div>
+
+            <!-- Dropdown suggestions -->
+            <div class="suggestions-dropdown" *ngIf="suggestions.length > 0 && isFocused">
+              <div class="suggestions-group" *ngIf="productSuggestions.length > 0">
+                <div class="group-label">Products</div>
+                <div
+                  class="suggestion-item"
+                  *ngFor="let item of productSuggestions"
+                  (mousedown)="selectSuggestion(item)"
+                >
+                  <img [src]="item.image" [alt]="item.name" class="suggestion-img" onerror="this.style.display='none'"/>
+                  <div class="suggestion-info">
+                    <span class="suggestion-name">{{ item.name }}</span>
+                    <span class="suggestion-category">{{ item.category }}</span>
+                  </div>
+                  <span class="suggestion-price">from {{ item.bestPrice | currency }}</span>
+                </div>
+              </div>
+              <div class="suggestions-group" *ngIf="categorySuggestions.length > 0">
+                <div class="group-label">Categories</div>
+                <div
+                  class="suggestion-item category-item"
+                  *ngFor="let cat of categorySuggestions"
+                  (mousedown)="selectCategory(cat)"
+                >
+                  <div class="cat-icon">{{ cat.icon }}</div>
+                  <span class="suggestion-name">{{ cat.name }}</span>
+                  <span class="suggestion-count">{{ cat.count }}+ products</span>
+                </div>
+              </div>
+              <div class="suggestions-footer" (mousedown)="onSearchSubmit()">
+                <span>See all results for <strong>"{{ searchQuery }}"</strong></span>
+                <span class="arrow">→</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="search-hints">
+            <span class="hint-label">Popular:</span>
+            <span
+              class="hint-tag"
+              *ngFor="let hint of popularSearches"
+              (click)="setQuery(hint)"
+            >{{ hint }}</span>
+          </div>
+        </div>
+
+        <div class="floating-cards">
+          <div class="product-card card-1">
+            <div class="badge green">Price Dropped</div>
+            <img src="https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=300" alt="MacBook Pro" onerror="this.style.display='none'">
+            <div class="card-info"><h4>MacBook Pro 14"</h4></div>
+          </div>
+          <div class="product-card card-2">
+            <div class="badge blue">Best Deal</div>
+            <img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300" alt="iPhone 15 Pro" onerror="this.style.display='none'">
+            <div class="card-info"><h4>iPhone 15 Pro</h4></div>
+          </div>
+          <div class="product-card card-3">
+            <div class="badge green">Price Dropped</div>
+            <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300" alt="Sony Headphones" onerror="this.style.display='none'">
+            <div class="card-info"><h4>Sony WH-1000XM5</h4></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CATEGORIES SECTION -->
+  <section id="categories" class="section categories-section" appScrollReveal>
+    <div class="container">
+      <h2 class="section-title text-center">Tracking prices across all major electronics categories.</h2>
+      <div class="categories-grid">
+        <div class="category-card" *ngFor="let cat of categories" [routerLink]="['/search']" [queryParams]="{category: cat.link}">
+          <div class="cat-image">
+            <img [src]="cat.image" [alt]="cat.name" loading="lazy" onerror="this.style.display='none'">
+          </div>
+          <div class="cat-name">{{ cat.name }}</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- TRUST BAR -->
+  <div class="trust-bar">
+    <div class="container trust-flex">
+      <div class="scrolling-names">
+        <div class="names-track">
+          <span>Amazon · eBay · AliExpress · Jumia · Walmart · BestBuy · Newegg · Target · B&H · Samsung · Apple ·&nbsp;</span>
+          <span>Amazon · eBay · AliExpress · Jumia · Walmart · BestBuy · Newegg · Target · B&H · Samsung · Apple ·&nbsp;</span>
+        </div>
+      </div>
+      <div class="tracked-label">200+ stores tracked</div>
+    </div>
+  </div>
+
+  <!-- FEATURES SECTION -->
+  <section id="features" class="section features-section" appScrollReveal>
+    <div class="container">
+      <h2 class="section-title text-center">Everything you need to shop smarter.</h2>
+      <div class="features-grid">
+        <div class="feature-card" *ngFor="let feature of features">
+          <div class="feature-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path [attr.d]="feature.icon"></path>
+            </svg>
+          </div>
+          <h3>{{ feature.title }}</h3>
+          <p>{{ feature.description }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- HOW IT WORKS SECTION -->
+  <section id="how-it-works" class="section how-section" appScrollReveal>
+    <div class="container">
+      <h2 class="section-title text-center">How it works</h2>
+      <div class="steps-container">
+        <div class="step-item" *ngFor="let step of steps; let i = index">
+          <div class="step-num">{{ i + 1 }}</div>
+          <h3>{{ step.title }}</h3>
+          <p>{{ step.description }}</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA FRESHNESS BANNER -->
+  <div class="data-fresness-banner">
+    <div class="container freshness-grid">
+      <div class="fresh-item">
+        <svg class="check-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>Prices updated every 6 hours</span>
+      </div>
+      <div class="fresh-item">
+        <svg class="check-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>200+ stores monitored 24/7</span>
+      </div>
+      <div class="fresh-item">
+        <svg class="check-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        <span>Data verified across multiple sources</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TESTIMONIALS SECTION -->
+  <section class="section testimonials-section" appScrollReveal>
+    <div class="container">
+      <h2 class="section-title text-center">Trusted by smart shoppers and resellers.</h2>
+      <div class="testimonials-grid">
+        <div class="testimonial-card" *ngFor="let t of testimonials">
+          <div class="stars">★★★★★</div>
+          <p class="quote">"{{ t.quote }}"</p>
+          <div class="author-box">
+            <div class="author-avatar">{{ t.initials }}</div>
+            <div class="author-info">
+              <div class="author-name">{{ t.author }}</div>
+              <div class="author-role">{{ t.role }}</div>
+            </div>
+            <img [src]="t.productImage" class="testimonial-thumb" [alt]="t.author + ' purchase'" onerror="this.style.display='none'">
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FAQ SECTION -->
+  <section id="faq" class="section faq-section" appScrollReveal>
+    <div class="container">
+      <h2 class="section-title text-center">Frequently asked questions.</h2>
+      <div class="faq-container">
+        <div class="faq-item" *ngFor="let f of faqs" [class.open]="f.isOpen">
+          <div class="faq-header" (click)="toggleFaq(f)">
+            <h3>{{ f.question }}</h3>
+            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </div>
+          <div class="faq-body" *ngIf="f.isOpen" @faqAnimation>
+            <p>{{ f.answer }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ENTREPRENEURS SECTION -->
+  <section id="business" class="section biz-section" appScrollReveal>
+    <div class="container">
+      <div class="biz-card">
+        <div class="biz-header">
+          <h2 class="biz-title">Built for electronics resellers and businesses.</h2>
+          <p class="biz-subtitle">Join 1,000+ resellers already using PulsePrice to protect their margins.</p>
+        </div>
+        <div class="biz-grid">
+          <div class="biz-feature" *ngFor="let bf of businessFeatures">
+            <h4>{{ bf.title }}</h4>
+            <p>{{ bf.description }}</p>
+          </div>
+        </div>
+        <div class="biz-cta">
+          <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}" class="btn-primary">Learn more about business features →</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- STATS BAR -->
+  <section class="stats-bar" appScrollReveal>
+    <div class="container stats-grid">
+      <div class="stat-item" *ngFor="let s of stats">
+        <div class="stat-num" [appCountUp]="s.value" [suffix]="s.suffix">0</div>
+        <div class="stat-label">{{ s.label }}</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final-cta-section" appScrollReveal>
+    <div class="cta-glow"></div>
+    <div class="container text-center relative-z">
+      <h2>Your next big electronics deal is one search away.</h2>
+      <a routerLink="/auth" [queryParams]="{mode: 'signup'}" class="btn-primary btn-xl">Get started — it's free</a>
+      <p class="cta-muted">Free forever for everyone · No credit card required</p>
+    </div>
+  </section>
+</main>
+
+<!-- FOOTER -->
+<footer class="footer">
+  <div class="container footer-top">
+    <div class="footer-brand">
+      <div class="logo">
+        <span class="logo-pulse">Pulse</span><span class="logo-price">Price</span>
+      </div>
+      <p class="tagline">
+        The smartest way to buy electronics online. Real-time tracking, data-driven deals, and total price transparency.
+      </p>
+    </div>
+    <div class="footer-links-grid">
+      <div class="footer-col">
+        <h4>Product</h4>
+        <a routerLink="/search">Search</a>
+        <a routerLink="/auth" [queryParams]="{mode: 'signup'}">Alerts</a>
+        <a routerLink="/search">Price History</a>
+        <a routerLink="/deals">Deal Score</a>
+        <a (click)="scrollToSection('categories')">Categories</a>
+      </div>
+      <div class="footer-col">
+        <h4>For Business</h4>
+        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}">Reseller Plan</a>
+        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}">API Access</a>
+        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}">Bulk Tracking</a>
+      </div>
+      <div class="footer-col">
+        <h4>Company</h4>
+        <a routerLink="/about">About</a>
+        <a routerLink="/careers">Careers</a>
+        <a routerLink="/contact">Contact</a>
+      </div>
+      <div class="footer-col">
+        <h4>Legal</h4>
+        <a routerLink="/privacy">Privacy</a>
+        <a routerLink="/terms">Terms</a>
+        <a routerLink="/cookies">Cookie Policy</a>
+      </div>
+    </div>
+  </div>
+  <div class="footer-bottom">
+    <div class="container">
+      <p>© 2026 PulsePrice. All rights reserved.</p>
+    </div>
+  </div>
+</footer>

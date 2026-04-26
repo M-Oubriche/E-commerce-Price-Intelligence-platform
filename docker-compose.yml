@@ -1,8 +1,4 @@
-# docker-compose.yml
-# Phase 1: Scraper + PostgreSQL + Airflow + NiFi + Bigtable Emulator
-#
-# Services added later (separate phases):
-#   - dbt
+
 
 x-airflow-env:
   # --- Database ---

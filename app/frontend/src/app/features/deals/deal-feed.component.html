@@ -1,0 +1,216 @@
+<app-public-navbar></app-public-navbar>
+
+<div class="deal-feed-page">
+  <!-- SECTION 1: PAGE HEADER STRIP -->
+  <header class="header-strip">
+    <div class="container strip-inner">
+      <div class="header-left">
+        <h1 class="title">Deal Feed</h1>
+        <p class="subtitle">Live price drops and community deals — updated in real time</p>
+        <div class="live-indicators">
+          <span class="live-dot-wrapper">
+            <span class="live-dot"></span>
+            <span class="live-text">Live</span>
+          </span>
+          <span class="muted-stat">247 deals today</span>
+          <span class="muted-stat">Last updated 2 min ago</span>
+        </div>
+      </div>
+      <div class="header-right">
+      </div>
+    </div>
+  </header>
+
+  <!-- SECTION 3: STICKY FILTER BAR -->
+  <nav class="filter-bar">
+    <div class="filter-bar-inner">
+      <div class="filter-tabs">
+        <div class="tab" *ngFor="let t of tabs" [class.active]="activeTab === t" (click)="activeTab = t">
+          {{ t }}
+        </div>
+      </div>
+      
+      <div class="category-pills">
+        <div class="pill" *ngFor="let c of filterCategories" [class.active]="activeCategory === c" (click)="activeCategory = c">
+          {{ c }}
+        </div>
+      </div>
+
+      <div class="sort-dropdown">
+        <select [(ngModel)]="sortOption" class="sort-select">
+          <option *ngFor="let s of sortOptions" [value]="s">Sort: {{ s }}</option>
+        </select>
+      </div>
+    </div>
+  </nav>
+
+  <main class="page-content">
+    <!-- LEFT FEED COLUMN (65%) -->
+    <div class="feed-column">
+      <!-- FEATURED HERO DEAL -->
+      <section class="featured-hero" *ngIf="featuredDeal" @fade [routerLink]="['/product', featuredDeal.id]">
+        <div class="featured-image">
+          <img [src]="featuredDeal.image" [alt]="featuredDeal.productName">
+          <div class="deal-of-day-badge">DEAL OF THE DAY</div>
+          <div class="deal-score-badge large" [ngClass]="getScoreClass(featuredDeal.dealScore)">
+            <span class="score-val">{{ featuredDeal.dealScore }}</span>
+            <span class="score-max">/ 10</span>
+          </div>
+        </div>
+        <div class="featured-content">
+          <div class="top-meta">
+            <span class="cat-badge">{{ featuredDeal.category }}</span>
+            <span class="featured-store">{{ featuredDeal.store }}</span>
+          </div>
+          <h2 class="featured-headline">{{ featuredDeal.headline }}</h2>
+          
+          <div class="featured-price-block">
+            <span class="current-price">{{ featuredDeal.currentPrice | currency }}</span>
+            <span class="was-price">{{ featuredDeal.originalPrice | currency }}</span>
+            <span class="savings-pill">Save {{ featuredDeal.savingsAmount | currency }} ({{ featuredDeal.savingsPercent }}%)</span>
+          </div>
+
+          <div class="stock-row">
+            <span class="stock-dot"></span>
+            <span class="stock-text">In stock</span>
+          </div>
+
+          <div class="featured-actions">
+            <button class="btn-view-hero">View deal →</button>
+            <div class="action-group">
+              <button class="btn-icon-elevated" (click)="$event.stopPropagation(); shareDeal(featuredDeal)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- DEAL CARDS GRID -->
+      <div class="deals-grid" @staggerFade>
+        <div class="new-deal-toast" *ngIf="showNewDealToast" @slideDown>
+          New deal just posted!
+        </div>
+
+        <div class="deal-card" *ngFor="let deal of displayedDeals" [class.new-item]="deal.isNew" [routerLink]="['/product', deal.id]">
+          <div class="card-image">
+            <img [src]="deal.image" [alt]="deal.productName">
+            <div class="deal-type-badge" [ngClass]="getTypeClass(deal.type)">
+              {{ getTypeText(deal.type) }}
+            </div>
+            <div class="card-time">{{ deal.timeAgo }}</div>
+            <div class="deal-score-badge" [ngClass]="getScoreClass(deal.dealScore)">
+              {{ deal.dealScore }}
+            </div>
+            <div class="card-image-overlay"></div>
+            <div class="new-flash" *ngIf="deal.isNew">NEW</div>
+          </div>
+
+          <div class="card-body">
+            <div class="card-meta">
+              <span class="category">{{ deal.category }}</span>
+              <span class="product-name">{{ deal.productName }}</span>
+            </div>
+            <h3 class="card-headline">{{ deal.headline }}</h3>
+
+            <!-- Standard Price Block -->
+            <div class="price-block" *ngIf="deal.type !== 'fake_deal_exposed'">
+              <span class="price-current">{{ deal.currentPrice | currency }}</span>
+              <span class="price-was">{{ deal.originalPrice | currency }}</span>
+              <span class="savings-tag">Save {{ deal.savingsAmount | currency }}</span>
+            </div>
+
+            <!-- Fake Deal Warning -->
+            <div class="fake-warning" *ngIf="deal.type === 'fake_deal_exposed'">
+              <div class="warning-main">
+                <svg class="warn-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                <span>Fake discount detected</span>
+              </div>
+              <div class="warning-sub">Price was similar 30 days ago</div>
+            </div>
+
+            <!-- Verified Trust Row -->
+            <div class="verified-row">
+              <svg class="verified-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>Verified by PulsePrice</span>
+              <span class="verified-dot">·</span>
+              <span>{{ deal.timeAgo }}</span>
+            </div>
+          </div>
+
+          <div class="card-footer">
+            <div class="footer-left">
+              <span class="store-pill">{{ deal.store }}</span>
+              <a class="view-link">View deal →</a>
+            </div>
+            <div class="footer-right">
+              <button class="btn-action-sm" (click)="$event.stopPropagation(); shareDeal(deal)">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><polyline points="16 6 12 2 8 6"/><line x1="12" y1="2" x2="12" y2="15"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOAD MORE -->
+      <div class="load-more-container" *ngIf="hasMoreDeals">
+        <button class="btn-load-more" (click)="loadMore()" [disabled]="isLoading">
+          <span *ngIf="!isLoading">Load more deals</span>
+          <span *ngIf="isLoading" class="loader"></span>
+        </button>
+      </div>
+    </div>
+
+    <!-- RIGHT SIDEBAR (35%) -->
+    <aside class="sidebar">
+      <!-- Widget 1: Trending -->
+      <div class="sidebar-widget">
+        <h4 class="widget-title">TRENDING NOW</h4>
+        <div class="trending-list">
+          <div class="trending-row" *ngFor="let item of trendingItems; let i = index">
+            <span class="rank" [ngClass]="'rank-' + (i+1)">{{ i + 1 }}</span>
+            <img [src]="item.image" class="thumb">
+            <div class="info">
+              <div class="name">{{ item.name }}</div>
+              <div class="category">{{ item.category }}</div>
+            </div>
+            <div class="drop-pill">{{ item.drop }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Widget 2: Biggest Drops Today -->
+      <div class="sidebar-widget">
+        <div class="widget-header">
+          <span class="widget-title">BIGGEST DROPS TODAY</span>
+          <span class="widget-sub">Last 24 hours</span>
+        </div>
+        <div class="drop-row" *ngFor="let drop of biggestDrops; let i = index">
+          <span class="drop-rank">{{ i + 1 }}</span>
+          <img [src]="drop.image" class="drop-img" onerror="this.style.display='none'">
+          <div class="drop-info">
+            <span class="drop-name">{{ drop.productName }}</span>
+            <span class="drop-store">{{ drop.store }}</span>
+          </div>
+          <div class="drop-amount">
+            <span class="drop-percent">↓ {{ drop.savingsPercent }}%</span>
+            <span class="drop-saved">-${{ drop.savingsAmount }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Widget 3: Categories -->
+      <div class="sidebar-widget">
+        <h4 class="widget-title">BROWSE BY CATEGORY</h4>
+        <div class="category-grid">
+          <div class="cat-item" *ngFor="let cat of browseCategories" (click)="activeCategory = cat.name">
+            <span class="name">{{ cat.name }}</span>
+            <span class="count">{{ cat.count }}</span>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </main>
+</div>
