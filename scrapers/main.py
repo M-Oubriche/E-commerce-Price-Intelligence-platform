@@ -28,16 +28,11 @@ def export_to_jsonl(records, filename_prefix="scraper_output"):
         return
 
     today_str = datetime.now().strftime("%Y-%m-%d")
-    output_dir = Path("/data/raw") / today_str
-    
-    # if we are not running in docker and /data/raw does not exist, fallback to local data/raw relative to script
-    if not Path("/data/raw").exists():
-         output_dir = Path(__file__).parent.parent / "data" / "raw" / today_str
-    
-    output_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(os.environ.get("SCRAPER_OUTPUT_DIR", "/data/raw")) / today_str
+    out_dir.mkdir(parents=True, exist_ok=True)
     
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filepath = output_dir / f"{filename_prefix}_{timestamp}.jsonl"
+    filepath = out_dir / f"{filename_prefix}_{timestamp}.jsonl"
 
     try:
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -46,6 +41,30 @@ def export_to_jsonl(records, filename_prefix="scraper_output"):
         logger.info(f"Successfully exported {len(records)} records to {filepath}")
     except Exception as e:
         logger.error(f"Failed to export data to {filepath}: {e}")
+
+def export_to_nifi(records):
+    """
+    Streams records directly to Apache NiFi ListenHTTP endpoint.
+    """
+    nifi_url = os.environ.get("NIFI_INGEST_URL", "http://price_nifi:9090/contentListener")
+    success_count = 0
+    import requests
+    
+    for record in records:
+        try:
+            # Convert Pydantic model strictly to JSON-serializable dict (handles UUID properly)
+            payload = record.model_dump(mode='json')
+            resp = requests.post(nifi_url, json=payload, timeout=5)
+            if resp.status_code == 200:
+                success_count += 1
+            else:
+                logger.error(f"NiFi returned status {resp.status_code}: {resp.text}")
+        except Exception as e:
+            logger.error(f"Failed to post to NiFi: {e}")
+            break
+            
+    if success_count > 0:
+        logger.info(f"Successfully streamed {success_count} records to NiFi.")
 
 def run_scrapers():
     """
@@ -111,6 +130,7 @@ def run_scrapers():
             if records:
                 all_records.extend(records)
                 export_to_jsonl(records, f"{name.lower()}_{category.value.lower()}")
+                export_to_nifi(records)
         except Exception as e:
             logger.error(f"Error while running {name} scraper: {e}", exc_info=True)
 
