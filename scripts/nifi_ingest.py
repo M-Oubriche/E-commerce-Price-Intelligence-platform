@@ -4,7 +4,9 @@ import os
 import json
 import uuid
 from datetime import datetime
+import time
 from google.cloud import bigtable
+from google.cloud.bigtable import row_filters
 import psycopg2
 
 def send_alert_to_postgres(record, prev_price, drop_percent):
@@ -42,6 +44,22 @@ def ingest_to_bigtable(json_str):
     client = bigtable.Client(project=project_id, admin=True)
     instance = client.instance(instance_id)
     table = instance.table(table_id)
+    
+    # --- SELF-HEALING: Auto-create table if missing (common in emulator) ---
+    try:
+        if not table.exists():
+            print(f"Table {table_id} missing. Creating now...", file=sys.stderr)
+            table.create()
+            # Wait a moment for creation to propagate
+            time.sleep(1)
+            # Create all required column families
+            families = ["price_cf", "metadata_cf", "ingestion_cf", "availability_cf", "seller_cf", "ratings_cf", "specs_cf"]
+            for cf_id in families:
+                cf = table.column_family(cf_id)
+                cf.create()
+            print(f"Table {table_id} and families {families} created successfully.", file=sys.stderr)
+    except Exception as e:
+        print(f"Warning during table check/creation: {e}", file=sys.stderr)
 
     try:
         record = json.loads(json_str)
@@ -68,9 +86,8 @@ def ingest_to_bigtable(json_str):
     
     previous_price = None
     try:
-        # Scan Bigtable for the most recent entry for this product (lexicographical order means latest timestamp is last)
-        # We read the rows with the prefix and take the last one.
-        partial_rows = table.read_rows(filter_=bigtable.row_filters.RowKeysRegexFilter(row_prefix + b".*"))
+        # Scan Bigtable for the most recent entry for this product
+        partial_rows = table.read_rows(filter_=row_filters.RowKeysRegexFilter(row_prefix + b".*"))
         
         # In a real environment with millions of rows, we'd use a more specialized RowKey design 
         # or a separate 'latest_prices' table, but for this emulator scale, scanning the prefix works well.

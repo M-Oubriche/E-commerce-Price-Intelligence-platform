@@ -86,10 +86,52 @@ def setup_flow():
         relationships=['output stream', 'nonzero status']
     )
     
+    # --- THE 30-MINUTE TRIGGER FLOW ---
+    print("Deploying 30-minute scraper trigger...")
+    
+    # 1. GenerateFlowFile (The Ticker)
+    trigger_gen = nipyapi.canvas.create_processor(
+        parent_pg=root_pg,
+        processor=nipyapi.canvas.get_processor_type('GenerateFlowFile'),
+        location=(500, 0),
+        name='Trigger Every 30 Min',
+        config=nipyapi.nifi.ProcessorConfigDTO(
+            scheduling_period='1800 sec', # 30 minutes
+            properties={
+                'File Size': '0B',
+                'Batch Size': '1'
+            }
+        )
+    )
+    
+    # 2. ExecuteStreamCommand (The Scraper Launcher)
+    # We use /opt/nifi/venv/bin/python and set working dir to /app/scrapers
+    scraper_launcher = nipyapi.canvas.create_processor(
+        parent_pg=root_pg,
+        processor=nipyapi.canvas.get_processor_type('ExecuteStreamCommand'),
+        location=(500, 300),
+        name='Launch Scraper',
+        config=nipyapi.nifi.ProcessorConfigDTO(
+            properties={
+                'Command Path': '/opt/nifi/venv/bin/python',
+                'Command Arguments': '/app/scrapers/main.py',
+                'Working Directory': '/app/scrapers'
+            },
+            auto_terminated_relationships=['original', 'output stream', 'nonzero status']
+        )
+    )
+    
+    # Connect Trigger to Launcher
+    nipyapi.canvas.create_connection(
+        source=trigger_gen,
+        target=scraper_launcher,
+        relationships=['success']
+    )
+
     # Start everything
     print("Starting process group...")
     nipyapi.canvas.schedule_process_group(root_pg.id, scheduled=True)
-    print("NiFi Flow successfully provisioned and started!")
+    print("NiFi Flow successfully provisioned with 30-min trigger!")
 
 if __name__ == "__main__":
     setup_flow()

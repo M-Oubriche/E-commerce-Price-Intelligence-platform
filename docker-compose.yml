@@ -231,6 +231,9 @@ services:
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_database:/opt/nifi/nifi-current/database_repository
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
+      - ./scrapers:/app/scrapers
+      - ./data/raw:/data/raw
+      - ./.env:/app/scrapers/.env
 
       # NiFi flow templates
       - ./nifi/templates:/opt/nifi/nifi-current/conf/templates
