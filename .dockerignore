@@ -32,6 +32,7 @@ airflow/
 # and the requirements.txt file is all what we need in our container
 !airflow/requirements.txt
 nifi/
+!nifi/scripts/
 dbt/
 analytics/
 app/

@@ -9,7 +9,7 @@ RUN /opt/nifi/venv/bin/pip install --no-cache-dir google-cloud-bigtable psycopg2
 
 # Create scripts directory for NiFi
 RUN mkdir -p /opt/nifi/scripts
-COPY scripts/nifi_ingest.py /opt/nifi/scripts/nifi_ingest.py
+COPY nifi/scripts/nifi_ingest.py /opt/nifi/scripts/nifi_ingest.py
 RUN chown -R nifi:nifi /opt/nifi/scripts
 
 USER nifi

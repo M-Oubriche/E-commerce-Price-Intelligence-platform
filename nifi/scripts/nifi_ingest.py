@@ -12,10 +12,10 @@ import psycopg2
 def send_alert_to_postgres(record, prev_price, drop_percent):
     try:
         conn = psycopg2.connect(
-            host="postgres",
-            database=os.environ.get("POSTGRES_DB", "airflow"),
-            user=os.environ.get("POSTGRES_USER", "airflow"),
-            password=os.environ.get("POSTGRES_PASSWORD", "airflow_pass")
+            host="app_postgres",
+            database=os.environ.get("APP_POSTGRES_DB", "app"),
+            user=os.environ.get("APP_POSTGRES_USER", "app_user"),
+            password=os.environ.get("APP_POSTGRES_PASSWORD", "app_pass")
         )
         cur = conn.cursor()
         

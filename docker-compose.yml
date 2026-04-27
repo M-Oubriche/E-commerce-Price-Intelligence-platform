@@ -195,6 +195,10 @@ services:
     depends_on:
       bigtable-emulator:
         condition: service_healthy
+      app_postgres:
+        condition: service_healthy
+    env_file:
+      - .env
     environment:
       # HTTP mode (HTTPS disabled for local dev)
       NIFI_WEB_HTTP_PORT: "8090"
@@ -229,10 +233,6 @@ services:
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
       - ./scrapers:/app/scrapers
       - ./data/raw:/data/raw
-      - ./.env:/app/scrapers/.env
-
-      # NiFi flow templates
-      - ./nifi/templates:/opt/nifi/nifi-current/conf/templates
 
     ports:
       - "8090:8090" # NiFi UI: http://localhost:8090/nifi
