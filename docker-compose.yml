@@ -1,8 +1,4 @@
-# docker-compose.yml
-# Phase 1: Scraper + PostgreSQL + Airflow + NiFi + Bigtable Emulator
-#
-# Services added later (separate phases):
-#   - dbt
+
 
 x-airflow-env:
   # --- Database ---
@@ -272,6 +268,96 @@ services:
       retries: 10
       start_period: 10s
 
+  # APPLICATION SERVICES (Frontend, Backend, DB, Cache)
+
+  # APPLICATION POSTGRESQL — Project Database
+  app_postgres:
+    image: postgres:15
+    container_name: app_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${APP_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${APP_POSTGRES_DB}
+    volumes:
+      - app_postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432" # Exposed on 5433 to avoid conflict with Airflow DB
+    networks:
+      - platform_net
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "${APP_POSTGRES_USER}" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # REDIS
+  redis:
+    image: redis:7-alpine
+    container_name: price_redis
+    restart: unless-stopped
+    command: redis-server
+    ports:
+      - "6379:6379"
+    networks:
+      - platform_net
+    healthcheck:
+      test: [ "CMD", "redis-cli", "ping" ]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # BACKEND
+  backend:
+    build:
+      context: ./app/backend
+      dockerfile: ../../docker/Dockerfiles/backend.Dockerfile
+    container_name: price_backend
+    restart: unless-stopped
+    depends_on:
+      app_postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY}
+    volumes:
+      # Mount the code for live development
+      - ./app/backend:/app
+    ports:
+      - "8000:8000"
+    networks:
+      - platform_net
+    # Run Uvicorn with hot-reload enabled. 
+    # NOTE: if main.py is in another place, change "main:app" to "<path>.main:app"
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # FRONTEND
+  frontend:
+    build:
+      context: ./app/frontend
+      dockerfile: ../../docker/Dockerfiles/frontend.Dockerfile
+      target: development
+    container_name: price_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    volumes:
+      # Mount the code for live development
+      - ./app/frontend:/app
+      # Anonymous volume for node_modules so host doesn't overwrite it
+      - /app/node_modules
+    ports:
+      - "4200:4200"
+    networks:
+      - platform_net
+    # The developer can just drop their existing Angular files into app/frontend.
+    # Once package.json is detected, it will automatically install dependencies and start the dev server.
+    command: sh -c "if [ -f package.json ]; then npm install && npx ng serve --host 0.0.0.0 --poll 2000; else echo 'Waiting for Angular files to be pasted...' && tail -f /dev/null; fi"
+
 # NETWORKS
 #
 # All services share one bridge network called platform_net.
@@ -290,6 +376,9 @@ networks:
 volumes:
   postgres_data:
   airflow_logs:
+
+  # Application DB
+  app_postgres_data:
 
   # NiFi
   nifi_conf:
