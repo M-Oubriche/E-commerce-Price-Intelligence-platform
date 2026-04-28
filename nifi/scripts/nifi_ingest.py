@@ -22,10 +22,11 @@ def send_alert_to_postgres(record, prev_price, drop_percent):
         product_name = record.get("product", {}).get("name", "Unknown")
         source = record.get("source", "Unknown")
         new_price = record.get("pricing", {}).get("converted_price_usd")
+        product_id = record.get("raw_id", "Unknown")
         
         cur.execute(
-            "INSERT INTO price_alerts (product_name, source, old_price, new_price, drop_percent) VALUES (%s, %s, %s, %s, %s)",
-            (product_name, source, prev_price, new_price, round(drop_percent, 2))
+            "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent) VALUES (%s, %s, %s, %s, %s, %s)",
+            (product_id, product_name, source, prev_price, new_price, round(drop_percent, 2))
         )
         conn.commit()
         cur.close()
@@ -87,7 +88,7 @@ def ingest_to_bigtable(json_str):
     previous_price = None
     try:
         # Scan Bigtable for the most recent entry for this product
-        partial_rows = table.read_rows(filter_=row_filters.RowKeysRegexFilter(row_prefix + b".*"))
+        partial_rows = table.read_rows(filter_=row_filters.RowKeyRegexFilter(row_prefix + b".*"))
         
         # In a real environment with millions of rows, we'd use a more specialized RowKey design 
         # or a separate 'latest_prices' table, but for this emulator scale, scanning the prefix works well.
@@ -167,13 +168,13 @@ def ingest_to_bigtable(json_str):
     if seller.get("seller_rating") is not None:
         row.set_cell("seller_cf", b"seller_rating", str(seller.get("seller_rating")).encode('utf-8'))
         
-    ratings = record.get("ratings", {})
-    if ratings.get("avg_rating") is not None:
+    ratings = record.get("ratings")
+    if ratings and ratings.get("avg_rating") is not None:
         row.set_cell("ratings_cf", b"avg_rating", str(ratings.get("avg_rating")).encode('utf-8'))
-    if ratings.get("review_count") is not None:
+    if ratings and ratings.get("review_count") is not None:
         row.set_cell("ratings_cf", b"review_count", str(ratings.get("review_count")).encode('utf-8'))
         
-    specs = record.get("specs", {})
+    specs = record.get("specs")
     if specs:
         row.set_cell("specs_cf", b"json_blob", json.dumps(specs).encode('utf-8'))
 
