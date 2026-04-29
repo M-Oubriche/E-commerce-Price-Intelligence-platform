@@ -48,7 +48,18 @@ Thumbs.db
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?start.sh
-docker-compose.override.yml
+*.sw?
 start.sh
 docker-compose.override.yml
+
+# GCP Service Account Keys — NEVER commit these
+infrastructure/keys/
+**/service-account*.json
+**/bigquery-service-account.json
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example
