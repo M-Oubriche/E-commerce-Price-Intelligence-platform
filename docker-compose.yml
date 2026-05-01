@@ -289,7 +289,7 @@ services:
     networks:
       - platform_net
     healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "${APP_POSTGRES_USER}" ]
+      test: [ "CMD", "pg_isready", "-U", "${APP_POSTGRES_USER}", "-d", "${APP_POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 10
