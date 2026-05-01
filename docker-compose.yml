@@ -400,7 +400,15 @@ services:
       - "8085:8085"
     networks:
       - platform_net
-    command: ["docs", "serve", "--host", "0.0.0.0", "--port", "8085"]
+    # dbt 1.8 removed the --host flag, so we override the entrypoint and use Python's built-in server
+    entrypoint: ["bash", "-c"]
+    command: >
+      "
+      echo 'Waiting for target/index.html (run: docker-compose exec dbt dbt docs generate)';
+      while [ ! -f target/index.html ]; do sleep 5; done;
+      echo 'Docs generated! Starting server on http://localhost:8085';
+      python -m http.server 8085 --bind 0.0.0.0 --directory target
+      "
 
 # NETWORKS
 #
