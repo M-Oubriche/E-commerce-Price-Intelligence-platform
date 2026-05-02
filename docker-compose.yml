@@ -40,6 +40,14 @@ x-airflow-env:
   BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
   BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
 
+  # --- Docker Connectivity ---
+  # Forces the Docker CLI inside Airflow to use the correct socket path.
+  # On Linux: /var/run/docker.sock (default)
+  # On Windows Docker Desktop: uses the same Unix socket via Docker Desktop's compatibility layer
+  DOCKER_HOST: "unix:///var/run/docker.sock"
+  # Force API version 1.44 — Docker CLI 24.0.9 defaults to 1.43
+  # but Windows Docker Desktop requires minimum 1.44
+  DOCKER_API_VERSION: "1.44"
 x-bigquery-env: &bigquery-env
   BIGQUERY_PROJECT_ID: ${BIGQUERY_PROJECT_ID}
   BIGQUERY_DATASET: ${BIGQUERY_DATASET}
@@ -201,6 +209,10 @@ services:
     depends_on:
       bigtable-emulator:
         condition: service_healthy
+      app_postgres:
+        condition: service_healthy
+    env_file:
+      - .env
     environment:
       # HTTP mode (HTTPS disabled for local dev)
       NIFI_WEB_HTTP_PORT: "8090"
@@ -233,9 +245,8 @@ services:
       - nifi_conf:/opt/nifi/nifi-current/conf
       - nifi_database:/opt/nifi/nifi-current/database_repository
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
-
-      # NiFi flow templates
-      - ./nifi/templates:/opt/nifi/nifi-current/conf/templates
+      - ./scrapers:/app/scrapers
+      - ./data/raw:/data/raw
 
     ports:
       - "8090:8090" # NiFi UI: http://localhost:8090/nifi
