@@ -1,0 +1,29 @@
+name: 'price_intelligence'
+version: '1.0.0'
+config-version: 2
+
+# This must match the root key in profiles.yml
+profile: 'price_intelligence'
+
+# Standard directory paths
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+target-path: "target"  # directory which will store compiled SQL files
+clean-targets:         # directories to be removed by `dbt clean`
+  - "target"
+  - "dbt_packages"
+
+# Default configurations for models
+models:
+  price_intelligence:
+    staging:
+      +materialized: view      # staging is always views
+    cleaned:
+      +materialized: view      # intermediate (also views but it depends on the case/decision)
+    aggregated:
+      +materialized: table     # mart/aggregated (tables for fast dashboard queries)
