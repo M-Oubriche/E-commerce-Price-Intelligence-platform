@@ -42,6 +42,15 @@ x-airflow-env:
   BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
   BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
 
+  # --- Docker Connectivity ---
+  # Forces the Docker CLI inside Airflow to use the correct socket path.
+  # On Linux: /var/run/docker.sock (default)
+  # On Windows Docker Desktop: uses the same Unix socket via Docker Desktop's compatibility layer
+  DOCKER_HOST: "unix:///var/run/docker.sock"
+  # Force API version 1.44 — Docker CLI 24.0.9 defaults to 1.43
+  # but Windows Docker Desktop requires minimum 1.44
+  DOCKER_API_VERSION: "1.44"
+
 # SERVICES
 
 services:
