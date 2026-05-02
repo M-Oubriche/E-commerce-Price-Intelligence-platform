@@ -34,6 +34,9 @@ airflow/
 nifi/
 !nifi/scripts/
 dbt/
+!dbt/packages.yml 
+!dbt/profiles.yml
+!dbt/dbt_project.yml
 analytics/
 app/
 infrastructure/
