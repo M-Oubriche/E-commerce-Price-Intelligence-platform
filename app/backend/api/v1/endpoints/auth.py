@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from api import deps
+from models.users import User
 from schemas.users import UserCreate, UserOut, Token
 from services.auth import AuthService
 from core.config import settings
@@ -22,6 +23,10 @@ async def register(
             detail="Cet email est déjà enregistré."
         )
     new_user = await AuthService.create_user(db, user_in=user_in)
+    
+    # Generate verification token (to be sent by email in production)
+    verification_token = await AuthService.create_verification_token(db, new_user.id)
+    
     return {"data": new_user}
 
 
@@ -127,19 +132,37 @@ async def logout(
 
 @router.get("/verify")
 async def verify_email(token: str, db: AsyncSession = Depends(deps.get_db)):
-    # To be implemented with EmailVerificationToken logic
+    success = await AuthService.verify_email(db, token)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Lien de vérification invalide ou expiré."
+        )
     return {"message": "Email vérifié avec succès."}
 
 @router.post("/forgot-password")
 async def forgot_password(email: str, db: AsyncSession = Depends(deps.get_db)):
-    # Always return 200 to prevent email enumeration
+    # Create token if user exists (always returns 200 to prevent enumeration)
+    await AuthService.create_password_reset_token(db, email)
     return {"message": "Si l'email existe, un lien de réinitialisation a été envoyé."}
 
 @router.post("/reset-password")
 async def reset_password(token: str, new_password: str, db: AsyncSession = Depends(deps.get_db)):
-    # To be implemented with PasswordResetToken logic
-    return {"message": "Mot de passe mis à jour."}
+    success = await AuthService.reset_password(db, token, new_password)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Lien de réinitialisation invalide ou expiré."
+        )
+    return {"message": "Mot de passe mis à jour et sessions révoquées."}
 
 @router.get("/test-token")
 async def test_token(token: str = Depends(deps.reusable_oauth2)):
     return {"message": "Système JWT fonctionnel.", "token": token}
+
+@router.get("/me", response_model=UserOut)
+async def get_me(current_user: User = Depends(deps.get_current_user)):
+    """
+    Returns the profile of the currently authenticated user.
+    """
+    return current_user

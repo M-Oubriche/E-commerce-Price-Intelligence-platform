@@ -1,5 +1,6 @@
 import uuid
 import hashlib
+import secrets
 from datetime import datetime, timezone, timedelta
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -20,7 +21,7 @@ class AuthService:
 
     @staticmethod
     async def create_user(db: AsyncSession, user_in: UserCreate):
-        """Register user + auto-create preferences"""
+        """Register user + auto-create preferences + verification token"""
         hashed_pw = hash_password(user_in.password)
         
         db_user = User(
@@ -49,6 +50,118 @@ class AuthService:
         await db.commit()
         await db.refresh(db_user)
         return db_user
+
+    @staticmethod
+    async def create_verification_token(db: AsyncSession, user_id: uuid.UUID):
+        """Generate a 24h verification token"""
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=24)
+        
+        db_token = EmailVerificationToken(
+            user_id=user_id,
+            token_hash=token_hash,
+            expires_at=expires_at
+        )
+        db.add(db_token)
+        await db.commit()
+        return raw_token
+
+    @staticmethod
+    async def verify_email(db: AsyncSession, token: str):
+        """Verify email using token hash"""
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        result = await db.execute(
+            select(EmailVerificationToken)
+            .filter(EmailVerificationToken.token_hash == token_hash, EmailVerificationToken.is_used == False)
+        )
+        db_token = result.scalars().first()
+        
+        if not db_token or db_token.expires_at < datetime.now(timezone.utc):
+            return False
+            
+        # Update User
+        await db.execute(
+            update(User)
+            .where(User.id == db_token.user_id)
+            .values(email_verified=True, email_verified_at=datetime.now(timezone.utc))
+        )
+        
+        # Mark token used
+        db_token.is_used = True
+        await db.commit()
+        return True
+
+    @staticmethod
+    async def create_password_reset_token(db: AsyncSession, email: str):
+        """Generate a 1h password reset token if user exists"""
+        user = await AuthService.get_user_by_email(db, email)
+        if not user:
+            return None
+            
+        raw_token = secrets.token_urlsafe(32)
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+        
+        db_token = PasswordResetToken(
+            user_id=user.id,
+            token_hash=token_hash,
+            expires_at=expires_at
+        )
+        db.add(db_token)
+        await db.commit()
+        return raw_token
+
+    @staticmethod
+    async def reset_password(db: AsyncSession, token: str, new_password: str):
+        """Reset password and revoke all sessions"""
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        result = await db.execute(
+            select(PasswordResetToken)
+            .filter(PasswordResetToken.token_hash == token_hash, PasswordResetToken.is_used == False)
+        )
+        db_token = result.scalars().first()
+        
+        if not db_token or db_token.expires_at < datetime.now(timezone.utc):
+            return False
+            
+        # Update User Password
+        hashed_pw = hash_password(new_password)
+        await db.execute(
+            update(User)
+            .where(User.id == db_token.user_id)
+            .values(password_hash=hashed_pw)
+        )
+        
+        # Mark token used
+        db_token.is_used = True
+        
+        # Revoke ALL sessions
+        await AuthService.revoke_all_user_sessions(db, db_token.user_id)
+        
+        await db.commit()
+        return True
+
+    @staticmethod
+    async def revoke_all_user_sessions(db: AsyncSession, user_id: uuid.UUID):
+        """Delete all user sessions from Redis and mark revoked in DB"""
+        # 1. Fetch all active session hashes for this user from DB
+        result = await db.execute(
+            select(UserSession.refresh_token_hash)
+            .filter(UserSession.user_id == user_id, UserSession.is_revoked == False)
+        )
+        hashes = result.scalars().all()
+        
+        # 2. Delete from Redis
+        for rt_hash in hashes:
+            await redis_client.delete(f"session:{rt_hash}")
+            
+        # 3. Mark all as revoked in DB
+        await db.execute(
+            update(UserSession)
+            .where(UserSession.user_id == user_id)
+            .values(is_revoked=True)
+        )
 
     @staticmethod
     async def authenticate(db: AsyncSession, email: str, password: str, ip_address: str):
