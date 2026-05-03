@@ -1,6 +1,8 @@
 import { Injectable } from '@angular/core';
 import { Observable, of } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { IProduct } from '../models/product.model';
+import { ApiResponse } from '../models/api-response.model';
 
 @Injectable({
   providedIn: 'root'
@@ -55,19 +57,21 @@ export class ProductService {
   ];
 
   getProducts(): Observable<IProduct[]> {
-    return of(this.products);
+    return of({ data: this.products } as ApiResponse<IProduct[]>).pipe(map(res => res.data));
   }
 
   getProductById(id: string): Observable<IProduct | undefined> {
-    return of(this.products.find(p => p.productId === id));
+    const product = this.products.find(p => p.productId === id);
+    return of({ data: product } as ApiResponse<IProduct | undefined>).pipe(map(res => res.data));
   }
 
   searchProducts(query: string): Observable<IProduct[]> {
     const q = query.toLowerCase();
-    return of(this.products.filter(p => 
+    const filtered = this.products.filter(p => 
       p.productName.toLowerCase().includes(q) || 
       p.brand.toLowerCase().includes(q) ||
       p.modelNumber.toLowerCase().includes(q)
-    ));
+    );
+    return of({ data: filtered } as ApiResponse<IProduct[]>).pipe(map(res => res.data));
   }
 }

@@ -1,4 +1,7 @@
-export type UserRole = 'BUYER' | 'SELLER';
+export enum UserRole {
+  CLIENT = 'client',
+  RESELLER = 'reseller'
+}
 
 export interface IUser {
   id: string;

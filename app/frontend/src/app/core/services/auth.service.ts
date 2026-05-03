@@ -1,26 +1,39 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
+import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
-import { delay, tap } from 'rxjs/operators';
+import { tap, map, catchError, switchMap } from 'rxjs/operators';
+import { UserRole } from '../models/user.model';
+import { ApiResponse } from '../models/api-response.model';
+import { environment } from '../../../environments/environment';
+
+export enum AlertCondition {
+  BELOW_TARGET = 'below_target',
+  ANY_CHANGE = 'any_change',
+  DROP_10PCT = 'drop_10pct',
+  DROP_20PCT = 'drop_20pct'
+}
 
 export interface User {
-  name: string;
+  id: string;
+  full_name: string;
   email: string;
-  type: 'shopper' | 'business';
+  role: UserRole;
   organization?: string;
   avatarColor?: string;
 }
 
-export interface TrackedProduct {
-  id: string;
+export interface TokenResponse {
+  access_token: string;
+  token_type: string;
 }
 
 export interface Alert {
   id: string;
   productId: string;
-  conditionType: string;
+  conditionType: AlertCondition;
   targetValue: number;
-  stores: string[];
+  platforms: string[];
   notifyEmail: boolean;
   notifyApp: boolean;
   status: 'active' | 'paused' | 'triggered';
@@ -42,133 +55,129 @@ export class AuthService {
   private userSubject = new BehaviorSubject<User | null>(null);
   currentUser$ = this.userSubject.asObservable();
   
-  private trackedSubject = new BehaviorSubject<string[]>([]);
-  tracked$ = this.trackedSubject.asObservable();
+  private accessToken: string | null = null;
+  private isRefreshing = false;
+  private refreshSubject = new BehaviorSubject<string | null>(null);
 
-  private alertsSubject = new BehaviorSubject<Alert[]>([]);
-  alerts$ = this.alertsSubject.asObservable();
-
-  private settingsSubject = new BehaviorSubject<Settings>({
-    emailAlerts: true,
-    pushNotifications: false,
-    weeklyDigest: true,
-    dealFeedUpdates: false,
-    frequency: 'Instant'
-  });
-  settings$ = this.settingsSubject.asObservable();
-
+  private readonly API_URL = `${environment.apiUrl}/auth`;
   private readonly KEYS = {
-    USER: 'pulseprice_user',
-    TRACKED: 'pulseprice_tracked',
-    ALERTS: 'pulseprice_alerts',
-    SETTINGS: 'pulseprice_settings'
+    USER: 'pulseprice_user'
   };
 
   private isBrowser: boolean;
 
-  constructor(@Inject(PLATFORM_ID) platformId: Object) {
+  constructor(
+    private http: HttpClient,
+    @Inject(PLATFORM_ID) platformId: Object
+  ) {
     this.isBrowser = isPlatformBrowser(platformId);
     this.rehydrate();
   }
 
   get currentUser(): User | null { return this.userSubject.value; }
-  get tracked(): string[] { return this.trackedSubject.value; }
-  get alerts(): Alert[] { return this.alertsSubject.value; }
-  get settings(): Settings { return this.settingsSubject.value; }
 
   private rehydrate() {
     if (!this.isBrowser) return;
-
     try {
       const u = localStorage.getItem(this.KEYS.USER);
       if (u) this.userSubject.next(JSON.parse(u));
-
-      const t = localStorage.getItem(this.KEYS.TRACKED);
-      if (t) this.trackedSubject.next(JSON.parse(t));
-
-      const a = localStorage.getItem(this.KEYS.ALERTS);
-      if (a) this.alertsSubject.next(JSON.parse(a));
-
-      const s = localStorage.getItem(this.KEYS.SETTINGS);
-      if (s) this.settingsSubject.next(JSON.parse(s));
     } catch (e) {
       console.error('Failed to rehydrate auth state', e);
     }
   }
 
+  // --- Core Auth ---
+
+  getUserProfile(): Observable<User> {
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${this.accessToken}`
+    });
+    return this.http.get<ApiResponse<User>>(`${this.API_URL}/me`, { headers }).pipe(
+      map(res => res.data),
+      tap(user => this.setUser(user))
+    );
+  }
+
+  register(name: string, email: string, password: string, role: UserRole): Observable<User> {
+    return this.http.post<ApiResponse<User>>(`${this.API_URL}/register`, {
+      full_name: name, email, password, role
+    }).pipe(
+      map(res => res.data)
+    );
+  }
+
   login(email: string, password: string): Observable<User> {
-    if (email && password) {
-      const user: User = { 
-        name: 'Demo User', 
-        email, 
-        type: 'shopper',
-        organization: 'Personal Account',
-        avatarColor: '#3B82F6'
-      };
-      return of(user).pipe(
-        delay(1500),
-        tap(u => this.setUser(u))
-      );
-    } else {
-      return throwError(() => new Error('Invalid credentials')).pipe(delay(1500));
-    }
-  }
+    const formData = new FormData();
+    formData.append('username', email);
+    formData.append('password', password);
 
-  signup(name: string, email: string, password: string, type: 'shopper' | 'business'): Observable<User> {
-    const user: User = { 
-      name, 
-      email, 
-      type,
-      organization: type === 'business' ? 'PulsePrice Business' : 'Personal Account',
-      avatarColor: '#3B82F6'
-    };
-    return of(user).pipe(
-      delay(1500),
-      tap(u => this.setUser(u))
+    return this.http.post<ApiResponse<TokenResponse>>(`${this.API_URL}/login`, formData).pipe(
+      switchMap(res => {
+        this.accessToken = res.data.access_token;
+        return this.getUserProfile();
+      })
     );
   }
 
-  loginWithGoogle(type: 'shopper' | 'business' = 'shopper'): Observable<User> {
-    const user: User = { 
-      name: 'Google User', 
-      email: 'user@gmail.com', 
-      type,
-      organization: type === 'business' ? 'PulsePrice Business' : 'Personal Account',
-      avatarColor: '#3B82F6'
-    };
-    return of(user).pipe(
-      delay(1500),
-      tap(u => this.setUser(u))
+  loginWithGoogle(role: UserRole): Observable<User> {
+    return throwError(() => new Error('Google OAuth not yet configured'));
+  }
+
+  updateUser(updates: Partial<User>): Observable<User> {
+    const currentUser = this.userSubject.value;
+    if (currentUser) {
+      const updatedUser = { ...currentUser, ...updates };
+      this.setUser(updatedUser);
+      return of(updatedUser);
+    }
+    return throwError(() => new Error('No user logged in'));
+  }
+
+  logout(): Observable<void> {
+    return this.http.post<void>(`${this.API_URL}/logout`, {}, { withCredentials: true }).pipe(
+      tap(() => {
+        this.clearAuthState();
+      }),
+      catchError(() => {
+        this.clearAuthState();
+        return of(undefined);
+      })
     );
   }
 
-  logout(): void {
-    this.userSubject.next(null);
-    this.trackedSubject.next([]);
-    this.alertsSubject.next([]);
-    if (this.isBrowser) {
-      localStorage.removeItem(this.KEYS.USER);
-      localStorage.removeItem(this.KEYS.TRACKED);
-      localStorage.removeItem(this.KEYS.ALERTS);
-      localStorage.removeItem(this.KEYS.SETTINGS);
-    }
+  refresh(): Observable<string> {
+    return this.http.post<ApiResponse<TokenResponse>>(`${this.API_URL}/refresh`, {}, { withCredentials: true }).pipe(
+      map(res => {
+        this.accessToken = res.data.access_token;
+        return this.accessToken;
+      })
+    );
+  }
+
+  forgotPassword(email: string): Observable<{message: string}> {
+    return this.http.post<{message: string}>(`${this.API_URL}/forgot-password?email=${email}`, {});
+  }
+
+  resetPassword(token: string, newPassword: string): Observable<{message: string}> {
+    return this.http.post<{message: string}>(`${this.API_URL}/reset-password?token=${token}&new_password=${newPassword}`, {});
+  }
+
+  verifyEmail(token: string): Observable<{message: string}> {
+    return this.http.get<{message: string}>(`${this.API_URL}/verify?token=${token}`);
+  }
+
+  // --- Helpers ---
+
+  getAccessToken(): string | null {
+    return this.accessToken;
   }
 
   isLoggedIn(): boolean {
-    return this.userSubject.value !== null;
+    return !!this.userSubject.value;
   }
 
-  hasRole(type: string): boolean {
-    return this.userSubject.value?.type === type;
-  }
-
-  // --- Profile ---
-  updateUser(updates: Partial<User>) {
-    const current = this.userSubject.value;
-    if (current) {
-      const updated = { ...current, ...updates };
-      this.setUser(updated);
-    }
+  hasRole(role: UserRole): boolean {
+    return this.userSubject.value?.role === role;
   }
 
   private setUser(user: User) {
@@ -176,64 +185,46 @@ export class AuthService {
     if (this.isBrowser) localStorage.setItem(this.KEYS.USER, JSON.stringify(user));
   }
 
-  // --- Tracked Products ---
-  toggleTracked(productId: string): boolean {
-    const current = [...this.trackedSubject.value];
-    const idx = current.indexOf(productId);
-    let isTracked = false;
-    
-    if (idx > -1) {
-      current.splice(idx, 1);
-      isTracked = false;
-      
-      // Automatically remove all alerts for this product if tracking is removed
-      const currentAlerts = this.alertsSubject.value.filter(a => a.productId !== productId);
-      if (currentAlerts.length !== this.alertsSubject.value.length) {
-        this.alertsSubject.next(currentAlerts);
-        if (this.isBrowser) localStorage.setItem(this.KEYS.ALERTS, JSON.stringify(currentAlerts));
-      }
+  private clearAuthState() {
+    this.accessToken = null;
+    this.userSubject.next(null);
+    if (this.isBrowser) {
+      localStorage.removeItem(this.KEYS.USER);
+    }
+  }
+
+  // Handle 401 and refresh
+  handleHttpError(error: HttpErrorResponse, originalRequest: Observable<any>): Observable<any> {
+    if (error.status === 401 && !error.url?.includes('/refresh') && !error.url?.includes('/login')) {
+      return this.refreshTokenAndRetry(originalRequest);
+    }
+    return throwError(() => error);
+  }
+
+  private refreshTokenAndRetry(originalRequest: Observable<any>): Observable<any> {
+    if (!this.isRefreshing) {
+      this.isRefreshing = true;
+      this.refreshSubject.next(null);
+
+      return this.refresh().pipe(
+        switchMap((token) => {
+          this.isRefreshing = false;
+          this.refreshSubject.next(token);
+          return originalRequest;
+        }),
+        catchError((err) => {
+          this.isRefreshing = false;
+          this.logout();
+          return throwError(() => err);
+        })
+      );
     } else {
-      current.push(productId);
-      isTracked = true;
+      return this.refreshSubject.pipe(
+        switchMap((token) => {
+          if (token) return originalRequest;
+          return throwError(() => new Error('Refresh failed'));
+        })
+      );
     }
-    
-    this.trackedSubject.next(current);
-    if (this.isBrowser) localStorage.setItem(this.KEYS.TRACKED, JSON.stringify(current));
-    return isTracked;
-  }
-
-  isTracked(productId: string): boolean {
-    return this.trackedSubject.value.includes(productId);
-  }
-
-  // --- Alerts ---
-  addAlert(alert: Alert) {
-    // Automatically track the product if not already tracked
-    if (alert.productId && !this.isTracked(alert.productId)) {
-      this.toggleTracked(alert.productId);
-    }
-
-    const current = [...this.alertsSubject.value, alert];
-    this.alertsSubject.next(current);
-    if (this.isBrowser) localStorage.setItem(this.KEYS.ALERTS, JSON.stringify(current));
-  }
-
-  updateAlert(id: string, updates: Partial<Alert>) {
-    const current = this.alertsSubject.value.map(a => a.id === id ? { ...a, ...updates } : a);
-    this.alertsSubject.next(current);
-    if (this.isBrowser) localStorage.setItem(this.KEYS.ALERTS, JSON.stringify(current));
-  }
-
-  deleteAlert(id: string) {
-    const current = this.alertsSubject.value.filter(a => a.id !== id);
-    this.alertsSubject.next(current);
-    if (this.isBrowser) localStorage.setItem(this.KEYS.ALERTS, JSON.stringify(current));
-  }
-
-  // --- Settings ---
-  updateSettings(updates: Partial<Settings>) {
-    const current = { ...this.settingsSubject.value, ...updates };
-    this.settingsSubject.next(current);
-    if (this.isBrowser) localStorage.setItem(this.KEYS.SETTINGS, JSON.stringify(current));
   }
 }
