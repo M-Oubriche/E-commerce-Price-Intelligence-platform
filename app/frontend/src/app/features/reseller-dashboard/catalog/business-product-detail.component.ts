@@ -10,14 +10,14 @@ Chart.register(...registerables);
 interface CompDetail { seller: string; logo: string; price: number; stock: string; shipping: string; diff: number; isYou?: boolean; }
 
 @Component({
-  selector: 'app-business-product-detail',
+  selector: 'app-reseller-product-detail',
   standalone: true,
   imports: [CommonModule, RouterModule, CurrencyPipe, FormsModule],
   template: `
     <div class="prod-page" [@pageEnter]>
       <!-- ── TOP BAR / BREADCRUMB ── -->
       <div class="breadcrumb-row">
-        <a routerLink="/business/catalog" class="back-link">
+        <a routerLink="/reseller/catalog" class="back-link">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
           Back to Catalog Tracker
         </a>
@@ -440,7 +440,7 @@ interface CompDetail { seller: string; logo: string; price: number; stock: strin
     ])
   ]
 })
-export class BusinessProductDetailComponent implements OnInit, AfterViewInit {
+export class ResellerProductDetailComponent implements OnInit, AfterViewInit {
   route = inject(ActivatedRoute);
   
   @ViewChild('trendChart', { static: false }) chartRef!: ElementRef;

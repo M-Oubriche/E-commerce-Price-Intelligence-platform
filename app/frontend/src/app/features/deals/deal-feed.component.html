@@ -60,7 +60,7 @@
         <div class="featured-content">
           <div class="top-meta">
             <span class="cat-badge">{{ featuredDeal.category }}</span>
-            <span class="featured-store">{{ featuredDeal.store }}</span>
+            <span class="featured-platform">{{ featuredDeal.platform }}</span>
           </div>
           <h2 class="featured-headline">{{ featuredDeal.headline }}</h2>
           
@@ -142,7 +142,7 @@
 
           <div class="card-footer">
             <div class="footer-left">
-              <span class="store-pill">{{ deal.store }}</span>
+              <span class="platform-pill">{{ deal.platform }}</span>
               <a class="view-link">View deal →</a>
             </div>
             <div class="footer-right">
@@ -192,7 +192,7 @@
           <img [src]="drop.image" class="drop-img" onerror="this.style.display='none'">
           <div class="drop-info">
             <span class="drop-name">{{ drop.productName }}</span>
-            <span class="drop-store">{{ drop.store }}</span>
+            <span class="drop-platform">{{ drop.platform }}</span>
           </div>
           <div class="drop-amount">
             <span class="drop-percent">↓ {{ drop.savingsPercent }}%</span>

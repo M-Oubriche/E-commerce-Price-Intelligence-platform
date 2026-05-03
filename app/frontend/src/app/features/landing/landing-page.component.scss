@@ -535,13 +535,13 @@ input {
   .faq-body { padding-bottom: 1.5rem; p { margin: 0; } }
 }
 
-// ── Entrepreneurs ──
-.biz-section { background: var(--bg-secondary); }
-.biz-card { border: 1px solid var(--accent-purple); background: var(--bg-primary); border-radius: 2rem; padding: 5rem; @media (max-width: 768px) { padding: 3rem 1.5rem; } }
-.biz-header { text-align: center; margin-bottom: 4rem; .biz-title { margin-bottom: 1rem; } .biz-subtitle { font-size: 1.1rem; } }
-.biz-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3rem; margin-bottom: 4rem; @media (max-width: 960px) { grid-template-columns: 1fr; gap: 2rem; } }
-.biz-feature { h4 { font-size: 1.25rem; color: white; margin-bottom: 1rem; } }
-.biz-cta { text-align: center; }
+// ── Resellers ──
+.reseller-section { background: var(--bg-secondary); }
+.reseller-card { border: 1px solid var(--accent-purple); background: var(--bg-primary); border-radius: 2rem; padding: 5rem; @media (max-width: 768px) { padding: 3rem 1.5rem; } }
+.reseller-header { text-align: center; margin-bottom: 4rem; .reseller-title { margin-bottom: 1rem; } .reseller-subtitle { font-size: 1.1rem; } }
+.reseller-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3rem; margin-bottom: 4rem; @media (max-width: 960px) { grid-template-columns: 1fr; gap: 2rem; } }
+.reseller-feature { h4 { font-size: 1.25rem; color: white; margin-bottom: 1rem; } }
+.reseller-cta { text-align: center; }
 
 // ── Stats ──
 .stats-bar { padding: 5rem 0; background: var(--bg-primary); border-bottom: 1px solid var(--border); border-top: 1px solid var(--border); }
@@ -791,17 +791,17 @@ input {
     .faq-body p { color: #6B6B6B !important; }
   }
 
-  // ── Entrepreneurs ──
-  .biz-section { background: #F5F4F0 !important; }
-  .biz-card {
+  // ── Resellers ──
+  .reseller-section { background: #F5F4F0 !important; }
+  .reseller-card {
     background: #FFFFFF !important;
     border-color: rgba(29,52,97,0.2) !important;
     box-shadow: 0 4px 24px rgba(0,0,0,0.06) !important;
-    .biz-title { color: #1C1C1E !important; }
-    .biz-subtitle { color: #6B6B6B !important; }
+    .reseller-title { color: #1C1C1E !important; }
+    .reseller-subtitle { color: #6B6B6B !important; }
   }
-  .biz-feature h4 { color: #1C1C1E !important; }
-  .biz-feature p { color: #6B6B6B !important; }
+  .reseller-feature h4 { color: #1C1C1E !important; }
+  .reseller-feature p { color: #6B6B6B !important; }
 
   // ── Stats bar ──
   .stats-bar {

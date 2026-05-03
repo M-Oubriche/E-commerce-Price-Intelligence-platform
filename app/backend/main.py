@@ -3,6 +3,7 @@ import json
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from api.v1.router import api_router
 from api.v1.endpoints import ws
 from core.redis import redis_client
@@ -54,6 +55,18 @@ app = FastAPI(
     version="1.0.0",
     description="Real-time E-commerce Price Intelligence Platform",
     lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4200",
+        "http://localhost:80",
+        "http://localhost",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Register all API routes under /api/v1

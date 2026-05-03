@@ -57,11 +57,11 @@
       </div>
 
       <div class="filter-group">
-        <h4>Stores</h4>
+        <h4>Platforms</h4>
         <div class="checklist">
-          <label *ngFor="let store of stores" class="check-item">
-            <input type="checkbox" [checked]="selectedStores.includes(store)" (change)="toggleStore(store)">
-            <span class="check-label">{{ store }}</span>
+          <label *ngFor="let platform of platforms" class="check-item">
+            <input type="checkbox" [checked]="selectedPlatforms.includes(platform)" (change)="togglePlatform(platform)">
+            <span class="check-label">{{ platform }}</span>
           </label>
         </div>
       </div>
@@ -116,8 +116,8 @@
                   <svg *ngIf="p.priceTrend === 'up'" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="23 6 13.5 15.5 8.5 10.5 1 17.5"></polyline><polyline points="17 6 23 6 23 12"></polyline></svg>
                 </span>
               </div>
-              <p class="store-name">on {{ p.bestStore }}</p>
-              <p class="range-info">From ${{ p.bestPrice }} to ${{ p.highestPrice }} across {{ p.storeCount }} stores</p>
+              <p class="store-name">on {{ p.bestPlatform }}</p>
+              <p class="range-info">From ${{ p.bestPrice }} to ${{ p.highestPrice }} across {{ p.platformCount }} platforms</p>
             </div>
             <button class="btn-primary w-full">View deals</button>
           </div>

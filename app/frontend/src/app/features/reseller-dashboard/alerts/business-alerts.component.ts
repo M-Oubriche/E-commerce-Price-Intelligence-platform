@@ -6,7 +6,7 @@ import { Router } from '@angular/router';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
 
 @Component({
-  selector: 'app-business-alerts',
+  selector: 'app-reseller-alerts',
   standalone: true,
   imports: [CommonModule, FormsModule],
   template: `
@@ -379,7 +379,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
     ])
   ]
 })
-export class BusinessAlertsComponent {
+export class ResellerAlertsComponent {
   showDrawer = false;
   showTargetDropdown = false;
   selectedFilter: string = 'All Alerts';

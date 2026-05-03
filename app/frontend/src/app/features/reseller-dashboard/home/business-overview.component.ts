@@ -11,7 +11,7 @@ interface Insight { icon: string; product: string; message: string; type: 'win' 
 interface TopOpp { name: string; category: string; image: string; opportunity: number; action: string; accentColor: string; accentBg: string; }
 
 @Component({
-  selector: 'app-business-overview',
+  selector: 'app-reseller-overview',
   standalone: true,
   imports: [CommonModule, RouterModule, CurrencyPipe],
   template: `
@@ -63,7 +63,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
                   <span class="dot"></span> Live
                 </span>
               </div>
-              <a routerLink="/business/alerts" class="view-all risk-link">
+              <a routerLink="/reseller/alerts" class="view-all risk-link">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                 3 at risk
               </a>
@@ -101,7 +101,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
               </div>
             </div>
 
-            <a routerLink="/business/catalog" class="panel-footer-link secondary">View full catalog →</a>
+            <a routerLink="/reseller/catalog" class="panel-footer-link secondary">View full catalog →</a>
           </section>
 
           <!-- RIGHT: Market Moves Feed -->
@@ -141,7 +141,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
               </div>
             </div>
 
-            <a routerLink="/business/competitors" class="panel-footer-link secondary">View all competitor activity →</a>
+            <a routerLink="/reseller/competitors" class="panel-footer-link secondary">View all competitor activity →</a>
           </section>
         </div>
 
@@ -187,7 +187,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
                 Top Opportunities
               </span>
               <span class="section-sub">Products where you can capture more market share</span>
-              <a routerLink="/business/catalog" class="section-link">See full catalog</a>
+              <a routerLink="/reseller/catalog" class="section-link">See full catalog</a>
             </div>
             <div class="opp-scroll">
               <div class="opp-card" *ngFor="let o of topOpps">
@@ -215,7 +215,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
             <section class="content-panel">
               <div class="panel-header">
                 <h2>Active Alerts</h2>
-                <a routerLink="/business/alerts" class="view-all">Manage</a>
+                <a routerLink="/reseller/alerts" class="view-all">Manage</a>
               </div>
               <div class="alert-list">
                 <div class="alert-item" *ngFor="let a of activeAlerts" [ngClass]="a.severity">
@@ -227,7 +227,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
                   <span class="al-badge" [ngClass]="a.severity">{{ a.label }}</span>
                 </div>
               </div>
-              <a routerLink="/business/alerts" class="panel-footer-link">Review All Alerts</a>
+              <a routerLink="/reseller/alerts" class="panel-footer-link">Review All Alerts</a>
             </section>
           </div>
         </div>
@@ -520,12 +520,12 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
     ])
   ]
 })
-export class BusinessOverviewComponent implements OnInit {
+export class ResellerOverviewComponent implements OnInit {
   authService = inject(AuthService);
   isLoading = true;
 
   get userName(): string {
-    return this.authService.currentUser?.name?.split(' ')[0] || 'there';
+    return this.authService.currentUser?.full_name?.split(' ')[0] || 'there';
   }
 
   get subtitle(): string {
@@ -560,10 +560,10 @@ export class BusinessOverviewComponent implements OnInit {
   ];
 
   insights: Insight[] = [
-    { product: 'Logitech G Pro X 2', message: 'You\'re now $10 above the lowest price. Competitor dropped to $119. Review your dynamic pricing rule.', type: 'watch', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', link: '/business/catalog' },
-    { product: 'Sony WH-1000XM5', message: 'You\'re now $20 above the lowest price after Sony\'s drop. Lower to $279 to recapture the #1 position on Amazon.', type: 'watch', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', link: '/business/catalog' },
-    { product: 'iPad Air M2', message: 'Your price is $50 above the lowest competitor — but you\'re still #2. Target visibility maintained.', type: 'win', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', link: '/business/catalog' },
-    { product: 'MacBook Air M3', message: 'Amazon dropped price by $80. You\'re now overpriced by $65. Update your pricing to stay competitive.', type: 'risk', icon: 'M13 10V3L4 14h7v7l9-11h-7z', link: '/business/competitors' },
+    { product: 'Logitech G Pro X 2', message: 'You\'re now $10 above the lowest price. Competitor dropped to $119. Review your dynamic pricing rule.', type: 'watch', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', link:  '/reseller/catalog' },
+    { product: 'Sony WH-1000XM5', message: 'You\'re now $20 above the lowest price after Sony\'s drop. Lower to $279 to recapture the #1 position on Amazon.', type: 'watch', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', link:  '/reseller/catalog' },
+    { product: 'iPad Air M2', message: 'Your price is $50 above the lowest competitor — but you\'re still #2. Target visibility maintained.', type: 'win', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', link:  '/reseller/catalog' },
+    { product: 'MacBook Air M3', message: 'Amazon dropped price by $80. You\'re now overpriced by $65. Update your pricing to stay competitive.', type: 'risk', icon: 'M13 10V3L4 14h7v7l9-11h-7z', link:  '/reseller/competitors' },
   ];
 
   topOpps: TopOpp[] = [

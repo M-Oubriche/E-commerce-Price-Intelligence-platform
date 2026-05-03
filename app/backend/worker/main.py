@@ -92,6 +92,8 @@ async def process_alert_events():
                     event.is_processed = True
                 
                 await db.commit()
+                logger.info("Worker cycle complete. Next check in 30 minutes.")
+                await asyncio.sleep(1800)  # Match NiFi's 30-min schedule
                 
         except Exception as e:
             logger.error(f"Worker Error: {str(e)}")

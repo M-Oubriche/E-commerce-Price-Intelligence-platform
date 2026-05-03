@@ -45,7 +45,7 @@ interface Activity {
 }
 
 @Component({
-  selector: 'app-business-competitor-scanner',
+  selector: 'app-reseller-competitor-scanner',
   standalone: true,
   imports: [CommonModule, FormsModule, CurrencyPipe, DatePipe, DecimalPipe, RouterModule],
   template: `
@@ -1256,7 +1256,7 @@ interface Activity {
     }
   `]
 })
-export class BusinessCompetitorScannerComponent implements OnInit, OnDestroy {
+export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
   isSyncing = false;
   productFilter = '';
   showAddRivalModal = false;
@@ -1442,6 +1442,6 @@ export class BusinessCompetitorScannerComponent implements OnInit, OnDestroy {
   }
 
   viewAllActivity() {
-    this.router.navigate(['/business/analytics']);
+    this.router.navigate([ '/reseller/analytics']);
   }
 }

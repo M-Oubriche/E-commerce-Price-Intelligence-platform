@@ -9,7 +9,7 @@ import { NotificationCenterComponent } from '../../shared/components/notificatio
 import { PriceTickerComponent } from '../../shared/components/price-ticker/price-ticker.component';
 
 @Component({
-  selector: 'app-buyer-layout',
+  selector: 'app-client-layout',
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, ToastComponent, NotificationCenterComponent, PriceTickerComponent],
   template: `
@@ -20,7 +20,7 @@ import { PriceTickerComponent } from '../../shared/components/price-ticker/price
           <div class="nav-left">
             <div class="brand">
               <span class="type-label logo-text">PulsePrice</span>
-              <span class="role-badge">BUYER MODE</span>
+              <span class="role-badge">CLIENT MODE</span>
             </div>
           </div>
 
@@ -76,7 +76,7 @@ import { PriceTickerComponent } from '../../shared/components/price-ticker/price
               <div class="avatar-placeholder">AR</div>
               <div class="user-meta">
                 <span class="user-name">Alex Rivera</span>
-                <span class="user-role type-label">Buyer</span>
+                <span class="user-role type-label">Client</span>
               </div>
             </div>
           </div>
@@ -332,7 +332,7 @@ import { PriceTickerComponent } from '../../shared/components/price-ticker/price
     }
   `]
 })
-export class BuyerLayoutComponent implements OnInit {
+export class ClientLayoutComponent implements OnInit {
   user = this.authService.currentUser;
   isNotificationsOpen = false;
   currentPageTitle = 'Dashboard';
@@ -344,7 +344,7 @@ export class BuyerLayoutComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.themeService.setRoleTheme('BUYER');
+    this.themeService.setRoleTheme('CLIENT');
     
     // Track current route for page title
     this.updateTitle(this.router.url);
@@ -361,7 +361,8 @@ export class BuyerLayoutComponent implements OnInit {
   }
 
   logout() {
-    this.authService.logout();
-    this.router.navigate(['/auth/login']);
+    this.authService.logout().subscribe(() => {
+      this.router.navigate(['/auth/login']);
+    });
   }
 }

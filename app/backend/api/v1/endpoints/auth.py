@@ -5,13 +5,13 @@ from typing import Optional
 
 from api import deps
 from models.users import User
-from schemas.users import UserCreate, UserOut, Token
+from schemas.users import UserCreate, UserOut, Token, SingleUserResponse
 from services.auth import AuthService
 from core.config import settings
 
 router = APIRouter()
 
-@router.post("/register", status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=SingleUserResponse, status_code=status.HTTP_201_CREATED)
 async def register(
     user_in: UserCreate, 
     db: AsyncSession = Depends(deps.get_db)
@@ -160,9 +160,9 @@ async def reset_password(token: str, new_password: str, db: AsyncSession = Depen
 async def test_token(token: str = Depends(deps.reusable_oauth2)):
     return {"message": "Système JWT fonctionnel.", "token": token}
 
-@router.get("/me", response_model=UserOut)
+@router.get("/me", response_model=SingleUserResponse)
 async def get_me(current_user: User = Depends(deps.get_current_user)):
     """
     Returns the profile of the currently authenticated user.
     """
-    return current_user
+    return {"data": current_user}

@@ -562,7 +562,7 @@ export class CatalogTrackerComponent implements OnInit {
   }
 
   navigateToDetail(id: string) {
-    this.router.navigate(['/business/catalog', id]);
+    this.router.navigate([ '/reseller/catalog', id]);
   }
 
   showToast(msg: string) {

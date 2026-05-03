@@ -5,6 +5,7 @@ import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { trigger, state, style, transition, animate, query, stagger } from '@angular/animations';
 import { AuthService, User } from '../../core/services/auth.service';
+import { UserRole } from '../../core/models/user.model';
 import { ScrollRevealDirective } from '../../shared/directives/scroll-reveal.directive';
 import { CountUpDirective } from '../../shared/directives/count-up.directive';
 import { PublicNavbarComponent } from '../../shared/components/public-navbar/public-navbar.component';
@@ -51,7 +52,7 @@ interface FAQ {
   isOpen: boolean;
 }
 
-interface BusinessFeature {
+interface ResellerFeature {
   title: string;
   description: string;
 }
@@ -162,7 +163,7 @@ export class LandingPageComponent implements OnInit, OnDestroy, AfterViewInit {
     },
     {
       rating: 5,
-      quote: 'I track 300 SKUs for my reselling business. PulsePrice replaced 3 tools I was paying for.',
+      quote: 'I track 300 SKUs for my reseller. PulsePrice replaced 3 tools I was paying for.',
       author: 'Sara K.',
       role: 'Electronics Reseller, Marrakech',
       initials: 'SK',
@@ -179,14 +180,14 @@ export class LandingPageComponent implements OnInit, OnDestroy, AfterViewInit {
   ];
 
   faqs: FAQ[] = [
-    { question: 'Is PulsePrice really free?', answer: 'Yes, completely free for both shoppers and business users. No credit card, no hidden fees, ever.', isOpen: true },
+    { question: 'Is PulsePrice really free?', answer: 'Yes, completely free for both clients and resellers. No credit card, no hidden fees, ever.', isOpen: true },
     { question: 'How often are prices updated?', answer: 'We refresh prices from all stores every 6 hours, so you always have accurate, up-to-date data.', isOpen: false },
     { question: 'Which stores do you track?', answer: 'We currently track 200+ stores including Amazon, eBay, AliExpress, Jumia, Walmart, BestBuy, Newegg, and many more regional retailers.', isOpen: false },
     { question: 'How do price drop alerts work?', answer: 'Set a target price on any product. The moment any tracked store drops to or below that price, we send you an instant email notification.', isOpen: false },
-    { question: 'What is the difference between a shopper and a business account?', answer: 'Shopper accounts get personal deal tools — price comparison, alerts, and deal scoring. Business accounts get bulk tracking, competitor scanning, margin alerts, and data export.', isOpen: false }
+    { question: 'What is the difference between a client and a reseller account?', answer: 'Client accounts get personal deal tools — price comparison, alerts, and deal scoring. Reseller accounts get bulk tracking, competitor scanning, margin alerts, and data export.', isOpen: false }
   ];
 
-  businessFeatures: BusinessFeature[] = [
+  resellerFeatures: ResellerFeature[] = [
     { title: 'Bulk Catalog Tracker', description: 'Monitor thousands of SKUs simultaneously across global marketplaces.' },
     { title: 'Competitor Price Scanner', description: 'Get instant alerts when competitors change their pricing strategy.' },
     { title: 'Margin Protection Alerts', description: 'Automated alerts to ensure your resale margins never dip below profitable levels.' }
@@ -337,11 +338,11 @@ export class LandingPageComponent implements OnInit, OnDestroy, AfterViewInit {
   }
 
   logout() {
-    this.authService.logout();
+    this.authService.logout().subscribe();
   }
 
   getDashboardLink(user: User): string {
-    return user.type === 'business' ? '/business' : '/dashboard';
+    return user.role === UserRole.RESELLER ?  '/reseller' : '/dashboard';
   }
 
   private initFloatingIcons() {

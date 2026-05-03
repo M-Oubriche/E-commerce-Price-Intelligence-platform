@@ -55,7 +55,7 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
             
             <div class="price-row">
               <div class="product-price">{{ product.currentPrice | currency }}</div>
-              <div class="product-store">at {{ product.store }}</div>
+              <div class="product-platform">at {{ product.platform }}</div>
             </div>
           </div>
 
@@ -196,7 +196,7 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
       color: var(--accent-green); font-variant-numeric: tabular-nums;
     }
 
-    .product-store { font-size: 12px; color: var(--text-muted); font-weight: 500; }
+    .product-platform { font-size: 12px; color: var(--text-muted); font-weight: 500; }
 
     .card-footer {
       padding: 14px 20px; border-top: 1px solid var(--border);
@@ -255,12 +255,12 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
 })
 export class TrackedProductsComponent {
   trackedProducts = [
-    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', currentPrice: 854, originalPrice: 999, priceWhenAdded: 999, store: 'Amazon', dealScore: 9.4, hasAlert: true, alertTarget: 800, image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400', priceHistory: [999,989,979,969,959,899,854] },
-    { id: '2', name: 'MacBook Pro 14"', category: 'Laptops', currentPrice: 1879, originalPrice: 1999, priceWhenAdded: 1999, store: 'Newegg', dealScore: 8.7, hasAlert: true, alertTarget: 1800, image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400', priceHistory: [1999,1989,1979,1969,1939,1909,1879] },
-    { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', currentPrice: 279, originalPrice: 399, priceWhenAdded: 320, store: 'BestBuy', dealScore: 9.1, hasAlert: false, alertTarget: null, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', priceHistory: [320,315,310,305,295,285,279] },
-    { id: '4', name: 'PS5 Console', category: 'Gaming', currentPrice: 449, originalPrice: 599, priceWhenAdded: 499, store: 'Amazon', dealScore: 9.4, hasAlert: true, alertTarget: 400, image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=400', priceHistory: [499,489,479,469,459,449,449] },
-    { id: '5', name: 'iPad Pro 12.9"', category: 'Tablets', currentPrice: 899, originalPrice: 1099, priceWhenAdded: 1099, store: 'Apple', dealScore: 8.2, hasAlert: false, alertTarget: null, image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400', priceHistory: [1099,1089,1079,1050,1020,950,899] },
-    { id: '6', name: 'RTX 4080 GPU', category: 'Components', currentPrice: 899, originalPrice: 1099, priceWhenAdded: 950, store: 'Newegg', dealScore: 8.7, hasAlert: true, alertTarget: 850, image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400', priceHistory: [950,940,930,920,910,905,899] }
+    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', currentPrice: 854, originalPrice: 999, priceWhenAdded: 999, platform: 'Amazon', dealScore: 9.4, hasAlert: true, alertTarget: 800, image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400', priceHistory: [999,989,979,969,959,899,854] },
+    { id: '2', name: 'MacBook Pro 14"', category: 'Laptops', currentPrice: 1879, originalPrice: 1999, priceWhenAdded: 1999, platform: 'Newegg', dealScore: 8.7, hasAlert: true, alertTarget: 1800, image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400', priceHistory: [1999,1989,1979,1969,1939,1909,1879] },
+    { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', currentPrice: 279, originalPrice: 399, priceWhenAdded: 320, platform: 'BestBuy', dealScore: 9.1, hasAlert: false, alertTarget: null, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', priceHistory: [320,315,310,305,295,285,279] },
+    { id: '4', name: 'PS5 Console', category: 'Gaming', currentPrice: 449, originalPrice: 599, priceWhenAdded: 499, platform: 'Amazon', dealScore: 9.4, hasAlert: true, alertTarget: 400, image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=400', priceHistory: [499,489,479,469,459,449,449] },
+    { id: '5', name: 'iPad Pro 12.9"', category: 'Tablets', currentPrice: 899, originalPrice: 1099, priceWhenAdded: 1099, platform: 'Apple', dealScore: 8.2, hasAlert: false, alertTarget: null, image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400', priceHistory: [1099,1089,1079,1050,1020,950,899] },
+    { id: '6', name: 'RTX 4080 GPU', category: 'Components', currentPrice: 899, originalPrice: 1099, priceWhenAdded: 950, platform: 'Newegg', dealScore: 8.7, hasAlert: true, alertTarget: 850, image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400', priceHistory: [950,940,930,920,910,905,899] }
   ];
 
   constructor(public router: Router) {}

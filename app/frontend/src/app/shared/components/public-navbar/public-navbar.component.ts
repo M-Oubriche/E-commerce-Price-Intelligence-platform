@@ -3,6 +3,7 @@ import { CommonModule } from '@angular/common';
 import { Router, RouterLink, ActivatedRoute, RouterLinkActive } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { AuthService, User } from '../../../core/services/auth.service';
+import { UserRole } from '../../../core/models/user.model';
 import { ThemeToggleComponent } from '../theme-toggle/theme-toggle.component';
 import { Observable } from 'rxjs';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
@@ -55,7 +56,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
               <a (click)="scrollToSection('categories')" class="nav-link-item">Categories</a>
               <a (click)="scrollToSection('features')" class="nav-link-item">Features</a>
               <a (click)="scrollToSection('how-it-works')" class="nav-link-item">How it Works</a>
-              <a (click)="scrollToSection('business')" class="nav-link-item">Business</a>
+              <a (click)="scrollToSection('reseller')" class="nav-link-item">Reseller</a>
               <a routerLink="/deals" class="deal-feed-link" routerLinkActive="active">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                 Deal Feed
@@ -74,17 +75,17 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
             <ng-container *ngIf="currentUser$ | async as user">
               <div class="user-menu" (click)="toggleDropdown($event)">
                 <div class="user-avatar">
-                  {{ (user.name || '').substring(0, 1).toUpperCase() }}
+                  {{ (user.full_name || '').substring(0, 1).toUpperCase() }}
                 </div>
                 <svg class="chevron" [class.open]="isDropdownOpen" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                   <polyline points="6 9 12 15 18 9"></polyline>
                 </svg>
                 <div class="user-dropdown" [class.show]="isDropdownOpen">
                   <div class="dropdown-header">
-                    <div class="dh-avatar">{{ (user.name || '').substring(0, 1).toUpperCase() }}</div>
+                    <div class="dh-avatar">{{ (user.full_name || '').substring(0, 1).toUpperCase() }}</div>
                     <div class="dh-info">
-                      <span class="dh-name">{{ user.name }}</span>
-                      <span class="dh-role">{{ user.type === 'business' ? 'Business Account' : 'Shopper Account' }}</span>
+                      <span class="dh-name">{{ user.full_name }}</span>
+                      <span class="dh-role">{{ user.role === UserRole.RESELLER ? 'Reseller Account' : 'Client Account' }}</span>
                     </div>
                   </div>
                   <div class="dropdown-divider"></div>
@@ -142,7 +143,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
         <a (click)="scrollToSection('categories')" class="drawer-link">Categories</a>
         <a (click)="scrollToSection('features')" class="drawer-link">Features</a>
         <a (click)="scrollToSection('how-it-works')" class="drawer-link">How it Works</a>
-        <a (click)="scrollToSection('business')" class="drawer-link">Business</a>
+        <a (click)="scrollToSection('reseller')" class="drawer-link">Reseller</a>
         <a routerLink="/deals" class="drawer-link" routerLinkActive="active" (click)="closeMobileMenu()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
           Deal Feed
@@ -520,6 +521,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
   `]
 })
 export class PublicNavbarComponent implements OnInit {
+  UserRole = UserRole;
   isScrolled = false;
   searchQuery = '';
   showSearch = true;
@@ -571,12 +573,13 @@ export class PublicNavbarComponent implements OnInit {
   closeMobileMenu() { this.isMobileMenuOpen = false; }
 
   goToDashboard(user: User) {
-    this.router.navigate([user.type === 'business' ? '/business' : '/dashboard']);
+    this.router.navigate([user.role === UserRole.RESELLER ?  '/reseller' : '/dashboard']);
   }
 
   logout() {
-    this.authService.logout();
-    this.router.navigate(['/']);
+    this.authService.logout().subscribe(() => {
+      this.router.navigate(['/']);
+    });
   }
 
   get filteredSuggestions() {

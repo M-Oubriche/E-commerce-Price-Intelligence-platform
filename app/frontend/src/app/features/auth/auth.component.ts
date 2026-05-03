@@ -4,6 +4,7 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractContro
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { trigger, state, style, transition, animate } from '@angular/animations';
 import { AuthService, User } from '../../core/services/auth.service';
+import { UserRole } from '../../core/models/user.model';
 import { ToastService } from '../../core/services/toast.service';
 
 interface FloatingIcon {
@@ -50,7 +51,8 @@ interface FloatingIcon {
 export class AuthComponent implements OnInit {
   mode: 'login' | 'signup' | 'forgot' | 'success' = 'login';
   signupStep: 1 | 2 = 1;
-  accountType: 'BUYER' | 'BUSINESS' | null = null;
+  accountType: UserRole | null = null;
+  UserRole = UserRole;
   
   loginForm: FormGroup;
   signupForm: FormGroup;
@@ -103,8 +105,8 @@ export class AuthComponent implements OnInit {
       if (params['mode'] === 'signup') {
         this.mode = 'signup';
         this.signupStep = 1;
-        if (params['type'] === 'business') this.accountType = 'BUSINESS';
-        else if (params['type'] === 'shopper') this.accountType = 'BUYER';
+        if (params['type'] === 'reseller') this.accountType = UserRole.RESELLER;
+        else if (params['type'] === 'client') this.accountType = UserRole.CLIENT;
       } else {
         this.mode = 'login';
       }
@@ -153,7 +155,7 @@ export class AuthComponent implements OnInit {
     this.signupStep = 1;
   }
 
-  selectAccountType(type: 'BUYER' | 'BUSINESS') { this.accountType = type; }
+  selectAccountType(type: UserRole) { this.accountType = type; }
   continueToStep2() { if (this.accountType) this.signupStep = 2; }
   togglePasswordVisibility(f: 'password' | 'confirm') {
     if (f === 'password') this.showPassword = !this.showPassword;
@@ -172,8 +174,7 @@ export class AuthComponent implements OnInit {
   onSignup() {
     if (this.signupForm.invalid || !this.accountType) return;
     this.isSubmitting = true;
-    const type = this.accountType === 'BUYER' ? 'shopper' : 'business';
-    this.authService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password, type).subscribe({
+    this.authService.register(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password, this.accountType).subscribe({
       next: (u) => this.onLoginSuccess(u),
       error: () => this.isSubmitting = false
     });
@@ -181,7 +182,7 @@ export class AuthComponent implements OnInit {
 
   loginWithGoogle() {
     this.isGoogleLoading = true;
-    const type = this.accountType === 'BUYER' ? 'shopper' : 'business';
+    const type = this.accountType || UserRole.CLIENT;
     this.authService.loginWithGoogle(type).subscribe({
       next: (u) => this.onLoginSuccess(u),
       error: () => this.isGoogleLoading = false
@@ -198,7 +199,7 @@ export class AuthComponent implements OnInit {
         this.router.navigateByUrl(decodeURIComponent(returnUrl));
       } else {
         // Redirect based on user type
-        this.router.navigate([user.type === 'business' ? '/business' : '/dashboard']);
+        this.router.navigate([user.role === UserRole.RESELLER ?  '/reseller' : '/dashboard']);
       }
     }, 2000);
   }

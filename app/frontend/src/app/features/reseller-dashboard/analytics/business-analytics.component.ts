@@ -56,7 +56,7 @@ interface CompetitorRank {
 }
 
 @Component({
-  selector: 'app-business-analytics',
+  selector: 'app-reseller-analytics',
   standalone: true,
   imports: [CommonModule, CurrencyPipe, DecimalPipe, RouterModule],
   animations: [
@@ -994,7 +994,7 @@ interface CompetitorRank {
     @media (max-width: 1400px) { .analysis-layout-grid, .two-column-bottom-section, .correlation-view-split, .competitors-tiles-row { grid-template-columns: 1fr; } .kpi-grid-refined { grid-template-columns: repeat(3, 1fr); } }
   `],
 })
-export class BusinessAnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
+export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('groupedBarCanvas') groupedBarCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('scatterRegressionCanvas') scatterRegressionCanvas!: ElementRef<HTMLCanvasElement>;
   

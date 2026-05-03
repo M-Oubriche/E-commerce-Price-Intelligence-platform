@@ -187,8 +187,8 @@
   .card-icon {
     width: 44px; height: 44px; margin: 0 auto 12px;
     border-radius: 10px; display: flex; align-items: center; justify-content: center;
-    &.shopper { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
-    &.business { background: rgba(124, 58, 237, 0.15); color: var(--accent-purple); }
+    &.client { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+    &.reseller { background: rgba(124, 58, 237, 0.15); color: var(--accent-purple); }
   }
 
   h3 { font-size: 0.95rem; font-weight: 700; color: #FFF; margin-bottom: 4px; }
@@ -208,7 +208,7 @@
   
   .type-badge {
     font-size: 0.85rem; font-weight: 600; color: var(--accent-blue);
-    &.business { color: var(--accent-purple); }
+    &.reseller { color: var(--accent-purple); }
   }
 }
 
@@ -387,8 +387,8 @@ form { display: flex; flex-direction: column; gap: 20px; }
       background: rgba(29,52,97,0.06) !important;
       box-shadow: 0 0 20px rgba(29,52,97,0.08) !important;
     }
-    .card-icon.shopper { background: rgba(29,52,97,0.1) !important; color: #1D3461 !important; }
-    .card-icon.business { background: rgba(124,58,237,0.1) !important; color: #7C3AED !important; }
+    .card-icon.client { background: rgba(29,52,97,0.1) !important; color: #1D3461 !important; }
+    .card-icon.reseller { background: rgba(124,58,237,0.1) !important; color: #7C3AED !important; }
     h3 { color: #1C1C1E !important; }
     p { color: #6B6B6B !important; }
     .check-badge { background: #1D3461 !important; }
@@ -396,7 +396,7 @@ form { display: flex; flex-direction: column; gap: 20px; }
 
   .account-type-summary {
     background: #F5F4F0 !important;
-    .type-badge { color: #1D3461 !important; &.business { color: #7C3AED !important; } }
+    .type-badge { color: #1D3461 !important; &.reseller { color: #7C3AED !important; } }
   }
 
   .form-group {

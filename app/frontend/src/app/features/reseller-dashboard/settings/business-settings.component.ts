@@ -5,13 +5,13 @@ import { AuthService } from '../../../core/services/auth.service';
 import { Router } from '@angular/router';
 
 @Component({
-  selector: 'app-business-settings',
+  selector: 'app-reseller-settings',
   standalone: true,
   imports: [CommonModule],
   template: `
     <div class="settings-page" [@pageEnter] *ngIf="authService.currentUser$ | async as user">
       <header class="page-header animate-in">
-        <h1>Business Settings</h1>
+        <h1>Reseller Settings</h1>
         <p>Configure your marketplace sync, pricing thresholds, and organization profile.</p>
       </header>
 
@@ -22,15 +22,15 @@ import { Router } from '@angular/router';
           <div class="profile-layout">
             <div class="avatar-col">
               <div class="avatar-circle">
-                {{ (user.name || '').charAt(0).toUpperCase() }}
+                {{ (user.full_name || '').charAt(0).toUpperCase() }}
               </div>
               <div class="role-badge">Admin</div>
             </div>
             <div class="form-col">
               <div class="form-row">
                 <div class="form-group flex-1">
-                  <label>Business Name</label>
-                  <input type="text" [value]="user.name || 'PulsePrice Global'" #nameInput>
+                  <label>Organization Name</label>
+                  <input type="text" [value]="user.full_name || 'PulsePrice Global'" #nameInput>
                 </div>
                 <div class="form-group flex-1">
                   <label>Registration ID</label>
@@ -81,7 +81,7 @@ import { Router } from '@angular/router';
           <h2 class="section-title">Switch Mode</h2>
           <div class="account-row">
             <div class="account-label">Looking for personal shopping?</div>
-            <a (click)="switchToShopper()" class="switch-link">Switch to Shopper Dashboard →</a>
+            <a (click)="switchToClient()" class="switch-link">Switch to Client Dashboard →</a>
           </div>
         </section>
 
@@ -196,7 +196,7 @@ import { Router } from '@angular/router';
     .account-row { display: flex; align-items: center; justify-content: space-between; }
     .account-label { font-size: 15px; font-weight: 700; color: var(--text-primary); }
     .account-badge { font-size: 11px; font-weight: 900; padding: 6px 16px; border-radius: 20px; }
-    .account-badge.business { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); }
+    .account-badge.reseller { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); }
     .plan-price { font-size: 20px; font-weight: 900; color: var(--text-primary); }
     .manage-btn { font-size: 14px; font-weight: 700; color: var(--accent-blue); background: none; border: none; cursor: pointer; }
     .manage-btn:hover { text-decoration: underline; }
@@ -235,7 +235,7 @@ import { Router } from '@angular/router';
     ])
   ]
 })
-export class BusinessSettingsComponent {
+export class ResellerSettingsComponent {
   authService = inject(AuthService);
   router = inject(Router);
 
@@ -249,15 +249,15 @@ export class BusinessSettingsComponent {
   syncOptions = [
     { label: 'Real-time Repricing', desc: 'Sync catalog prices instantly as market moves.', enabled: true },
     { label: 'Inventory Mirroring', desc: 'Auto-detect new listings across platforms.', enabled: true },
-    { label: 'Weekly Performance Digest', desc: 'Get a business analytics report via email.', enabled: false },
+    { label: 'Weekly Performance Digest', desc: 'Get a reseller analytics report via email.', enabled: false },
     { label: 'Competitive Intelligence Alerts', desc: 'Notify on rival inventory shifts.', enabled: true }
   ];
 
-  saveChanges(name: string, email: string) {
-    this.authService.updateUser({ name, email });
+  saveChanges(full_name: string, email: string) {
+    this.authService.updateUser({ full_name, email });
   }
 
-  switchToShopper() {
+  switchToClient() {
     this.router.navigate(['/dashboard']);
   }
 }

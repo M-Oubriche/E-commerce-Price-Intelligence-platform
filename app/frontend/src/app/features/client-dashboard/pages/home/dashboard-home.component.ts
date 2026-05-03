@@ -208,7 +208,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
                   <div class="recent-category">{{ product.category }}</div>
                   <div class="recent-name">{{ product.name }}</div>
                   <div class="recent-price">{{ product.currentPrice | currency }}</div>
-                  <div class="recent-store">{{ product.store }}</div>
+                  <div class="recent-platform">{{ product.platform }}</div>
                 </div>
                 <div class="recent-time">{{ product.viewedAgo }}</div>
               </div>
@@ -1084,7 +1084,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
         font-variant-numeric: tabular-nums;
       }
 
-      .recent-store {
+      .recent-platform {
         font-size: 11px;
         color: var(--text-muted);
         margin-top: 2px;
@@ -1132,7 +1132,7 @@ export class DashboardHomeComponent implements OnInit {
   }
 
   get userName(): string {
-    return this.authService.currentUser?.name?.split(' ')[0] || 'there';
+    return this.authService.currentUser?.full_name?.split(' ')[0] || 'there';
   }
 
   get welcomeSubtitle(): string {
@@ -1145,9 +1145,9 @@ export class DashboardHomeComponent implements OnInit {
   }
 
   trackedProducts = [
-    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', currentPrice: 854, originalPrice: 999, priceWhenAdded: 999, store: 'Amazon', dealScore: 9.4, image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400' },
-    { id: '2', name: 'MacBook Pro 14"', category: 'Laptops', currentPrice: 1879, originalPrice: 1999, priceWhenAdded: 1999, store: 'Newegg', dealScore: 8.7, image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400' },
-    { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', currentPrice: 279, originalPrice: 399, priceWhenAdded: 320, store: 'BestBuy', dealScore: 9.1, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400' }
+    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', currentPrice: 854, originalPrice: 999, priceWhenAdded: 999, platform: 'Amazon', dealScore: 9.4, image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400' },
+    { id: '2', name: 'MacBook Pro 14"', category: 'Laptops', currentPrice: 1879, originalPrice: 1999, priceWhenAdded: 1999, platform: 'Newegg', dealScore: 8.7, image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400' },
+    { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', currentPrice: 279, originalPrice: 399, priceWhenAdded: 320, platform: 'BestBuy', dealScore: 9.1, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400' }
   ];
 
   priceDrops = this.trackedProducts;
@@ -1195,7 +1195,7 @@ export class DashboardHomeComponent implements OnInit {
       name: 'iPhone 15 Pro',
       category: 'Smartphones',
       currentPrice: 854,
-      store: 'Amazon',
+      platform: 'Amazon',
       dealScore: 9.4,
       viewedAgo: '2h ago',
       image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200'
@@ -1205,7 +1205,7 @@ export class DashboardHomeComponent implements OnInit {
       name: 'MacBook Pro 14"',
       category: 'Laptops',
       currentPrice: 1879,
-      store: 'Newegg',
+      platform: 'Newegg',
       dealScore: 8.7,
       viewedAgo: '3h ago',
       image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200'
@@ -1215,7 +1215,7 @@ export class DashboardHomeComponent implements OnInit {
       name: 'Sony WH-1000XM5',
       category: 'Audio',
       currentPrice: 279,
-      store: 'BestBuy',
+      platform: 'BestBuy',
       dealScore: 9.1,
       viewedAgo: '5h ago',
       image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200'
@@ -1225,7 +1225,7 @@ export class DashboardHomeComponent implements OnInit {
       name: 'PS5 Console',
       category: 'Gaming',
       currentPrice: 449,
-      store: 'Amazon',
+      platform: 'Amazon',
       dealScore: 9.4,
       viewedAgo: '6h ago',
       image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=200'
@@ -1235,7 +1235,7 @@ export class DashboardHomeComponent implements OnInit {
       name: 'iPad Pro 12.9"',
       category: 'Tablets',
       currentPrice: 899,
-      store: 'Apple',
+      platform: 'Apple',
       dealScore: 8.2,
       viewedAgo: '1d ago',
       image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200'
@@ -1245,7 +1245,7 @@ export class DashboardHomeComponent implements OnInit {
       name: 'RTX 4080 GPU',
       category: 'Components',
       currentPrice: 899,
-      store: 'Newegg',
+      platform: 'Newegg',
       dealScore: 8.7,
       viewedAgo: '1d ago',
       image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=200'

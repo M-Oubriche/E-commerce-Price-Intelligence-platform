@@ -8,7 +8,7 @@ import { ThemeToggleComponent } from '../../shared/components/theme-toggle/theme
 import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
 
 @Component({
-  selector: 'app-shopper-dashboard',
+  selector: 'app-client-dashboard',
   standalone: true,
   imports: [CommonModule, RouterModule, ThemeToggleComponent, FormsModule],
   template: `
@@ -20,11 +20,11 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
 
       <div class="user-card" *ngIf="authService.currentUser$ | async as user">
         <div class="avatar" [style.background]="user.avatarColor || 'linear-gradient(135deg, #4F8EF7, #8B5CF6)'">
-          {{ (user.name || '').charAt(0).toUpperCase() }}
+          {{ (user.full_name || '').charAt(0).toUpperCase() }}
         </div>
         <div class="user-details">
-          <div class="user-name">{{ user.name }}</div>
-          <div class="user-badge">Shopper</div>
+          <div class="user-name">{{ user.full_name }}</div>
+          <div class="user-badge">Client</div>
         </div>
       </div>
 
@@ -153,7 +153,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
         <div class="topbar-avatar" 
              [style.background]="user.avatarColor || 'linear-gradient(135deg, var(--accent-blue), var(--accent-purple))'"
              (click)="router.navigate(['/dashboard/settings'])">
-          {{ (user.name || '').charAt(0).toUpperCase() }}
+          {{ (user.full_name || '').charAt(0).toUpperCase() }}
         </div>
       </div>
     </header>
@@ -368,7 +368,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
         /* Suggestions Dropdown */
         .suggestions-dropdown {
           position: absolute; top: calc(100% + 10px); left: 0; right: 0;
-          background: var(--bg-secondary); border: 1px solid var(--border);
+          background: var(--bg-secondary); border: solid 1px var(--border);
           border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.3);
           z-index: 1000; overflow: hidden; backdrop-filter: blur(16px);
         }
@@ -562,7 +562,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
     }
   `]
 })
-export class ShopperDashboardComponent {
+export class ClientDashboardComponent {
   currentPageTitle = 'Dashboard';
   searchQuery = '';
   showSuggestions = false;
@@ -679,7 +679,8 @@ export class ShopperDashboardComponent {
   }
 
   logout() {
-    this.authService.logout();
-    this.router.navigate(['/']);
+    this.authService.logout().subscribe(() => {
+      this.router.navigate(['/']);
+    });
   }
 }

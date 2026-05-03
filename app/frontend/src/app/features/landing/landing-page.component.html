@@ -259,7 +259,7 @@
   <!-- TESTIMONIALS SECTION -->
   <section class="section testimonials-section" appScrollReveal>
     <div class="container">
-      <h2 class="section-title text-center">Trusted by smart shoppers and resellers.</h2>
+      <h2 class="section-title text-center">Trusted by smart clients and resellers.</h2>
       <div class="testimonials-grid">
         <div class="testimonial-card" *ngFor="let t of testimonials">
           <div class="stars">★★★★★</div>
@@ -296,7 +296,7 @@
   </section>
 
   <!-- ENTREPRENEURS SECTION -->
-  <section id="business" class="section biz-section" appScrollReveal>
+  <section id="reseller" class="section reseller-section" appScrollReveal>
     <div class="container">
       <div class="biz-card">
         <div class="biz-header">
@@ -304,13 +304,13 @@
           <p class="biz-subtitle">Join 1,000+ resellers already using PulsePrice to protect their margins.</p>
         </div>
         <div class="biz-grid">
-          <div class="biz-feature" *ngFor="let bf of businessFeatures">
+          <div class="reseller-feature" *ngFor="let bf of resellerFeatures">
             <h4>{{ bf.title }}</h4>
             <p>{{ bf.description }}</p>
           </div>
         </div>
         <div class="biz-cta">
-          <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}" class="btn-primary">Learn more about business features →</a>
+          <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'reseller'}" class="btn-primary">Learn more about reseller features →</a>
         </div>
       </div>
     </div>
@@ -359,9 +359,9 @@
       </div>
       <div class="footer-col">
         <h4>For Business</h4>
-        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}">Reseller Plan</a>
-        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}">API Access</a>
-        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}">Bulk Tracking</a>
+        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'reseller'}">Reseller Plan</a>
+        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'reseller'}">API Access</a>
+        <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'reseller'}">Bulk Tracking</a>
       </div>
       <div class="footer-col">
         <h4>Company</h4>

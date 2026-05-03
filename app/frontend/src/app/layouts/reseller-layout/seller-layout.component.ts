@@ -6,7 +6,7 @@ import { ThemeService } from '../../core/services/theme.service';
 import { ToastComponent } from '../../shared/components/toast/toast.component';
 
 @Component({
-  selector: 'app-seller-layout',
+  selector: 'app-reseller-layout',
   standalone: true,
   imports: [CommonModule, RouterOutlet, RouterLink, RouterLinkActive, ToastComponent],
   template: `
@@ -14,7 +14,7 @@ import { ToastComponent } from '../../shared/components/toast/toast.component';
       <aside class="sidebar border-outline">
         <div class="sidebar-header border-bottom">
           <span class="type-label">PulsePrice</span>
-          <span class="type-pill">SELLER</span>
+          <span class="type-pill">RESELLER</span>
         </div>
         
         <nav class="sidebar-nav">
@@ -30,7 +30,7 @@ import { ToastComponent } from '../../shared/components/toast/toast.component';
 
         <div class="sidebar-footer border-top">
           <div class="user-info">
-            <span class="type-label">{{ user?.name }}</span>
+            <span class="type-label">{{ user?.full_name }}</span>
             <span class="type-body">{{ user?.organization }}</span>
           </div>
           <button (click)="logout()" class="logout-btn">
@@ -143,7 +143,7 @@ import { ToastComponent } from '../../shared/components/toast/toast.component';
     }
   `]
 })
-export class SellerLayoutComponent implements OnInit {
+export class ResellerLayoutComponent implements OnInit {
   user = this.authService.currentUser;
 
   constructor(
@@ -153,11 +153,12 @@ export class SellerLayoutComponent implements OnInit {
   ) {}
 
   ngOnInit() {
-    this.themeService.setRoleTheme('SELLER');
+    this.themeService.setRoleTheme('RESELLER');
   }
 
   logout() {
-    this.authService.logout();
-    this.router.navigate(['/auth/login']);
+    this.authService.logout().subscribe(() => {
+      this.router.navigate(['/auth/login']);
+    });
   }
 }

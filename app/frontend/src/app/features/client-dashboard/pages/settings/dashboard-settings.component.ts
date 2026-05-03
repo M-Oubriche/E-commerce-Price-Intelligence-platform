@@ -21,7 +21,7 @@ import { AuthService } from '../../../../core/services/auth.service';
           <div class="profile-layout">
             <div class="avatar-col">
               <div class="avatar-circle">
-                {{ (user.name || '').charAt(0).toUpperCase() }}
+                {{ (user.full_name || '').charAt(0).toUpperCase() }}
               </div>
               <div class="color-swatches">
                 <div class="swatch" 
@@ -35,7 +35,7 @@ import { AuthService } from '../../../../core/services/auth.service';
             <div class="form-col">
               <div class="form-group">
                 <label>Display Name</label>
-                <input type="text" [value]="user.name" #nameInput>
+                <input type="text" [value]="user.full_name" #nameInput>
               </div>
               <div class="form-group">
                 <label>Email Address</label>
@@ -80,8 +80,8 @@ import { AuthService } from '../../../../core/services/auth.service';
           <h2 class="section-title">Account</h2>
           <div class="account-row">
             <div class="account-label">Account Type</div>
-            <div class="account-badge">Shopper</div>
-            <a class="switch-link">Switch to Business →</a>
+            <div class="account-badge">Client</div>
+            <a class="switch-link">Switch to Reseller →</a>
           </div>
         </section>
 
@@ -271,6 +271,6 @@ export class DashboardSettingsComponent {
   }
 
   saveChanges(name: string, email: string) {
-    this.authService.updateUser({ name, email });
+    this.authService.updateUser({ full_name: name, email });
   }
 }
