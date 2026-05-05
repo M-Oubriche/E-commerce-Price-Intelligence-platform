@@ -33,6 +33,7 @@ export const routes: Routes = [
   { path: 'product/:id', component: ProductDetailComponent },
   { path: 'deals', component: DealFeedComponent },
   { path: 'auth', component: AuthComponent },
+  { path: 'auth/verify-email', component: AuthComponent },
   { path: 'about', component: AboutComponent },
   { path: 'contact', component: ContactComponent },
   { path: 'privacy', component: PrivacyComponent },

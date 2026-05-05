@@ -49,10 +49,13 @@ interface FloatingIcon {
   ]
 })
 export class AuthComponent implements OnInit {
-  mode: 'login' | 'signup' | 'forgot' | 'success' = 'login';
+  mode: 'login' | 'signup' | 'forgot' | 'success' | 'verify' | 'signup-success' = 'login';
   signupStep: 1 | 2 = 1;
   accountType: UserRole | null = null;
   UserRole = UserRole;
+  
+  verificationStatus: 'loading' | 'success' | 'error' = 'loading';
+  verificationMessage: string = '';
   
   loginForm: FormGroup;
   signupForm: FormGroup;
@@ -101,20 +104,47 @@ export class AuthComponent implements OnInit {
       return;
     }
 
-    this.route.queryParams.subscribe(params => {
-      if (params['mode'] === 'signup') {
-        this.mode = 'signup';
-        this.signupStep = 1;
-        if (params['type'] === 'reseller') this.accountType = UserRole.RESELLER;
-        else if (params['type'] === 'client') this.accountType = UserRole.CLIENT;
+    const path = this.router.url;
+    if (path.includes('verify-email')) {
+      this.mode = 'verify';
+      const token = this.route.snapshot.queryParams['token'];
+      if (token) {
+        this.performEmailVerification(token);
       } else {
-        this.mode = 'login';
+        this.verificationStatus = 'error';
+        this.verificationMessage = 'Invalid verification link. No token found.';
       }
-    });
+    } else {
+      this.route.queryParams.subscribe(params => {
+        if (params['mode'] === 'signup') {
+          this.mode = 'signup';
+          this.signupStep = 1;
+          if (params['type'] === 'reseller') this.accountType = UserRole.RESELLER;
+          else if (params['type'] === 'client') this.accountType = UserRole.CLIENT;
+        } else {
+          this.mode = 'login';
+        }
+      });
+    }
 
     if (isPlatformBrowser(this.platformId)) {
       this.generateFloatingIcons();
     }
+  }
+
+  private performEmailVerification(token: string) {
+    this.verificationStatus = 'loading';
+    this.authService.verifyEmail(token).subscribe({
+      next: (res) => {
+        this.verificationStatus = 'success';
+        this.verificationMessage = 'Your email has been verified successfully!';
+        setTimeout(() => this.switchMode('login'), 3000);
+      },
+      error: (err) => {
+        this.verificationStatus = 'error';
+        this.verificationMessage = err.error?.detail || 'Verification failed. The token may be expired or invalid.';
+      }
+    });
   }
 
   get sf() { return this.signupForm.controls; }
@@ -175,7 +205,11 @@ export class AuthComponent implements OnInit {
     if (this.signupForm.invalid || !this.accountType) return;
     this.isSubmitting = true;
     this.authService.register(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password, this.accountType).subscribe({
-      next: (u) => this.onLoginSuccess(u),
+      next: () => {
+        this.isSubmitting = false;
+        this.mode = 'signup-success';
+        this.toastService.show('Account created! Please check your email.', 'success');
+      },
       error: () => this.isSubmitting = false
     });
   }

@@ -6,12 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy import update, delete
 
-from models.users import User, UserSession, LoginAttempt, EmailVerificationToken, PasswordResetToken
+from models.users import User, UserSession, LoginAttempt, EmailVerificationToken, PasswordResetToken, AuthProvider
 from models.preferences import AlertPreference, DisplayPreference
 from core.security import hash_password, verify_password, create_access_token, create_refresh_token
 from core.redis import redis_client
 from core.config import settings
 from schemas.users import UserCreate
+from services.email import send_verification_email, send_password_reset_email
 
 class AuthService:
     @staticmethod
@@ -29,7 +30,7 @@ class AuthService:
             password_hash=hashed_pw,
             full_name=user_in.full_name,
             role=user_in.role,
-            auth_provider="local"
+            auth_provider=AuthProvider.LOCAL
         )
         db.add(db_user)
         await db.flush()  # Get ID without committing
@@ -65,6 +66,13 @@ class AuthService:
         )
         db.add(db_token)
         await db.commit()
+
+        # Send Email
+        user_result = await db.execute(select(User).filter(User.id == user_id))
+        user = user_result.scalars().first()
+        if user:
+            await send_verification_email(user.email, user.full_name, raw_token)
+
         return raw_token
 
     @staticmethod
@@ -110,6 +118,10 @@ class AuthService:
         )
         db.add(db_token)
         await db.commit()
+
+        # Send Email
+        await send_password_reset_email(user.email, user.full_name, raw_token)
+
         return raw_token
 
     @staticmethod

@@ -334,6 +334,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
@@ -343,11 +345,34 @@ services:
       - ./app/backend:/app
     ports:
       - "8000:8000"
-    networks:
+    networks: 
       - platform_net
     # Run Uvicorn with hot-reload enabled. 
     # NOTE: if main.py is in another place, change "main:app" to "<path>.main:app"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # BACKGROUND WORKER
+  price_worker:
+    build:
+      context: ./app/backend
+      dockerfile: ../../docker/Dockerfiles/backend.Dockerfile
+    container_name: price_worker
+    restart: unless-stopped
+    depends_on:
+      app_postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./app/backend:/app
+    networks:
+      - platform_net
+    command: python worker/main.py
 
   # FRONTEND
   frontend:

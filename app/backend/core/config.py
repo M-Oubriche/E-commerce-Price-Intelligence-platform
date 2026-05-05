@@ -32,6 +32,12 @@ class Settings(BaseSettings):
     REDIS_HOST: str = "redis"
     REDIS_PORT: int = 6379
 
+    # --- Email Service (Brevo) ---
+    BREVO_API_KEY: str = ""
+    BREVO_SENDER_EMAIL: str = "noreply@pulseprice.com"
+    BREVO_SENDER_NAME: str = "PulsePrice"
+    FRONTEND_URL: str = "http://localhost:4200"
+
     # --- Security (JWT) ---
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15

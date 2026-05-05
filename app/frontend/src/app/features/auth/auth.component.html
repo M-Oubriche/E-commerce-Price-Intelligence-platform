@@ -44,6 +44,46 @@
       <p>Taking you to your dashboard...</p>
     </div>
 
+    <!-- SIGNUP SUCCESS STATE -->
+    <div *ngIf="mode === 'signup-success'" class="success-state" [@fadeSlideUp]>
+      <div class="checkmark-wrapper email-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="email-svg"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+      </div>
+      <h2>Check your email</h2>
+      <p>We've sent a verification link to your email address. Please click it to activate your account.</p>
+      <button class="btn-primary mt-6 w-full" (click)="switchMode('login')">Return to Login</button>
+    </div>
+
+    <!-- VERIFICATION STATE -->
+    <div *ngIf="mode === 'verify'" class="success-state" [@fadeSlideUp]>
+      <div *ngIf="verificationStatus === 'loading'">
+        <div class="spinner-large"></div>
+        <h2>Verifying...</h2>
+        <p>Please wait while we verify your email.</p>
+      </div>
+
+      <div *ngIf="verificationStatus === 'success'">
+        <div class="checkmark-wrapper">
+          <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <h2>Verified!</h2>
+        <p>{{ verificationMessage }}</p>
+        <p class="mt-4 text-sm text-gray-400">Redirecting to login...</p>
+      </div>
+
+      <div *ngIf="verificationStatus === 'error'">
+        <div class="error-icon-wrapper">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        </div>
+        <h2>Verification Failed</h2>
+        <p>{{ verificationMessage }}</p>
+        <button class="btn-primary mt-6 w-full" (click)="switchMode('login')">Go to Login</button>
+      </div>
+    </div>
+
     <!-- MAIN FORM MODES -->
     <div *ngIf="mode !== 'success'" class="card-body">
       

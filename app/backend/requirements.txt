@@ -14,3 +14,4 @@ python-jose[cryptography]==3.3.0
 python-multipart==0.0.12
 emails==0.6.0
 email-validator==2.1.1
+sib-api-v3-sdk==7.6.0
