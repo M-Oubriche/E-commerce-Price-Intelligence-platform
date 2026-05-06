@@ -1,6 +1,19 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { WatchlistService, ShopperAlert } from '../../../../core/services/watchlist.service';
+
+interface AlertDisplayItem {
+  id: string;
+  productId: string;
+  productName: string;
+  image: string;
+  currentPrice: number;
+  targetPrice: number;
+  progress: number;
+  status: 'active' | 'paused' | 'triggered';
+}
 
 @Component({
   selector: 'app-alerts',
@@ -19,52 +32,73 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
         </button>
       </header>
 
-      <div class="filter-tabs animate-in">
-        <button class="tab active">All</button>
-        <button class="tab">Active</button>
-        <button class="tab">Paused</button>
-        <button class="tab">Triggered</button>
+      <div class="loading-state" *ngIf="isLoading">
+        <div class="spinner"></div>
+        <p>Loading your alerts...</p>
       </div>
 
-      <div class="alerts-list">
-        <div class="alert-card animate-in" *ngFor="let alert of alerts">
-          <img [src]="alert.image" [alt]="alert.productName" class="alert-img">
-          
-          <div class="alert-info">
-            <div class="alert-name">{{ alert.productName }}</div>
-            <div class="alert-condition">Alert when price drops to {{ alert.targetPrice | currency }} on any store</div>
-            <div class="alert-status" [class]="alert.status">
-              {{ alert.status === 'triggered' ? 'TRIGGERED!' : alert.status | uppercase }}
-            </div>
-          </div>
+      <div class="error-state animate-in" *ngIf="error">
+        <div class="error-icon">⚠️</div>
+        <p>{{ error }}</p>
+        <button class="btn-secondary" (click)="fetchAlerts()">Try Again</button>
+      </div>
 
-          <div class="alert-progress-section">
-            <div class="progress-labels">
-              <span class="current-price">{{ alert.currentPrice | currency }}</span>
-              <span class="target-price">{{ alert.targetPrice | currency }}</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-fill" 
-                   [style.width.%]="alert.progress"
-                   [style.background]="getProgressColor(alert.progress)"
-                   [style.box-shadow]="alert.progress > 85 ? '0 0 8px rgba(16,185,129,0.4)' : 'none'"></div>
-            </div>
-            <div class="progress-pct">{{ alert.progress }}% there</div>
-          </div>
+      <ng-container *ngIf="!isLoading && !error">
+        <div class="filter-tabs animate-in">
+          <button class="tab active">All</button>
+          <button class="tab">Active</button>
+          <button class="tab">Paused</button>
+          <button class="tab">Triggered</button>
+        </div>
 
-          <div class="alert-controls">
-            <div class="toggle-switch" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'" (click)="toggleStatus(alert)">
-              <div class="knob" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'"></div>
+        <div class="alerts-list" *ngIf="alerts.length > 0; else emptyState">
+          <div class="alert-card animate-in" *ngFor="let alert of alerts">
+            <img [src]="alert.image" [alt]="alert.productName" class="alert-img">
+            
+            <div class="alert-info">
+              <div class="alert-name">{{ alert.productName }}</div>
+              <div class="alert-condition">Alert when price drops to {{ alert.targetPrice | currency }} on any store</div>
+              <div class="alert-status" [class]="alert.status">
+                {{ alert.status === 'triggered' ? 'TRIGGERED!' : alert.status | uppercase }}
+              </div>
             </div>
-            <button class="icon-btn">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-            </button>
-            <button class="icon-btn trash">
-              <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-            </button>
+
+            <div class="alert-progress-section">
+              <div class="progress-labels">
+                <span class="current-price">{{ alert.currentPrice | currency }}</span>
+                <span class="target-price">{{ alert.targetPrice | currency }}</span>
+              </div>
+              <div class="progress-track">
+                <div class="progress-fill" 
+                    [style.width.%]="alert.progress"
+                    [style.background]="getProgressColor(alert.progress)"
+                    [style.box-shadow]="alert.progress > 85 ? '0 0 8px rgba(16,185,129,0.4)' : 'none'"></div>
+              </div>
+              <div class="progress-pct">{{ alert.progress }}% there</div>
+            </div>
+
+            <div class="alert-controls">
+              <div class="toggle-switch" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'" (click)="toggleStatus(alert)">
+                <div class="knob" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'"></div>
+              </div>
+              <button class="icon-btn">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+              </button>
+              <button class="icon-btn trash">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </ng-container>
+
+      <ng-template #emptyState>
+        <div class="empty-state animate-in">
+          <div class="empty-icon">🔔</div>
+          <h2>No alerts set yet</h2>
+          <p>You haven't set any price alerts. Tracking products is the first step to getting notified.</p>
+        </div>
+      </ng-template>
 
       <!-- Drawer Overlay -->
       <div class="drawer-overlay" *ngIf="showDrawer" (click)="toggleDrawer()"></div>
@@ -82,7 +116,7 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
           <div class="drawer-section">
             <label>1. Pick from tracked products</label>
             <select class="drawer-input">
-              <option *ngFor="let p of trackedProducts">{{ p.name }}</option>
+              <option *ngFor="let p of trackedProducts">{{ p.product_name }}</option>
             </select>
           </div>
 
@@ -110,7 +144,7 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
           </div>
 
           <div class="preview-sentence">
-            "We'll alert you when iPhone 15 Pro drops to $800 on any store via email."
+            "We'll alert you when your product drops to target price on any store via email."
           </div>
 
           <button class="drawer-submit">Create alert</button>
@@ -137,6 +171,28 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
     }
     .create-alert-btn svg { width: 16px; height: 16px; }
     .create-alert-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .btn-secondary {
+      height: 36px; padding: 0 16px; background: var(--bg-secondary);
+      color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 12px;
+    }
+
+    .loading-state, .error-state, .empty-state {
+      padding: 60px 20px; text-align: center;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 24px; margin-top: 20px;
+    }
+
+    .spinner {
+      width: 32px; height: 32px; border: 3px solid var(--accent-blue-light);
+      border-top-color: var(--accent-blue); border-radius: 50%;
+      margin: 0 auto 16px; animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-icon, .empty-icon { font-size: 32px; margin-bottom: 12px; }
 
     .filter-tabs {
       display: flex; gap: 0;
@@ -315,28 +371,66 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
     ])
   ]
 })
-export class AlertsComponent {
+export class AlertsComponent implements OnInit {
+  private watchlistService = inject(WatchlistService);
+  private destroyRef = inject(DestroyRef);
+  
   showDrawer = false;
+  alerts: AlertDisplayItem[] = [];
+  trackedProducts: any[] = [];
+  isLoading = true;
+  error: string | null = null;
 
-  alerts = [
-    { productId: '1', productName: 'iPhone 15 Pro', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200', currentPrice: 854, targetPrice: 800, progress: 73, status: 'active' },
-    { productId: '2', productName: 'MacBook Pro 14"', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200', currentPrice: 1879, targetPrice: 1800, progress: 85, status: 'active' },
-    { productId: '4', productName: 'PS5 Console', image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=200', currentPrice: 449, targetPrice: 400, progress: 60, status: 'active' },
-    { productId: '6', productName: 'RTX 4080 GPU', image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=200', currentPrice: 899, targetPrice: 850, progress: 100, status: 'triggered' }
-  ];
+  ngOnInit() {
+    this.fetchAlerts();
+  }
 
-  trackedProducts = [
-    { name: 'iPhone 15 Pro' },
-    { name: 'MacBook Pro 14"' },
-    { name: 'Sony WH-1000XM5' }
-  ];
+  fetchAlerts() {
+    this.isLoading = true;
+    this.error = null;
+
+    this.watchlistService.getWatchlist()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.trackedProducts = items;
+          this.alerts = items.flatMap(item => 
+            (item.shopper_alerts || []).map(alert => ({
+              id: alert.id,
+              productId: item.id,
+              productName: item.product_name,
+              image: item.image_url,
+              currentPrice: item.current_price,
+              targetPrice: alert.target_value,
+              progress: alert.progress_pct,
+              status: alert.status
+            }))
+          );
+          this.isLoading = false;
+        },
+        error: (err) => {
+          this.error = 'Failed to load alerts. Please try again.';
+          this.isLoading = false;
+        }
+      });
+  }
 
   toggleDrawer() {
     this.showDrawer = !this.showDrawer;
   }
 
-  toggleStatus(alert: any) {
-    alert.status = alert.status === 'active' ? 'paused' : 'active';
+  toggleStatus(alert: AlertDisplayItem) {
+    const action = alert.status === 'active' ? 
+      this.watchlistService.pauseAlert(alert.id) : 
+      this.watchlistService.resumeAlert(alert.id);
+
+    action.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          alert.status = updated.status;
+        },
+        error: () => window.alert('Failed to update alert status.')
+      });
   }
 
   getProgressColor(progress: number): string {

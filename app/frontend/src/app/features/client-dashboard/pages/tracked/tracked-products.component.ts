@@ -1,8 +1,10 @@
-import { Component } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { WatchlistService, WatchlistItem } from '../../../../core/services/watchlist.service';
 
 @Component({
   selector: 'app-tracked-products',
@@ -22,64 +24,77 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
         </div>
       </header>
 
-      <div class="filter-bar animate-in" *ngIf="trackedProducts.length > 0">
-        <button class="filter-pill active">All</button>
-        <button class="filter-pill">Price Dropped</button>
-        <button class="filter-pill">Price Rising</button>
-        <button class="filter-pill">Has Alert</button>
-        <button class="filter-pill">No Alert</button>
+      <div class="loading-state" *ngIf="isLoading">
+        <div class="spinner"></div>
+        <p>Loading your watchlist...</p>
       </div>
 
-      <div class="products-grid" *ngIf="trackedProducts.length > 0; else emptyState">
-        <div class="product-card animate-in" *ngFor="let product of trackedProducts" [routerLink]="['/product', product.id]">
-          <div class="card-image">
-            <img [src]="product.image" [alt]="product.name">
-            <div class="floating-score" [class]="getScoreClass(product.dealScore)">
-              {{ product.dealScore }}
-            </div>
-            <div class="floating-alert" [class.has-alert]="product.hasAlert" [class.no-alert]="!product.hasAlert">
-              {{ product.hasAlert ? 'Alert Active' : 'No Alert' }}
-            </div>
-            <div class="price-change-tag" 
-                 *ngIf="product.currentPrice !== product.priceWhenAdded"
-                 [class.down]="product.currentPrice < product.priceWhenAdded" 
-                 [class.up]="product.currentPrice > product.priceWhenAdded">
-              {{ product.currentPrice < product.priceWhenAdded ? '↓' : '↑' }} 
-              {{ getAbsChange(product.currentPrice, product.priceWhenAdded) | currency:'USD':'symbol':'1.0-0' }}
-            </div>
-          </div>
+      <div class="error-state animate-in" *ngIf="error">
+        <div class="error-icon">⚠️</div>
+        <p>{{ error }}</p>
+        <button class="btn-secondary" (click)="fetchWatchlist()">Try Again</button>
+      </div>
 
-          <div class="card-body">
-            <div class="product-category">{{ product.category }}</div>
-            <h3 class="product-name">{{ product.name }}</h3>
-            
-            <div class="price-row">
-              <div class="product-price">{{ product.currentPrice | currency }}</div>
-              <div class="product-platform">at {{ product.platform }}</div>
-            </div>
-          </div>
+      <ng-container *ngIf="!isLoading && !error">
+        <div class="filter-bar animate-in" *ngIf="trackedProducts.length > 0">
+          <button class="filter-pill active">All</button>
+          <button class="filter-pill">Price Dropped</button>
+          <button class="filter-pill">Price Rising</button>
+          <button class="filter-pill">Has Alert</button>
+          <button class="filter-pill">No Alert</button>
+        </div>
 
-          <div class="card-footer">
-            <a
-              class="card-link"
-            >
-              View deals →
-            </a>
-            <div class="icon-btns">
-              <button
-                class="icon-btn"
-                [class.bell-active]="product.hasAlert"
-                (click)="$event.stopPropagation(); router.navigate(['/dashboard/alerts'], { queryParams: { product: product.id } })"
+        <div class="products-grid" *ngIf="trackedProducts.length > 0; else emptyState">
+          <div class="product-card animate-in" *ngFor="let product of trackedProducts" [routerLink]="['/product', product.id]">
+            <div class="card-image">
+              <img [src]="product.image" [alt]="product.name">
+              <div class="floating-score" [class]="getScoreClass(product.dealScore)">
+                {{ product.dealScore }}
+              </div>
+              <div class="floating-alert" [class.has-alert]="product.hasAlert" [class.no-alert]="!product.hasAlert">
+                {{ product.hasAlert ? 'Alert Active' : 'No Alert' }}
+              </div>
+              <div class="price-change-tag" 
+                   *ngIf="product.currentPrice !== product.priceWhenAdded"
+                   [class.down]="product.currentPrice < product.priceWhenAdded" 
+                   [class.up]="product.currentPrice > product.priceWhenAdded">
+                {{ product.currentPrice < product.priceWhenAdded ? '↓' : '↑' }} 
+                {{ getAbsChange(product.currentPrice, product.priceWhenAdded) | currency:'USD':'symbol':'1.0-0' }}
+              </div>
+            </div>
+
+            <div class="card-body">
+              <div class="product-category">{{ product.category }}</div>
+              <h3 class="product-name">{{ product.name }}</h3>
+              
+              <div class="price-row">
+                <div class="product-price">{{ product.currentPrice | currency }}</div>
+                <div class="product-platform">at {{ product.platform }}</div>
+              </div>
+            </div>
+
+            <div class="card-footer">
+              <a
+                class="card-link"
               >
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-              </button>
-              <button class="icon-btn trash" (click)="$event.stopPropagation()">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
-              </button>
+                View deals →
+              </a>
+              <div class="icon-btns">
+                <button
+                  class="icon-btn"
+                  [class.bell-active]="product.hasAlert"
+                  (click)="$event.stopPropagation(); router.navigate(['/dashboard/alerts'], { queryParams: { product: product.id } })"
+                >
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+                </button>
+                <button class="icon-btn trash" (click)="$event.stopPropagation(); removeFromWatchlist(product.id)">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </ng-container>
 
       <ng-template #emptyState>
         <div class="empty-state animate-in">
@@ -116,6 +131,28 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
       font-size: 14px; font-weight: 700; cursor: pointer; transition: all 0.2s;
     }
     .btn-primary:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .btn-secondary {
+      height: 36px; padding: 0 16px; background: var(--bg-secondary);
+      color: var(--text-primary); border: 1px solid var(--border); border-radius: 8px;
+      font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 12px;
+    }
+
+    .loading-state, .error-state {
+      padding: 60px 20px; text-align: center;
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 24px; margin-top: 20px;
+    }
+
+    .spinner {
+      width: 32px; height: 32px; border: 3px solid var(--accent-blue-light);
+      border-top-color: var(--accent-blue); border-radius: 50%;
+      margin: 0 auto 16px; animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .error-icon { font-size: 32px; margin-bottom: 12px; }
 
     .filter-bar {
       display: flex; gap: 10px; margin-bottom: 32px; flex-wrap: wrap;
@@ -253,17 +290,68 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
     ])
   ]
 })
-export class TrackedProductsComponent {
-  trackedProducts = [
-    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', currentPrice: 854, originalPrice: 999, priceWhenAdded: 999, platform: 'Amazon', dealScore: 9.4, hasAlert: true, alertTarget: 800, image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400', priceHistory: [999,989,979,969,959,899,854] },
-    { id: '2', name: 'MacBook Pro 14"', category: 'Laptops', currentPrice: 1879, originalPrice: 1999, priceWhenAdded: 1999, platform: 'Newegg', dealScore: 8.7, hasAlert: true, alertTarget: 1800, image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400', priceHistory: [1999,1989,1979,1969,1939,1909,1879] },
-    { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', currentPrice: 279, originalPrice: 399, priceWhenAdded: 320, platform: 'BestBuy', dealScore: 9.1, hasAlert: false, alertTarget: null, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400', priceHistory: [320,315,310,305,295,285,279] },
-    { id: '4', name: 'PS5 Console', category: 'Gaming', currentPrice: 449, originalPrice: 599, priceWhenAdded: 499, platform: 'Amazon', dealScore: 9.4, hasAlert: true, alertTarget: 400, image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=400', priceHistory: [499,489,479,469,459,449,449] },
-    { id: '5', name: 'iPad Pro 12.9"', category: 'Tablets', currentPrice: 899, originalPrice: 1099, priceWhenAdded: 1099, platform: 'Apple', dealScore: 8.2, hasAlert: false, alertTarget: null, image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400', priceHistory: [1099,1089,1079,1050,1020,950,899] },
-    { id: '6', name: 'RTX 4080 GPU', category: 'Components', currentPrice: 899, originalPrice: 1099, priceWhenAdded: 950, platform: 'Newegg', dealScore: 8.7, hasAlert: true, alertTarget: 850, image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400', priceHistory: [950,940,930,920,910,905,899] }
-  ];
+export class TrackedProductsComponent implements OnInit {
+  private watchlistService = inject(WatchlistService);
+  private destroyRef = inject(DestroyRef);
+  
+  trackedProducts: any[] = [];
+  isLoading = true;
+  error: string | null = null;
 
   constructor(public router: Router) {}
+
+  ngOnInit() {
+    this.fetchWatchlist();
+  }
+
+  fetchWatchlist() {
+    this.isLoading = true;
+    this.error = null;
+    
+    this.watchlistService.getWatchlist()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.trackedProducts = items.map(item => ({
+            id: item.id,
+            name: item.product_name,
+            category: item.category,
+            currentPrice: item.current_price,
+            originalPrice: item.original_price,
+            priceWhenAdded: item.original_price, // Mapping this for price change tag
+            platform: item.platform,
+            dealScore: this.calculateDealScore(item), // Mocking deal score logic
+            hasAlert: (item.shopper_alerts?.length || 0) > 0,
+            image: item.image_url
+          }));
+          this.isLoading = false;
+        },
+        error: (err) => {
+          this.error = 'Failed to load tracked products. Please try again.';
+          this.isLoading = false;
+        }
+      });
+  }
+
+  removeFromWatchlist(id: string) {
+    if (!confirm('Are you sure you want to stop tracking this product?')) return;
+    
+    this.watchlistService.removeFromWatchlist(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.trackedProducts = this.trackedProducts.filter(p => p.id !== id);
+        },
+        error: () => alert('Failed to remove item. Please try again.')
+      });
+  }
+
+  private calculateDealScore(item: WatchlistItem): number {
+    // Simple mock logic: percentage drop from original price
+    const drop = ((item.original_price - item.current_price) / item.original_price) * 100;
+    const score = 5 + (drop / 10);
+    return Math.min(Math.round(score * 10) / 10, 10);
+  }
 
   getAbsChange(current: number, added: number): number {
     return Math.abs(current - added);

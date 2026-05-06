@@ -1,9 +1,11 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../../core/services/auth.service';
+import { WatchlistService, WatchlistItem } from '../../../../core/services/watchlist.service';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-library';
 
 @Component({
@@ -635,23 +637,6 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
       .s-cat { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
     }
 
-    /* Autocomplete */
-    .suggestions-dropdown {
-      position: absolute; top: calc(100% + 10px); left: 0; right: 0; 
-      background: var(--bg-card, #0a101f); backdrop-filter: blur(12px);
-      border: 1px solid var(--border); border-radius: 16px;
-      box-shadow: 0 15px 50px rgba(0,0,0,0.4); z-index: 1000; overflow: hidden;
-      text-align: left;
-    }
-    .suggestion-item {
-      padding: 12px 18px; display: flex; gap: 14px; align-items: center; cursor: pointer; transition: all 0.2s;
-      &:hover { background: rgba(59, 130, 246, 0.1); }
-      .s-img { width: 40px; height: 40px; border-radius: 8px; object-fit: cover; }
-      .s-info { display: flex; flex-direction: column; }
-      .s-name { font-size: 14px; font-weight: 700; color: #fff; }
-      .s-cat { font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
-    }
-
     /* --- SIDEBAR COMPONENTS --- */
     .progress-list {
       display: flex;
@@ -1118,14 +1103,21 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
 })
 export class DashboardHomeComponent implements OnInit {
   authService = inject(AuthService);
+  private watchlistService = inject(WatchlistService);
+  private destroyRef = inject(DestroyRef);
   router = inject(Router);
+  
   isLoading = true;
   searchQuery = '';
   searchShake = false;
   showSuggestions = false;
   
-  stats = { tracked: 6, activeAlerts: 4, dropsToday: 3, totalSaved: 340 };
+  stats = { tracked: 0, activeAlerts: 0, dropsToday: 0, totalSaved: 0 };
   displayStats = { tracked: 0, activeAlerts: 0, dropsToday: 0, totalSaved: 0 };
+
+  trackedProducts: any[] = [];
+  priceDrops: any[] = [];
+  alerts: any[] = [];
 
   get greeting(): string {
     return 'Welcome back';
@@ -1137,26 +1129,12 @@ export class DashboardHomeComponent implements OnInit {
 
   get welcomeSubtitle(): string {
     const drops = this.priceDrops.length;
-    const alerts = this.alerts.length;
-    if (drops > 0 && alerts > 0) return `You have ${drops} price drop${drops > 1 ? 's' : ''} and ${alerts} alert${alerts > 1 ? 's' : ''} close to triggering today.`;
+    const alertsCount = this.alerts.length;
+    if (drops > 0 && alertsCount > 0) return `You have ${drops} price drop${drops > 1 ? 's' : ''} and ${alertsCount} alert${alertsCount > 1 ? 's' : ''} close to triggering today.`;
     if (drops > 0) return `You have ${drops} price drop${drops > 1 ? 's' : ''} on your tracked products today.`;
-    if (alerts > 0) return `You have ${alerts} alert${alerts > 1 ? 's' : ''} close to triggering. Keep watching.`;
+    if (alertsCount > 0) return `You have ${alertsCount} alert${alertsCount > 1 ? 's' : ''} close to triggering. Keep watching.`;
     return 'All your tracked products are being monitored. No drops today yet.';
   }
-
-  trackedProducts = [
-    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', currentPrice: 854, originalPrice: 999, priceWhenAdded: 999, platform: 'Amazon', dealScore: 9.4, image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400' },
-    { id: '2', name: 'MacBook Pro 14"', category: 'Laptops', currentPrice: 1879, originalPrice: 1999, priceWhenAdded: 1999, platform: 'Newegg', dealScore: 8.7, image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400' },
-    { id: '3', name: 'Sony WH-1000XM5', category: 'Audio', currentPrice: 279, originalPrice: 399, priceWhenAdded: 320, platform: 'BestBuy', dealScore: 9.1, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400' }
-  ];
-
-  priceDrops = this.trackedProducts;
-
-  alerts = [
-    { productId: '1', productName: 'iPhone 15 Pro', currentPrice: 854, targetPrice: 800, progress: 73 },
-    { productId: '2', productName: 'MacBook Pro 14"', currentPrice: 1879, targetPrice: 1800, progress: 85 },
-    { productId: '4', productName: 'PS5 Console', currentPrice: 449, targetPrice: 400, progress: 60 }
-  ];
 
   insights = [
     {
@@ -1258,13 +1236,66 @@ export class DashboardHomeComponent implements OnInit {
     { id: '10', category: 'Gaming', productName: 'Xbox Series X', currentPrice: 399, savingsAmount: 100 }
   ];
 
-  constructor() {}
-
   ngOnInit() {
-    setTimeout(() => {
-      this.isLoading = false;
-      setTimeout(() => this.runStatsAnimations(), 50);
-    }, 800);
+    this.fetchDashboardData();
+  }
+
+  fetchDashboardData() {
+    this.isLoading = true;
+    this.watchlistService.getWatchlist()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => {
+          this.trackedProducts = items.map(item => this.mapToDisplay(item)).slice(0, 5);
+          // For now, priceDrops is just items where current < original
+          this.priceDrops = items
+            .filter(item => item.current_price < item.original_price)
+            .map(item => this.mapToDisplay(item))
+            .slice(0, 4);
+          
+          this.alerts = items.flatMap(item => 
+            (item.shopper_alerts || []).map(alert => ({
+              id: alert.id,
+              productName: item.product_name,
+              currentPrice: item.current_price,
+              targetPrice: alert.target_value,
+              progress: alert.progress_pct
+            }))
+          ).slice(0, 5);
+
+          this.stats = {
+            tracked: items.length,
+            activeAlerts: items.reduce((acc, item) => acc + (item.shopper_alerts?.filter(a => a.status === 'active').length || 0), 0),
+            dropsToday: items.filter(item => item.current_price < item.original_price).length,
+            totalSaved: items.reduce((acc, item) => acc + Math.max(0, Number(item.original_price) - Number(item.current_price)), 0)
+          };
+
+          this.isLoading = false;
+          setTimeout(() => this.runStatsAnimations(), 50);
+        },
+        error: () => {
+          this.isLoading = false;
+        }
+      });
+  }
+
+  private mapToDisplay(item: WatchlistItem) {
+    return {
+      id: item.id,
+      name: item.product_name,
+      category: item.category,
+      currentPrice: item.current_price,
+      originalPrice: item.original_price,
+      platform: item.platform,
+      dealScore: this.calculateDealScore(item),
+      image: item.image_url
+    };
+  }
+
+  private calculateDealScore(item: WatchlistItem): number {
+    const drop = ((item.original_price - item.current_price) / item.original_price) * 100;
+    const score = 5 + (drop / 10);
+    return Math.min(Math.round(score * 10) / 10, 10);
   }
 
   runStatsAnimations() {
