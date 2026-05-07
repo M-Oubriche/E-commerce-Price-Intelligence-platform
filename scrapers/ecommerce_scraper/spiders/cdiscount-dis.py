@@ -158,6 +158,7 @@ class CdiscountScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=product_id,
+                model_number=None,
                 name=name,
                 brand=brand,
                 category=category,

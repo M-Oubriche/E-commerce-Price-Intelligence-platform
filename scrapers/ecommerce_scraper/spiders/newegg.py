@@ -154,6 +154,14 @@ class NeweggScraper(BaseScraper):
             if hz_match: m_specs.refresh_rate_hz = float(hz_match.group(1))
             specs = Specs(Monitor=m_specs, Other=specs_data)
 
+        # Model Number extraction
+        # Often Newegg titles have it, or it's in the full_info
+        model_number = None
+        # Example: "Model #: [MODEL]"
+        model_match = re.search(r"Model\s*[:#]*\s*([A-Za-z0-9\-]+)", full_info, re.I)
+        if model_match:
+            model_number = model_match.group(1)
+
         # Optional: Fetch detail page for more specs if requested specifically
         # (Commented out to keep Newegg scraping fast and avoid blocks)
         # if in_stock: ... visit source_url ...
@@ -164,6 +172,7 @@ class NeweggScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=source_url.split("p/")[-1].split("?")[0] if "p/" in source_url else "Unknown",
+                model_number=model_number,
                 name=name,
                 brand=brand,
                 category=category,

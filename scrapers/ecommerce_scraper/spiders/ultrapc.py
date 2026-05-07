@@ -125,6 +125,7 @@ class UltraPCScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=external_id,
+                model_number=None, # UltraPC list view doesn't easily expose model number
                 name=title,
                 brand="Unknown", # Often buried in details page
                 description=description,

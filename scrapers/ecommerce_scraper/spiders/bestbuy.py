@@ -42,7 +42,7 @@ class BestBuyScraper(BaseScraper):
             params = {
                 "apiKey": self.api_key,
                 "format": "json",
-                "show": "sku,name,manufacturer,categoryPath,regularPrice,salePrice,url,image,customerReviewAverage,customerReviewCount,onlineAvailability,longDescription,details",
+                "show": "sku,modelNumber,name,manufacturer,categoryPath,regularPrice,salePrice,url,image,customerReviewAverage,customerReviewCount,onlineAvailability,longDescription,details",
                 "pageSize": 50,
                 "page": page
             }
@@ -74,6 +74,7 @@ class BestBuyScraper(BaseScraper):
             source_url=item.get("url", ""),
             product=Product(
                 external_id=str(item.get("sku")),
+                model_number=item.get("modelNumber"),
                 name=item.get("name", ""),
                 brand=item.get("manufacturer", "Unknown"),
                 category=category,

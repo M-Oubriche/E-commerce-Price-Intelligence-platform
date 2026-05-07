@@ -170,6 +170,7 @@ class JumiaScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=item_id,
+                model_number=specs_data.get("Modèle") or specs_data.get("SKU"),
                 name=name,
                 brand=brand,
                 category=category,

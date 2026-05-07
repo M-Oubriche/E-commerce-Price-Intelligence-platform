@@ -94,6 +94,10 @@ def process_raw_files_to_bigtable():
                     row.set_cell("metadata_cf", b"source", source.encode('utf-8'))
                     row.set_cell("metadata_cf", b"source_url", record.get("source_url", "").encode('utf-8'))
                     
+                    model_number = prod.get("model_number")
+                    if model_number:
+                        row.set_cell("metadata_cf", b"model_number", model_number.encode('utf-8'))
+                    
                     image_url = prod.get("image_url")
                     if image_url:
                         row.set_cell("metadata_cf", b"image_url", image_url.encode('utf-8'))

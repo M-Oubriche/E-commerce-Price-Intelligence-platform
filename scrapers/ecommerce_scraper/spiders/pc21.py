@@ -142,24 +142,37 @@ class PC21Scraper(BaseScraper):
         converted_price = raw_price * self.conversion_rate
         original_price_usd = original_price_mad * self.conversion_rate
 
-        # Search for the products refrence id
+        # Search for the products reference id
         reference_id = ""
+        model_number = ""
 
-        for span in item.find_all("span"):
-            # The 'references' class often contains the manufacturer part number
-            if span.get("class") and "references" in span.get("class"):
-                ref_text = span.get_text(strip=True)
-                # Usually it's the last part of the string in the 'references' span
-                reference_id = ref_text.split()[-1] if ref_text else ""
-                if reference_id:
+        # Using provided selectors for reference/model number
+        # PC21 often has "Référence : [REF]" or similar
+        ref_tag = item.find("span", class_="reference") or item.find("span", class_="references")
+        if ref_tag:
+            ref_text = ref_tag.get_text(strip=True)
+            # Try to extract just the part after colon if exists
+            if ":" in ref_text:
+                model_number = ref_text.split(":")[-1].strip()
+            else:
+                model_number = ref_text.strip()
+        
+        # Fallback to existing logic if needed
+        if not model_number:
+            for span in item.find_all("span"):
+                if span.get("class") and "references" in span.get("class"):
+                    ref_text = span.get_text(strip=True)
+                    model_number = ref_text.split()[-1] if ref_text else ""
+                    if model_number: break
+                
+                text = span.get_text(strip=True)
+                match = re.search(r"(?:R\xe9f\xe9rence|Ref|P/N|ID)[\s:]*([A-Za-z0-9\-]+)", text, re.I)
+                if match:
+                    model_number = match.group(1)
                     break
-            
-            text = span.get_text(strip=True)
-            # Regex to match common labels for reference numbers
-            match = re.search(r"(?:R\xe9f\xe9rence|Ref|P/N|ID)[\s:]*([A-Za-z0-9\-]+)", text, re.I)
-            if match:
-                reference_id = match.group(1)
-                break
+
+        # If we found model_number, we can use it as external_id too if reference_id is empty
+        reference_id = model_number
 
         # Quick Specs extraction from the row text
         specs = None
@@ -196,6 +209,7 @@ class PC21Scraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=reference_id,
+                model_number=model_number,
                 name=name,
                 brand=brand,
                 category=category,

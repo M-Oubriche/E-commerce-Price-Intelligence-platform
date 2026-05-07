@@ -59,6 +59,7 @@ This is the unified output structure that every scraper and API client must prod
 | `source_url`                  | String      | `https://...`                            | Direct product page URL                        |
 | `scraped_at`                  | Timestamp   | `2026-03-01T10:00Z`                      | ISO 8601 UTC collection time                   |
 | `product.external_id`         | String      | `SKU-88291`                              | Source-specific product identifier             |
+| `product.model_number`        | String      | `MDR7506 \| GA402RJ`                     | Manufacturer model number                      |
 | `product.name`                | String      | `Logitech G Pro X`                       | Full product name as listed                    |
 | `product.brand`               | String      | `Logitech`                               | Manufacturer / brand name                      |
 | `product.category`            | Enum        | `Keyboard \| Mouse \| Headset \| Webcam` | One of the 4 product categories                |
@@ -290,7 +291,7 @@ Libraries: `pandas`, `numpy` , `scipy`, `statsmodels`, `pingouin`, `plotly`, `st
 | Field Group                   | Count  | Used In                  |
 | ----------------------------- | ------ | ------------------------ |
 | Ingestion / identity fields   | 5      | All layers               |
-| Product metadata fields       | 6      | All layers               |
+| Product metadata fields       | 7      | All layers               |
 | Pricing fields                | 6      | All layers               |
 | Availability fields           | 3      | Bigtable, dbt, analytics |
 | Seller fields                 | 4      | Bigtable, dbt            |
@@ -299,7 +300,7 @@ Libraries: `pandas`, `numpy` , `scipy`, `statsmodels`, `pingouin`, `plotly`, `st
 | Specs JSON (Mouse)            | 6      | Bigtable, dbt marts      |
 | Specs JSON (Headset)          | 6      | Bigtable, dbt marts      |
 | Specs JSON (Webcam)           | 6      | Bigtable, dbt marts      |
-| **TOTAL (fixed fields only)** | **26** | Full pipeline            |
+| **TOTAL (fixed fields only)** | **27** | Full pipeline            |
 
 ---
 
