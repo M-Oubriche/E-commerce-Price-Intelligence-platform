@@ -1,6 +1,6 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
-import { HttpClient, HttpErrorResponse, HttpHeaders } from '@angular/common/http';
+import { HttpClient, HttpErrorResponse, HttpBackend } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
 import { tap, map, catchError, switchMap } from 'rxjs/operators';
 import { UserRole } from '../models/user.model';
@@ -21,10 +21,12 @@ export interface User {
   role: UserRole;
   organization?: string;
   avatarColor?: string;
+  initials?: string;
 }
 
 export interface TokenResponse {
   access_token: string;
+  refresh_token?: string;
   token_type: string;
 }
 
@@ -55,51 +57,76 @@ export class AuthService {
   private userSubject = new BehaviorSubject<User | null>(null);
   currentUser$ = this.userSubject.asObservable();
   
+  private readySubject = new BehaviorSubject<boolean>(false);
+  isReady$ = this.readySubject.asObservable();
+
+  private accessTokenSubject = new BehaviorSubject<string | null>(null);
+  accessToken$ = this.accessTokenSubject.asObservable();
+  
   private accessToken: string | null = null;
   private isRefreshing = false;
   private refreshSubject = new BehaviorSubject<string | null>(null);
 
   private readonly API_URL = `${environment.apiUrl}/auth`;
   private readonly KEYS = {
-    USER: 'pulseprice_user'
+    USER: 'pulseprice_user',
+    REFRESH_TOKEN: 'pulseprice_refresh_token'
   };
 
   private isBrowser: boolean;
+  private httpBackend: HttpClient;
 
   constructor(
     private http: HttpClient,
+    handler: HttpBackend,
     @Inject(PLATFORM_ID) platformId: Object
   ) {
     this.isBrowser = isPlatformBrowser(platformId);
+    this.httpBackend = new HttpClient(handler);
     this.rehydrate();
   }
 
   get currentUser(): User | null { return this.userSubject.value; }
 
+  private setAccessToken(token: string | null): void {
+    this.accessToken = token;
+    this.accessTokenSubject.next(token);
+  }
+
   private rehydrate() {
-    if (!this.isBrowser) return;
+    if (!this.isBrowser) {
+      this.readySubject.next(true);
+      return;
+    }
     try {
       const u = localStorage.getItem(this.KEYS.USER);
-      if (u) this.userSubject.next(JSON.parse(u));
+      if (u) {
+        this.userSubject.next(JSON.parse(u));
+        // Restore access token via refresh endpoint on startup
+        this.refresh().subscribe({
+          next: () => this.readySubject.next(true),
+          error: () => this.readySubject.next(true)
+        });
+      } else {
+        this.readySubject.next(true);
+      }
     } catch (e) {
-      console.error('Failed to rehydrate auth state', e);
+      this.clearAuthState();
+      this.readySubject.next(true);
     }
   }
 
   // --- Core Auth ---
 
   getUserProfile(): Observable<User> {
-    const headers = new HttpHeaders({
-      'Authorization': `Bearer ${this.accessToken}`
-    });
-    return this.http.get<ApiResponse<User>>(`${this.API_URL}/me`, { headers }).pipe(
+    return this.http.get<ApiResponse<User>>(`${environment.apiUrl}/users/me`).pipe(
       map(res => res.data),
       tap(user => this.setUser(user))
     );
   }
 
   register(name: string, email: string, password: string, role: UserRole): Observable<User> {
-    return this.http.post<ApiResponse<User>>(`${this.API_URL}/register`, {
+    return this.httpBackend.post<ApiResponse<User>>(`${this.API_URL}/register`, {
       full_name: name, email, password, role
     }).pipe(
       map(res => res.data)
@@ -111,10 +138,15 @@ export class AuthService {
     formData.append('username', email);
     formData.append('password', password);
 
-    return this.http.post<ApiResponse<TokenResponse>>(`${this.API_URL}/login`, formData).pipe(
+    return this.httpBackend.post<ApiResponse<TokenResponse>>(`${this.API_URL}/login`, formData).pipe(
       switchMap(res => {
-        this.accessToken = res.data.access_token;
-        return this.getUserProfile();
+        this.setAccessToken(res.data.access_token);
+        if (res.data.refresh_token && this.isBrowser) {
+          localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.data.refresh_token);
+        }
+        return this.getUserProfile().pipe(
+          tap(() => this.readySubject.next(true))
+        );
       })
     );
   }
@@ -124,17 +156,15 @@ export class AuthService {
   }
 
   updateUser(updates: Partial<User>): Observable<User> {
-    const currentUser = this.userSubject.value;
-    if (currentUser) {
-      const updatedUser = { ...currentUser, ...updates };
-      this.setUser(updatedUser);
-      return of(updatedUser);
-    }
-    return throwError(() => new Error('No user logged in'));
+    return this.http.patch<ApiResponse<User>>(`${environment.apiUrl}/users/me`, updates).pipe(
+      map(res => res.data),
+      tap(user => this.setUser(user))
+    );
   }
 
   logout(): Observable<void> {
-    return this.http.post<void>(`${this.API_URL}/logout`, {}, { withCredentials: true }).pipe(
+    const refreshToken = this.isBrowser ? localStorage.getItem(this.KEYS.REFRESH_TOKEN) : null;
+    return this.httpBackend.post<void>(`${this.API_URL}/logout`, { refresh_token: refreshToken }, { withCredentials: true }).pipe(
       tap(() => {
         this.clearAuthState();
       }),
@@ -146,24 +176,32 @@ export class AuthService {
   }
 
   refresh(): Observable<string> {
-    return this.http.post<ApiResponse<TokenResponse>>(`${this.API_URL}/refresh`, {}, { withCredentials: true }).pipe(
+    const refreshToken = this.isBrowser ? localStorage.getItem(this.KEYS.REFRESH_TOKEN) : null;
+    return this.httpBackend.post<ApiResponse<TokenResponse>>(
+      `${this.API_URL}/refresh`, 
+      { refresh_token: refreshToken }, 
+      { withCredentials: true }
+    ).pipe(
       map(res => {
-        this.accessToken = res.data.access_token;
-        return this.accessToken;
+        this.setAccessToken(res.data.access_token);
+        if (res.data.refresh_token && this.isBrowser) {
+          localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.data.refresh_token);
+        }
+        return res.data.access_token;
       })
     );
   }
 
   forgotPassword(email: string): Observable<{message: string}> {
-    return this.http.post<{message: string}>(`${this.API_URL}/forgot-password?email=${email}`, {});
+    return this.httpBackend.post<{message: string}>(`${this.API_URL}/forgot-password?email=${email}`, {});
   }
 
   resetPassword(token: string, newPassword: string): Observable<{message: string}> {
-    return this.http.post<{message: string}>(`${this.API_URL}/reset-password?token=${token}&new_password=${newPassword}`, {});
+    return this.httpBackend.post<{message: string}>(`${this.API_URL}/reset-password?token=${token}&new_password=${newPassword}`, {});
   }
 
   verifyEmail(token: string): Observable<{message: string}> {
-    return this.http.get<{message: string}>(`${this.API_URL}/verify?token=${token}`);
+    return this.httpBackend.get<{message: string}>(`${this.API_URL}/verify?token=${token}`);
   }
 
   // --- Helpers ---
@@ -186,10 +224,12 @@ export class AuthService {
   }
 
   private clearAuthState() {
-    this.accessToken = null;
+    this.setAccessToken(null);
     this.userSubject.next(null);
+    this.readySubject.next(false); // Reset ready state on logout
     if (this.isBrowser) {
       localStorage.removeItem(this.KEYS.USER);
+      localStorage.removeItem(this.KEYS.REFRESH_TOKEN);
     }
   }
 

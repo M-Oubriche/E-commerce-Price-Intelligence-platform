@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Cookie
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response, Cookie, Body
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
@@ -88,6 +88,7 @@ async def login(
     return {
         "data": {
             "access_token": access_token, 
+            "refresh_token": refresh_token,
             "token_type": "bearer"
         }
     }
@@ -96,8 +97,11 @@ async def login(
 async def refresh(
     request: Request,
     db: AsyncSession = Depends(deps.get_db),
-    refresh_token: Optional[str] = Cookie(None)
+    refresh_token_cookie: Optional[str] = Cookie(None, alias="refresh_token"),
+    body: dict = Body(default={})
 ):
+    refresh_token = refresh_token_cookie or body.get("refresh_token")
+    
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Session expirée ou invalide.")
     

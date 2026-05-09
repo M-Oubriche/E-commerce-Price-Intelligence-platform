@@ -1,13 +1,16 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
+import { PreferencesService, AlertPreferences, DisplayPreferences } from '../../../core/services/preferences.service';
 import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-reseller-settings',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="settings-page" [@pageEnter] *ngIf="authService.currentUser$ | async as user">
       <header class="page-header animate-in">
@@ -21,8 +24,8 @@ import { Router } from '@angular/router';
           <h2 class="section-title">Organization Profile</h2>
           <div class="profile-layout">
             <div class="avatar-col">
-              <div class="avatar-circle">
-                {{ (user.full_name || '').charAt(0).toUpperCase() }}
+              <div class="avatar-circle" [style.background]="getAvatarColor(user.email)">
+                {{ user.initials || (user.full_name || '').charAt(0).toUpperCase() }}
               </div>
               <div class="role-badge">Admin</div>
             </div>
@@ -30,7 +33,7 @@ import { Router } from '@angular/router';
               <div class="form-row">
                 <div class="form-group flex-1">
                   <label>Organization Name</label>
-                  <input type="text" [value]="user.full_name || 'PulsePrice Global'" #nameInput>
+                  <input type="text" [(ngModel)]="profileForm.full_name" #nameInput>
                 </div>
                 <div class="form-group flex-1">
                   <label>Registration ID</label>
@@ -39,9 +42,13 @@ import { Router } from '@angular/router';
               </div>
               <div class="form-group">
                 <label>Billing Email</label>
-                <input type="email" [value]="user.email" #emailInput>
+                <input type="email" [(ngModel)]="profileForm.email" #emailInput>
               </div>
-              <button class="save-btn" (click)="saveChanges(nameInput.value, emailInput.value)">Update Profile</button>
+              <button class="save-btn" 
+                      [disabled]="isSavingProfile"
+                      (click)="saveChanges()">
+                {{ isSavingProfile ? 'Updating...' : 'Update Profile' }}
+              </button>
             </div>
           </div>
         </section>
@@ -49,7 +56,10 @@ import { Router } from '@angular/router';
         <!-- Marketplaces Section -->
         <section class="settings-section animate-in">
           <h2 class="section-title">Tracked Marketplaces</h2>
-          <div class="category-grid">
+          <div class="loading-state" *ngIf="isLoadingDisplay">
+            <div class="spinner"></div>
+          </div>
+          <div class="category-grid" *ngIf="!isLoadingDisplay">
             <div class="cat-card" *ngFor="let market of marketplaces" 
                  [class.selected]="market.enabled"
                  (click)="market.enabled = !market.enabled">
@@ -63,14 +73,35 @@ import { Router } from '@angular/router';
         <!-- Pricing Synchronization Section -->
         <section class="settings-section animate-in">
           <h2 class="section-title">Pricing & Synchronization</h2>
-          <div class="toggle-list">
-            <div class="toggle-row" *ngFor="let opt of syncOptions">
+          <div class="loading-state" *ngIf="isLoadingAlerts">
+            <div class="spinner"></div>
+          </div>
+          <div class="toggle-list" *ngIf="!isLoadingAlerts && alertPrefs">
+            <div class="toggle-row">
               <div class="toggle-info">
-                <div class="toggle-label">{{ opt.label }}</div>
-                <div class="toggle-desc">{{ opt.desc }}</div>
+                <div class="toggle-label">Real-time Repricing</div>
+                <div class="toggle-desc">Sync catalog prices instantly as market moves.</div>
               </div>
-              <div class="toggle" [class.on]="opt.enabled" [class.off]="!opt.enabled" (click)="opt.enabled = !opt.enabled">
-                <div class="knob" [class.on]="opt.enabled" [class.off]="!opt.enabled"></div>
+              <div class="toggle" [class.on]="alertPrefs.websocket_live" (click)="toggleAlert('websocket_live')">
+                <div class="knob" [class.on]="alertPrefs.websocket_live"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">Market Trend Reports</div>
+                <div class="toggle-desc">Get weekly insights into market price movements.</div>
+              </div>
+              <div class="toggle" [class.on]="alertPrefs.market_trend_reports" (click)="toggleAlert('market_trend_reports')">
+                <div class="knob" [class.on]="alertPrefs.market_trend_reports"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">Email Notifications</div>
+                <div class="toggle-desc">Receive critical price alerts via email.</div>
+              </div>
+              <div class="toggle" [class.on]="alertPrefs.email_notifications" (click)="toggleAlert('email_notifications')">
+                <div class="knob" [class.on]="alertPrefs.email_notifications"></div>
               </div>
             </div>
           </div>
@@ -156,6 +187,7 @@ import { Router } from '@angular/router';
       box-shadow: 0 10px 20px -5px rgba(59, 130, 246, 0.3);
     }
     .save-btn:hover { transform: translateY(-2px); box-shadow: 0 15px 30px -5px rgba(59, 130, 246, 0.5); }
+    .save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .toggle-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -168,15 +200,15 @@ import { Router } from '@angular/router';
     .toggle {
       width: 48px; height: 26px; border-radius: 100px;
       position: relative; cursor: pointer; transition: background 0.3s;
+      background: var(--bg-elevated);
     }
     .toggle.on { background: var(--accent-blue); }
-    .toggle.off { background: var(--bg-elevated); }
     .knob {
       position: absolute; top: 4px; width: 18px; height: 18px;
       border-radius: 50%; background: white; box-shadow: 0 2px 4px rgba(0,0,0,0.2); transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+      left: 4px;
     }
-    .knob.on { left: 26px; }
-    .knob.off { left: 4px; }
+    .toggle.on .knob { left: 26px; }
 
     .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .cat-card {
@@ -193,13 +225,16 @@ import { Router } from '@angular/router';
     .cat-card.selected { background: rgba(59, 130, 246, 0.05); border-color: var(--accent-blue); box-shadow: 0 8px 24px -10px rgba(59, 130, 246, 0.4); }
     .cat-card.selected .cat-name { color: var(--accent-blue); }
 
+    .loading-state { text-align: center; padding: 20px 0; }
+    .spinner {
+      width: 24px; height: 24px; border: 2px solid var(--border);
+      border-top-color: var(--accent-blue); border-radius: 50%;
+      margin: 0 auto; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
     .account-row { display: flex; align-items: center; justify-content: space-between; }
     .account-label { font-size: 15px; font-weight: 700; color: var(--text-primary); }
-    .account-badge { font-size: 11px; font-weight: 900; padding: 6px 16px; border-radius: 20px; }
-    .account-badge.reseller { background: rgba(59, 130, 246, 0.1); color: var(--accent-blue); }
-    .plan-price { font-size: 20px; font-weight: 900; color: var(--text-primary); }
-    .manage-btn { font-size: 14px; font-weight: 700; color: var(--accent-blue); background: none; border: none; cursor: pointer; }
-    .manage-btn:hover { text-decoration: underline; }
     .switch-link { font-size: 14px; font-weight: 750; color: var(--accent-blue); cursor: pointer; text-decoration: none; border-bottom: 2px solid rgba(59, 130, 246, 0.2); transition: all 0.2s; }
     .switch-link:hover { border-bottom-color: var(--accent-blue); }
 
@@ -235,9 +270,22 @@ import { Router } from '@angular/router';
     ])
   ]
 })
-export class ResellerSettingsComponent {
+export class ResellerSettingsComponent implements OnInit {
   authService = inject(AuthService);
+  private prefsService = inject(PreferencesService);
+  private destroyRef = inject(DestroyRef);
   router = inject(Router);
+
+  profileForm = {
+    full_name: '',
+    email: ''
+  };
+
+  alertPrefs: AlertPreferences | null = null;
+  displayPrefs: DisplayPreferences | null = null;
+  isLoadingAlerts = true;
+  isLoadingDisplay = true;
+  isSavingProfile = false;
 
   marketplaces = [
     { name: 'Amazon', icon: '📦', enabled: true },
@@ -246,15 +294,91 @@ export class ResellerSettingsComponent {
     { name: 'eBay', icon: '💎', enabled: false }
   ];
 
-  syncOptions = [
-    { label: 'Real-time Repricing', desc: 'Sync catalog prices instantly as market moves.', enabled: true },
-    { label: 'Inventory Mirroring', desc: 'Auto-detect new listings across platforms.', enabled: true },
-    { label: 'Weekly Performance Digest', desc: 'Get a reseller analytics report via email.', enabled: false },
-    { label: 'Competitive Intelligence Alerts', desc: 'Notify on rival inventory shifts.', enabled: true }
-  ];
+  ngOnInit() {
+    this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
+      if (user) {
+        this.profileForm.full_name = user.full_name;
+        this.profileForm.email = user.email;
+      }
+    });
 
-  saveChanges(full_name: string, email: string) {
-    this.authService.updateUser({ full_name, email });
+    this.loadData();
+  }
+
+  loadData() {
+    this.isLoadingAlerts = true;
+    this.isLoadingDisplay = true;
+
+    this.prefsService.getAlertPreferences()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prefs) => {
+          this.alertPrefs = prefs;
+          this.isLoadingAlerts = false;
+        },
+        error: () => this.isLoadingAlerts = false
+      });
+
+    this.prefsService.getDisplayPreferences()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prefs) => {
+          this.displayPrefs = prefs;
+          this.isLoadingDisplay = false;
+        },
+        error: () => this.isLoadingDisplay = false
+      });
+  }
+
+  getAvatarColor(email: string): string {
+    const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+    const index = email ? email.charCodeAt(0) % colors.length : 0;
+    return colors[index];
+  }
+
+  toggleAlert(key: keyof AlertPreferences) {
+    if (!this.alertPrefs) return;
+    const newValue = !this.alertPrefs[key];
+    const oldVal = this.alertPrefs[key];
+    (this.alertPrefs as any)[key] = newValue;
+
+    this.prefsService.updateAlertPreferences({ [key]: newValue })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          if (this.alertPrefs) (this.alertPrefs as any)[key] = oldVal;
+          alert('Failed to update preference.');
+        }
+      });
+  }
+
+  saveChanges() {
+    this.isSavingProfile = true;
+
+    const initials = this.profileForm.full_name
+      ? this.profileForm.full_name.split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .toUpperCase()
+          .substring(0, 2)
+      : '';
+
+    this.authService.updateUser({
+      full_name: this.profileForm.full_name,
+      email: this.profileForm.email,
+      initials: initials
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.isSavingProfile = false;
+          alert('Organization profile updated!');
+        },
+        error: () => {
+          this.isSavingProfile = false;
+          alert('Failed to update profile.');
+        }
+      });
   }
 
   switchToClient() {

@@ -1381,7 +1381,6 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
     this.activeRange = range;
     // simulating a data re-fetch for the new time window
     this.initAllCharts();
-    console.log(`Switched data view to: ${range}`);
   }
 
   isGeneratingReport = false;

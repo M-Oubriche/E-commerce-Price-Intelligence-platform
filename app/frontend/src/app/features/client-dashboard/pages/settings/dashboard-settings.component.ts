@@ -1,12 +1,15 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../../core/services/auth.service';
+import { PreferencesService, AlertPreferences } from '../../../../core/services/preferences.service';
 
 @Component({
   selector: 'app-dashboard-settings',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="settings-page" [@pageEnter] *ngIf="authService.currentUser$ | async as user">
       <header class="page-header animate-in">
@@ -20,8 +23,8 @@ import { AuthService } from '../../../../core/services/auth.service';
           <h2 class="section-title">Profile</h2>
           <div class="profile-layout">
             <div class="avatar-col">
-              <div class="avatar-circle">
-                {{ (user.full_name || '').charAt(0).toUpperCase() }}
+              <div class="avatar-circle" [style.background]="getAvatarColor(user.email)">
+                {{ user.initials || (user.full_name || '').charAt(0).toUpperCase() }}
               </div>
               <div class="color-swatches">
                 <div class="swatch" 
@@ -35,13 +38,17 @@ import { AuthService } from '../../../../core/services/auth.service';
             <div class="form-col">
               <div class="form-group">
                 <label>Display Name</label>
-                <input type="text" [value]="user.full_name" #nameInput>
+                <input type="text" [(ngModel)]="profileForm.full_name" #nameInput>
               </div>
               <div class="form-group">
                 <label>Email Address</label>
-                <input type="email" [value]="user.email" #emailInput>
+                <input type="email" [(ngModel)]="profileForm.email" #emailInput>
               </div>
-              <button class="save-btn" (click)="saveChanges(nameInput.value, emailInput.value)">Save changes</button>
+              <button class="save-btn" 
+                      [disabled]="isSavingProfile"
+                      (click)="saveChanges()">
+                {{ isSavingProfile ? 'Saving...' : 'Save changes' }}
+              </button>
             </div>
           </div>
         </section>
@@ -62,14 +69,45 @@ import { AuthService } from '../../../../core/services/auth.service';
         <!-- Notifications Section -->
         <section class="settings-section animate-in">
           <h2 class="section-title">Notifications</h2>
-          <div class="toggle-list">
-            <div class="toggle-row" *ngFor="let opt of notifOptions">
+          <div class="loading-state" *ngIf="isLoadingPrefs">
+            <div class="spinner"></div>
+            <p>Loading preferences...</p>
+          </div>
+          <div class="toggle-list" *ngIf="!isLoadingPrefs && alertPrefs">
+            <div class="toggle-row">
               <div class="toggle-info">
-                <div class="toggle-label">{{ opt.label }}</div>
-                <div class="toggle-desc">{{ opt.desc }}</div>
+                <div class="toggle-label">Email alerts</div>
+                <div class="toggle-desc">Get notified via email when prices hit your target.</div>
               </div>
-              <div class="toggle" [class.on]="opt.enabled" [class.off]="!opt.enabled" (click)="opt.enabled = !opt.enabled">
-                <div class="knob" [class.on]="opt.enabled" [class.off]="!opt.enabled"></div>
+              <div class="toggle" [class.on]="alertPrefs.email_notifications" (click)="toggleAlert('email_notifications')">
+                <div class="knob" [class.on]="alertPrefs.email_notifications"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">Price drop alerts</div>
+                <div class="toggle-desc">Notify me immediately when a price drop is detected.</div>
+              </div>
+              <div class="toggle" [class.on]="alertPrefs.price_drop_alerts" (click)="toggleAlert('price_drop_alerts')">
+                <div class="knob" [class.on]="alertPrefs.price_drop_alerts"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">New deals</div>
+                <div class="toggle-desc">Notifications for special new deals in your favorite categories.</div>
+              </div>
+              <div class="toggle" [class.on]="alertPrefs.new_deals" (click)="toggleAlert('new_deals')">
+                <div class="knob" [class.on]="alertPrefs.new_deals"></div>
+              </div>
+            </div>
+            <div class="toggle-row">
+              <div class="toggle-info">
+                <div class="toggle-label">Live Updates (Websocket)</div>
+                <div class="toggle-desc">Receive real-time notifications while the app is open.</div>
+              </div>
+              <div class="toggle" [class.on]="alertPrefs.websocket_live" (click)="toggleAlert('websocket_live')">
+                <div class="knob" [class.on]="alertPrefs.websocket_live"></div>
               </div>
             </div>
           </div>
@@ -163,6 +201,7 @@ import { AuthService } from '../../../../core/services/auth.service';
       cursor: pointer; transition: all 0.2s;
     }
     .save-btn:hover { background: #2563EB; transform: translateY(-1px); }
+    .save-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
     .toggle-row {
       display: flex; align-items: center; justify-content: space-between;
@@ -176,15 +215,15 @@ import { AuthService } from '../../../../core/services/auth.service';
     .toggle {
       width: 44px; height: 24px; border-radius: 12px;
       position: relative; cursor: pointer; transition: background 0.2s; flex-shrink: 0;
+      background: var(--bg-elevated);
     }
     .toggle.on { background: #3B82F6; }
-    .toggle.off { background: var(--bg-elevated); }
     .knob {
       position: absolute; top: 4px; width: 16px; height: 16px;
       border-radius: 50%; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.3); transition: left 0.2s;
+      left: 4px;
     }
-    .knob.on { left: 24px; }
-    .knob.off { left: 4px; }
+    .toggle.on .knob { left: 24px; }
 
     .category-grid {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
@@ -198,6 +237,14 @@ import { AuthService } from '../../../../core/services/auth.service';
     .cat-card.selected { background: rgba(59, 130, 246, 0.1); border-color: #3B82F6; }
     .cat-card.selected .cat-name { color: #3B82F6; }
     .cat-card:hover:not(.selected) { border-color: var(--border-mid); background: var(--bg-hover); }
+
+    .loading-state { text-align: center; padding: 20px 0; }
+    .spinner {
+      width: 24px; height: 24px; border: 2px solid var(--border);
+      border-top-color: #3B82F6; border-radius: 50%;
+      margin: 0 auto 10px; animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
 
     .account-row {
       display: flex; align-items: center; justify-content: space-between; padding: 8px 0;
@@ -242,10 +289,22 @@ import { AuthService } from '../../../../core/services/auth.service';
     ])
   ]
 })
-export class DashboardSettingsComponent {
+export class DashboardSettingsComponent implements OnInit {
   authService = inject(AuthService);
+  private prefsService = inject(PreferencesService);
+  private destroyRef = inject(DestroyRef);
+
   colors = ['#4F8EF7', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#333333'];
   selectedColor = this.colors[0];
+
+  profileForm = {
+    full_name: '',
+    email: ''
+  };
+
+  alertPrefs: AlertPreferences | null = null;
+  isLoadingPrefs = true;
+  isSavingProfile = false;
 
   categories = [
     { name: 'Smartphones', icon: '📱', selected: true },
@@ -258,19 +317,86 @@ export class DashboardSettingsComponent {
     { name: 'Components', icon: '🔌', selected: false }
   ];
 
-  notifOptions = [
-    { label: 'Email alerts', desc: 'Get notified via email when prices hit your target.', enabled: true },
-    { label: 'In-app notifications', desc: 'See alerts in your dashboard notification center.', enabled: true },
-    { label: 'Weekly price summary', desc: 'A digest of price movements for your tracked products.', enabled: false },
-    { label: 'Price movement summary', desc: 'Get notified about general market trends.', enabled: false }
-  ];
+  ngOnInit() {
+    this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
+      if (user) {
+        this.profileForm.full_name = user.full_name;
+        this.profileForm.email = user.email;
+      }
+    });
+
+    this.loadPreferences();
+  }
+
+  loadPreferences() {
+    this.isLoadingPrefs = true;
+    this.prefsService.getAlertPreferences()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prefs) => {
+          this.alertPrefs = prefs;
+          this.isLoadingPrefs = false;
+        },
+        error: () => this.isLoadingPrefs = false
+      });
+  }
+
+  toggleAlert(key: keyof AlertPreferences) {
+    if (!this.alertPrefs) return;
+    const newValue = !this.alertPrefs[key];
+    
+    // Optimistic update
+    const oldVal = this.alertPrefs[key];
+    (this.alertPrefs as any)[key] = newValue;
+
+    this.prefsService.updateAlertPreferences({ [key]: newValue })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          // Rollback on error
+          if (this.alertPrefs) (this.alertPrefs as any)[key] = oldVal;
+          alert('Failed to update preference.');
+        }
+      });
+  }
 
   updateColor(color: string) {
     this.selectedColor = color;
-    this.authService.updateUser({ avatarColor: color });
+    this.authService.updateUser({ avatarColor: color }).subscribe();
   }
 
-  saveChanges(name: string, email: string) {
-    this.authService.updateUser({ full_name: name, email });
+  getAvatarColor(email: string): string {
+    const colors = ['#6366f1', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6'];
+    const index = email ? email.charCodeAt(0) % colors.length : 0;
+    return colors[index];
+  }
+
+  saveChanges() {
+    this.isSavingProfile = true;
+    
+    const initials = this.profileForm.full_name
+      ? this.profileForm.full_name.split(' ')
+          .map((n: string) => n[0])
+          .join('')
+          .toUpperCase()
+          .substring(0, 2)
+      : '';
+
+    this.authService.updateUser({
+      full_name: this.profileForm.full_name,
+      email: this.profileForm.email,
+      initials: initials
+    })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.isSavingProfile = false;
+          alert('Profile updated successfully!');
+        },
+        error: () => {
+          this.isSavingProfile = false;
+          alert('Failed to update profile.');
+        }
+      });
   }
 }
