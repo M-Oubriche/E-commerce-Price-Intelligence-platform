@@ -8,13 +8,15 @@ import os
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, joinedload
 from sqlalchemy.future import select
 from sqlalchemy import update
 
 from core.config import settings
 from core.redis import redis_client
 from models.client import AlertEvent, WatchlistItem, NotificationDelivery, DeliveryChannel, DeliveryStatus
+from models.preferences import AlertPreference
+from services.email import send_price_drop_email
 
 # Setup Logging
 logging.basicConfig(
@@ -53,7 +55,9 @@ async def process_alert_events():
                     # 2. Match with Watchlist Items
                     # Logic: product_id matches AND new_price <= target_price
                     watchlist_result = await db.execute(
-                        select(WatchlistItem).filter(
+                        select(WatchlistItem)
+                        .options(joinedload(WatchlistItem.user))
+                        .filter(
                             WatchlistItem.product_id == event.product_id,
                             WatchlistItem.target_price >= event.new_price,
                             WatchlistItem.is_active == True
@@ -88,7 +92,24 @@ async def process_alert_events():
                         
                         logger.info(f"Published notification to Redis for user {match.user_id}")
 
-                    # 5. Mark event as processed
+                        # 5. Check if user wants email notifications
+                        pref_result = await db.execute(
+                            select(AlertPreference).filter(AlertPreference.user_id == match.user_id)
+                        )
+                        prefs = pref_result.scalars().first()
+
+                        if prefs and prefs.email_notifications and match.user:
+                            await send_price_drop_email(
+                                to_email=match.user.email,
+                                to_name=match.user.full_name,
+                                product_name=event.product_name,
+                                old_price=float(event.old_price),
+                                new_price=float(event.new_price),
+                                drop_percent=float(event.drop_percent),
+                                platform=event.source or "Unknown"
+                            )
+
+                    # 6. Mark event as processed
                     event.is_processed = True
                 
                 await db.commit()
