@@ -2,7 +2,8 @@ import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { WatchlistService, ShopperAlert } from '../../../../core/services/watchlist.service';
+import { WatchlistService } from '../../../../core/services/watchlist.service';
+import { NotificationsService, Notification } from '../../../../core/services/notifications.service';
 
 interface AlertDisplayItem {
   id: string;
@@ -26,10 +27,18 @@ interface AlertDisplayItem {
           <h1>Price Alerts</h1>
           <p>Set conditions. We watch 24/7 and notify you the moment it's right.</p>
         </div>
-        <button class="create-alert-btn" (click)="toggleDrawer()">
-          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
-          Create alert
-        </button>
+        <div class="header-actions">
+          <button class="secondary-btn" *ngIf="currentTab === 'triggered' && notifications.length > 0" (click)="dismissAll()">
+            Clear History
+          </button>
+          <button class="secondary-btn" *ngIf="currentTab === 'triggered' && unreadCount > 0" (click)="markAllRead()">
+            Mark all read
+          </button>
+          <button class="create-alert-btn" (click)="toggleDrawer()">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
+            Create alert
+          </button>
+        </div>
       </header>
 
       <div class="loading-state" *ngIf="isLoading">
@@ -45,47 +54,77 @@ interface AlertDisplayItem {
 
       <ng-container *ngIf="!isLoading && !error">
         <div class="filter-tabs animate-in">
-          <button class="tab active">All</button>
-          <button class="tab">Active</button>
-          <button class="tab">Paused</button>
-          <button class="tab">Triggered</button>
+          <button class="tab" [class.active]="currentTab === 'all'" (click)="currentTab = 'all'">All</button>
+          <button class="tab" [class.active]="currentTab === 'active'" (click)="currentTab = 'active'">Active</button>
+          <button class="tab" [class.active]="currentTab === 'paused'" (click)="currentTab = 'paused'">Paused</button>
+          <button class="tab" [class.active]="currentTab === 'triggered'" (click)="currentTab = 'triggered'">
+            History
+            <span class="unread-badge" *ngIf="unreadCount > 0">{{ unreadCount }}</span>
+          </button>
         </div>
 
-        <div class="alerts-list" *ngIf="alerts.length > 0; else emptyState">
-          <div class="alert-card animate-in" *ngFor="let alert of alerts">
-            <img [src]="alert.image" [alt]="alert.productName" class="alert-img">
-            
-            <div class="alert-info">
-              <div class="alert-name">{{ alert.productName }}</div>
-              <div class="alert-condition">Alert when price drops to {{ alert.targetPrice | currency }} on any store</div>
-              <div class="alert-status" [class]="alert.status">
-                {{ alert.status === 'triggered' ? 'TRIGGERED!' : alert.status | uppercase }}
+        <!-- TRACKERS LIST (Active/Paused/All) -->
+        <div class="alerts-list" *ngIf="currentTab !== 'triggered'">
+          <div class="alerts-list-inner" *ngIf="filteredAlerts.length > 0; else emptyState">
+            <div class="alert-card animate-in" *ngFor="let alert of filteredAlerts">
+              <img [src]="alert.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100'" [alt]="alert.productName" class="alert-img">
+              
+              <div class="alert-info">
+                <div class="alert-name">{{ alert.productName }}</div>
+                <div class="alert-condition">Alert when price drops to {{ alert.targetPrice | currency }} on any store</div>
+                <div class="alert-status" [class]="alert.status">
+                  {{ alert.status === 'triggered' ? 'TRIGGERED!' : alert.status | uppercase }}
+                </div>
+              </div>
+
+              <div class="alert-progress-section">
+                <div class="progress-labels">
+                  <span class="current-price">{{ alert.currentPrice | currency }}</span>
+                  <span class="target-price">{{ alert.targetPrice | currency }}</span>
+                </div>
+                <div class="progress-track">
+                  <div class="progress-fill" 
+                      [style.width.%]="alert.progress"
+                      [style.background]="getProgressColor(alert.progress)"
+                      [style.box-shadow]="alert.progress > 85 ? '0 0 8px rgba(16,185,129,0.4)' : 'none'"></div>
+                </div>
+                <div class="progress-pct">{{ alert.progress }}% there</div>
+              </div>
+
+              <div class="alert-controls">
+                <div class="toggle-switch" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'" (click)="toggleStatus(alert)">
+                  <div class="knob" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'"></div>
+                </div>
+                <button class="icon-btn">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
+                </button>
+                <button class="icon-btn trash">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                </button>
               </div>
             </div>
+          </div>
+        </div>
 
-            <div class="alert-progress-section">
-              <div class="progress-labels">
-                <span class="current-price">{{ alert.currentPrice | currency }}</span>
-                <span class="target-price">{{ alert.targetPrice | currency }}</span>
+        <!-- NOTIFICATIONS LIST (History) -->
+        <div class="notifications-list" *ngIf="currentTab === 'triggered'">
+          <div class="notifications-list-inner" *ngIf="notifications.length > 0; else emptyNotifications">
+            <div class="notification-row animate-in" *ngFor="let note of notifications" [class.unread]="!note.is_read" (click)="markAsRead(note)">
+              <div class="note-status-dot" *ngIf="!note.is_read"></div>
+              <div class="note-main">
+                <div class="note-header">
+                  <span class="note-platform">{{ note.platform }}</span>
+                  <span class="note-time">{{ note.created_at | date:'MMM d, h:mm a' }}</span>
+                </div>
+                <div class="note-body">
+                  <span class="prod-highlight">{{ note.product_name }}</span> 
+                  dropped from {{ note.old_price | currency }} to 
+                  <span class="price-drop">{{ note.new_price | currency }}</span>
+                  <span class="drop-badge">-{{ note.drop_percent }}%</span>
+                </div>
               </div>
-              <div class="progress-track">
-                <div class="progress-fill" 
-                    [style.width.%]="alert.progress"
-                    [style.background]="getProgressColor(alert.progress)"
-                    [style.box-shadow]="alert.progress > 85 ? '0 0 8px rgba(16,185,129,0.4)' : 'none'"></div>
-              </div>
-              <div class="progress-pct">{{ alert.progress }}% there</div>
-            </div>
-
-            <div class="alert-controls">
-              <div class="toggle-switch" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'" (click)="toggleStatus(alert)">
-                <div class="knob" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'"></div>
-              </div>
-              <button class="icon-btn">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
-              </button>
-              <button class="icon-btn trash">
-                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+              <button class="dismiss-btn" (click)="dismissNotification($event, note)">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
               </button>
             </div>
           </div>
@@ -95,8 +134,16 @@ interface AlertDisplayItem {
       <ng-template #emptyState>
         <div class="empty-state animate-in">
           <div class="empty-icon">🔔</div>
-          <h2>No alerts set yet</h2>
-          <p>You haven't set any price alerts. Tracking products is the first step to getting notified.</p>
+          <h2>No alerts here</h2>
+          <p>You don't have any trackers matching this filter.</p>
+        </div>
+      </ng-template>
+
+      <ng-template #emptyNotifications>
+        <div class="empty-state animate-in">
+          <div class="empty-icon">📅</div>
+          <h2>No history yet</h2>
+          <p>Once your tracked products drop in price, you'll see the records here.</p>
         </div>
       </ng-template>
 
@@ -161,6 +208,8 @@ interface AlertDisplayItem {
     .header-info h1 { font-size: 24px; font-weight: 800; color: var(--text-primary); margin: 0; letter-spacing: -0.01em; }
     .header-info p { font-size: 14px; color: var(--text-secondary); margin-top: 6px; }
 
+    .header-actions { display: flex; align-items: center; gap: 12px; }
+
     .create-alert-btn {
       height: 40px; padding: 0 20px;
       background: var(--accent-blue); color: white;
@@ -171,6 +220,15 @@ interface AlertDisplayItem {
     }
     .create-alert-btn svg { width: 16px; height: 16px; }
     .create-alert-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+    .secondary-btn {
+      height: 40px; padding: 0 16px;
+      background: var(--bg-secondary); color: var(--text-primary);
+      border: 1px solid var(--border); border-radius: 10px;
+      font-size: 13px; font-weight: 600; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .secondary-btn:hover { background: var(--bg-hover); }
 
     .btn-secondary {
       height: 36px; padding: 0 16px; background: var(--bg-secondary);
@@ -205,9 +263,17 @@ interface AlertDisplayItem {
       cursor: pointer; border-bottom: 2px solid transparent;
       margin-bottom: -1px; transition: all 0.2s;
       background: none; border: none;
+      display: flex; align-items: center; gap: 8px;
     }
     .tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
     .tab:hover:not(.active) { color: var(--text-primary); background: var(--bg-hover); }
+
+    .unread-badge {
+      background: var(--accent-blue); color: white;
+      font-size: 10px; font-weight: 800;
+      padding: 2px 6px; border-radius: 10px;
+      line-height: 1;
+    }
 
     .alerts-list { display: flex; flex-direction: column; gap: 16px; }
 
@@ -253,6 +319,44 @@ interface AlertDisplayItem {
     .progress-track { height: 8px; background: var(--bg-elevated); border-radius: 100px; overflow: hidden; }
     .progress-fill { height: 100%; border-radius: 100px; transition: all 1.2s ease-out; }
     .progress-pct { font-size: 11px; color: var(--text-muted); text-align: right; margin-top: 6px; font-weight: 600; }
+
+    /* NOTIFICATIONS STYLES */
+    .notifications-list { display: flex; flex-direction: column; gap: 12px; }
+    .notification-row {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: 16px; padding: 20px 24px;
+      display: flex; align-items: center; gap: 20px;
+      cursor: pointer; transition: all 0.2s; position: relative;
+    }
+    .notification-row:hover { background: var(--bg-hover); border-color: var(--border-mid); }
+    .notification-row.unread { background: rgba(59, 130, 246, 0.03); border-left: 4px solid var(--accent-blue); }
+
+    .note-status-dot {
+      width: 8px; height: 8px; background: var(--accent-blue);
+      border-radius: 50%; flex-shrink: 0;
+    }
+
+    .note-main { flex: 1; min-width: 0; }
+    .note-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .note-platform { font-size: 11px; font-weight: 800; text-transform: uppercase; color: var(--accent-blue); letter-spacing: 0.05em; }
+    .note-time { font-size: 12px; color: var(--text-muted); }
+    
+    .note-body { font-size: 14px; color: var(--text-secondary); line-height: 1.5; }
+    .prod-highlight { font-weight: 700; color: var(--text-primary); }
+    .price-drop { font-weight: 800; color: var(--accent-green); }
+    .drop-badge { 
+      font-size: 10px; font-weight: 800; background: var(--accent-green-light); 
+      color: var(--accent-green); padding: 2px 6px; border-radius: 6px; margin-left: 8px;
+    }
+
+    .dismiss-btn {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: transparent; border: none; color: var(--text-muted);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .dismiss-btn:hover { background: var(--accent-red-light); color: var(--accent-red); }
+    .dismiss-btn svg { width: 18px; height: 18px; }
 
     .alert-controls { display: flex; align-items: center; gap: 12px; }
 
@@ -373,16 +477,22 @@ interface AlertDisplayItem {
 })
 export class AlertsComponent implements OnInit {
   private watchlistService = inject(WatchlistService);
+  private notificationsService = inject(NotificationsService);
   private destroyRef = inject(DestroyRef);
   
   showDrawer = false;
   alerts: AlertDisplayItem[] = [];
+  notifications: Notification[] = [];
+  unreadCount = 0;
+  currentTab = 'all';
+
   trackedProducts: any[] = [];
   isLoading = true;
   error: string | null = null;
 
   ngOnInit() {
     this.fetchAlerts();
+    this.fetchNotifications();
   }
 
   fetchAlerts() {
@@ -413,6 +523,54 @@ export class AlertsComponent implements OnInit {
           this.isLoading = false;
         }
       });
+  }
+
+  fetchNotifications() {
+    this.notificationsService.getNotifications()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(notes => this.notifications = notes);
+    
+    this.notificationsService.getUnreadCount()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(count => this.unreadCount = count);
+  }
+
+  get filteredAlerts(): AlertDisplayItem[] {
+    if (this.currentTab === 'all') return this.alerts;
+    return this.alerts.filter(a => a.status === this.currentTab);
+  }
+
+  markAsRead(note: Notification) {
+    if (note.is_read) return;
+    this.notificationsService.markAsRead(note.id).subscribe(() => {
+      note.is_read = true;
+      this.unreadCount = Math.max(0, this.unreadCount - 1);
+    });
+  }
+
+  markAllRead() {
+    this.notificationsService.markAllRead().subscribe(() => {
+      this.notifications.forEach(n => n.is_read = true);
+      this.unreadCount = 0;
+    });
+  }
+
+  dismissNotification(event: Event, note: Notification) {
+    event.stopPropagation();
+    this.notificationsService.dismissNotification(note.id).subscribe(() => {
+      this.notifications = this.notifications.filter(n => n.id !== note.id);
+      if (!note.is_read) {
+        this.unreadCount = Math.max(0, this.unreadCount - 1);
+      }
+    });
+  }
+
+  dismissAll() {
+    if (!confirm('Are you sure you want to clear your entire notification history?')) return;
+    this.notificationsService.dismissAll().subscribe(() => {
+      this.notifications = [];
+      this.unreadCount = 0;
+    });
   }
 
   toggleDrawer() {
