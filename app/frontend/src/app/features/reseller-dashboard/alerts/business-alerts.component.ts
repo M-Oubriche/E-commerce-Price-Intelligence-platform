@@ -1,8 +1,10 @@
-import { Component, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ResellerService, PriceAlert } from '../../../core/services/reseller.service';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
 
 @Component({
@@ -379,35 +381,63 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
     ])
   ]
 })
-export class ResellerAlertsComponent {
+export class ResellerAlertsComponent implements OnInit {
+  private resellerService = inject(ResellerService);
+  private destroyRef = inject(DestroyRef);
+  
   showDrawer = false;
   showTargetDropdown = false;
   selectedFilter: string = 'All Alerts';
   editingAlert: any = null;
+  isLoading = false;
 
   availableProducts = PLATFORM_PRODUCT_LIBRARY;
 
   // Drawer Form State
   drawerForm = {
     target: 'Full Catalog',
-    triggerMode: 'Margin Drops Below',
+    triggerMode: 'MARGIN_DROPS_BELOW',
     minMargin: 15,
     priority: 'Medium'
   };
 
-  alerts = [
-    { productId: '1', productName: 'iPhone 15 Pro 256GB', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200', currentMargin: 12.4, targetMargin: 15.0, progress: 82, risk: 'High', active: true },
-    { productId: '2', productName: 'MacBook Pro M3 14"', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200', currentMargin: 8.2, targetMargin: 10.0, progress: 75, risk: 'High', active: true },
-    { productId: '3', productName: 'Sony WH-1000XM5', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200', currentMargin: 18.5, targetMargin: 15.0, progress: 100, risk: 'Healthy', active: true },
-    { productId: '4', productName: 'Canon EOS R8', image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200', currentMargin: 11.8, targetMargin: 12.0, progress: 95, risk: 'Medium', active: true }
-  ];
+  alerts: any[] = [];
+
+  ngOnInit() {
+    this.fetchAlerts();
+  }
+
+  fetchAlerts() {
+    this.isLoading = true;
+    this.resellerService.getAlerts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (alerts) => {
+          this.alerts = alerts.map(a => ({
+            id: a.id,
+            productId: a.seller_product_id,
+            productName: a.seller_product_id ? 'Loading...' : 'Full Catalog',
+            image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
+            currentMargin: 20, // Mock current until worker enriched
+            targetMargin: a.target_margin_pct,
+            progress: 100,
+            risk: a.risk_level || 'Healthy',
+            active: a.is_active,
+            triggerMode: a.trigger_mode,
+            priority: a.priority
+          }));
+          this.isLoading = false;
+        },
+        error: () => this.isLoading = false
+      });
+  }
 
   get filteredAlerts() {
-    if (this.selectedFilter === 'All Alerts') return this.alerts;
-    if (this.selectedFilter === 'High Risk') return this.alerts.filter(a => a.risk === 'High');
-    if (this.selectedFilter === 'Healthy') return this.alerts.filter(a => a.risk === 'Healthy');
-    if (this.selectedFilter === 'Paused') return this.alerts.filter(a => !a.active);
-    return this.alerts;
+    let list = this.alerts;
+    if (this.selectedFilter === 'High Risk') list = this.alerts.filter(a => a.risk === 'High');
+    if (this.selectedFilter === 'Healthy') list = this.alerts.filter(a => a.risk === 'Healthy');
+    if (this.selectedFilter === 'Paused') list = this.alerts.filter(a => !a.active);
+    return list;
   }
 
   setFilter(filter: string) {
@@ -419,9 +449,9 @@ export class ResellerAlertsComponent {
       this.editingAlert = alert;
       this.drawerForm = {
         target: alert.productName,
-        triggerMode: 'Margin Drops Below',
+        triggerMode: alert.triggerMode,
         minMargin: alert.targetMargin,
-        priority: 'Medium'
+        priority: alert.priority
       };
     } else {
       this.editingAlert = null;
@@ -433,18 +463,22 @@ export class ResellerAlertsComponent {
   resetDrawerForm() {
     this.drawerForm = {
       target: 'Full Catalog',
-      triggerMode: 'Margin Drops Below',
+      triggerMode: 'MARGIN_DROPS_BELOW',
       minMargin: 15,
       priority: 'Medium'
     };
   }
 
   toggleStatus(alert: any) {
-    alert.active = !alert.active;
+    this.resellerService.updateAlert(alert.id, { is_active: !alert.active })
+      .subscribe(() => alert.active = !alert.active);
   }
 
   deleteAlert(alert: any) {
-    this.alerts = this.alerts.filter(a => a.productId !== alert.productId);
+    if (!confirm('Delete this margin rule?')) return;
+    this.resellerService.deleteAlert(alert.id).subscribe(() => {
+      this.alerts = this.alerts.filter(a => a.id !== alert.id);
+    });
   }
 
   setPriority(priority: string) {
@@ -456,34 +490,26 @@ export class ResellerAlertsComponent {
   }
 
   deployRule() {
-    if (this.drawerForm.target !== 'Full Catalog') {
-      const isValid = PLATFORM_PRODUCT_LIBRARY.some(p => p.name === this.drawerForm.target);
-      if (!isValid) {
-        // Validation could be added to UI, for now we just return to prevent data mess
-        return;
-      }
-    }
+    const payload: any = {
+      trigger_mode: this.drawerForm.triggerMode,
+      target_margin_pct: this.drawerForm.minMargin,
+      priority: this.drawerForm.priority,
+      threshold_type: 'PERCENT'
+    };
+
     if (this.editingAlert) {
-      const index = this.alerts.findIndex(a => a.productId === this.editingAlert.productId);
-      if (index !== -1) {
-        this.alerts[index].targetMargin = this.drawerForm.minMargin;
-        // Update other properties if needed
-      }
+      this.resellerService.updateAlert(this.editingAlert.id, payload)
+        .subscribe(() => {
+          this.fetchAlerts();
+          this.showDrawer = false;
+        });
     } else {
-      // Mock adding a new alert
-      const newId = (this.alerts.length + 1).toString();
-      this.alerts.push({
-        productId: newId,
-        productName: this.drawerForm.target === 'Full Catalog' ? 'New Bulk Rule' : this.drawerForm.target,
-        image: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
-        currentMargin: 20,
-        targetMargin: this.drawerForm.minMargin,
-        progress: 100,
-        risk: 'Healthy',
-        active: true
-      });
+      this.resellerService.createAlert(payload)
+        .subscribe(() => {
+          this.fetchAlerts();
+          this.showDrawer = false;
+        });
     }
-    this.showDrawer = false;
   }
 
   getProgressColor(progress: number): string {

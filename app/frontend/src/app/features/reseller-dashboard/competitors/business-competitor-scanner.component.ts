@@ -1,7 +1,9 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject, DestroyRef } from '@angular/core';
 import { CommonModule, CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ResellerService, TrackedCompetitor } from '../../../core/services/reseller.service';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
 
 interface Competitor {
@@ -1257,6 +1259,10 @@ interface Activity {
   `]
 })
 export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
+  private resellerService = inject(ResellerService);
+  private destroyRef = inject(DestroyRef);
+  private router = inject(Router);
+
   isSyncing = false;
   productFilter = '';
   showAddRivalModal = false;
@@ -1282,58 +1288,35 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
     { name: 'B&H Photo', domain: 'bhphotovideo.com' }
   ];
 
-  competitors: (Omit<Competitor, 'aggressionDescription' | 'history' | 'logoGrad' | 'competitivenessTrend' | 'lastUpdated'> & { aggression: string, sparklinePath: string, sparklineColor: string })[] = [];
-  filteredItems: (Matchup & { competitorPrices: { [key: string]: number | null } })[] = [];
-  marketActivity: Activity[] = [];
-  private _competitors: Competitor[] = [
-    { id: '1', name: 'BestBuy', logo: 'B', lastUpdated: '3 mins ago', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/f/f5/Best_Buy_Logo.svg', logoGrad: 'linear-gradient(135deg, #0046BE, #003399)', competitiveness: 68.4, competitivenessTrend: 4.2, aggressiveness: 'High', aggressionDescription: 'Changed prices 42 times this week.', sparkColor: '#F47067', history: [50, 48, 49, 45, 42, 40, 38, 44, 46, 42, 38, 35], domain: 'bestbuy.com' },
-    { id: '2', name: 'Amazon', logo: 'a', lastUpdated: 'Just now', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', logoGrad: 'linear-gradient(135deg, #FF9900, #F57C00)', competitiveness: 41.2, competitivenessTrend: -2.1, aggressiveness: 'High', aggressionDescription: 'Automated repricing active.', sparkColor: '#F47067', history: [45, 42, 40, 39, 39, 37, 35, 34, 30, 28, 26, 25], domain: 'amazon.com' },
-    { id: '3', name: 'Walmart', logo: 'W', lastUpdated: '12 mins ago', logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/1/14/Walmart_Spark.svg', logoGrad: 'linear-gradient(135deg, #0071CE, #0056A3)', competitiveness: 82.1, competitivenessTrend: 0.5, aggressiveness: 'Medium', aggressionDescription: 'Moderate price changes.', sparkColor: '#C69026', history: [40, 41, 39, 42, 45, 46, 44, 47, 49, 48, 45, 44], domain: 'walmart.com' },
-  ];
-
-  private _matchups: Matchup[] = [
-    { name: 'iPhone 15 Pro 256GB Titanium', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200', yourPrice: 999.00, risk: 'High', change7d: [1049, 1029, 999, 999, 999, 999, 999], avgMarketDiff: -1.2, compPrices: { '1': 949.00, '2': 1049.00, '3': 1099.00 } },
-    { name: 'Sony WH-1000XM5 Noise Cancelling', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200', yourPrice: 299.99, risk: 'Medium', change7d: [349, 329, 319, 299, 299, 299, 299], avgMarketDiff: 0.5, compPrices: { '1': 279.00, '2': 299.99, '3': null } },
-    { name: 'Samsung Galaxy S24 Ultra 512GB', image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=200', yourPrice: 1199.00, risk: 'Low', change7d: [1199, 1199, 1199, 1199, 1199, 1199, 1199], avgMarketDiff: -4.5, compPrices: { '1': 1149.00, '2': 1199.00, '3': 1250.00 } },
-    { name: 'MacBook Air M3 13-inch', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200', yourPrice: 1099.00, risk: 'High', change7d: [1149, 1129, 1099, 1079, 1079, 1099, 1099], avgMarketDiff: 2.1, compPrices: { '1': null, '2': 1019.00, '3': 1099.00 } },
-    { name: 'Canon EOS R8 Mirrorless Body', image: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?w=200', yourPrice: 1299.00, risk: 'Medium', change7d: [1350, 1320, 1299, 1299, 1299, 1299, 1299], avgMarketDiff: -1.8, compPrices: { '1': 1199.00, '2': 1299.00, '3': 1350.00 } },
-  ];
-
-  private _activities: Activity[] = [
-    { id: '1', compName: 'BestBuy', compLogo: 'B', compLogoUrl: 'https://upload.wikimedia.org/wikipedia/commons/f/f5/Best_Buy_Logo.svg', action: 'dropped', value: 50.00, timeLabel: 'Just now', timestamp: '2 mins ago', fullDate: 'Mar 24, 2026, 2:02 PM', impactScore: 'High', priceHistory7d: [1000, 980, 970, 950, 949, 949, 949] },
-    { id: '2', compName: 'Amazon', compLogo: 'A', compLogoUrl: 'https://upload.wikimedia.org/wikipedia/commons/a/a9/Amazon_logo.svg', action: 'dropped', value: 80.00, timeLabel: 'Just now', timestamp: '15 mins ago', fullDate: 'Mar 24, 2026, 1:49 PM', impactScore: 'High', priceHistory7d: [1100, 1080, 1050, 1030, 1019, 1019, 1019] },
-    { id: '3', compName: 'Walmart', compLogo: 'W', compLogoUrl: 'https://upload.wikimedia.org/wikipedia/commons/1/14/Walmart_Spark.svg', action: 'raised', value: 51.00, timeLabel: 'Last hour', timestamp: '52 mins ago', fullDate: 'Mar 24, 2026, 1:12 PM', impactScore: 'Med', priceHistory7d: [1199, 1199, 1199, 1220, 1250, 1250, 1250] },
-  ];
-
-  private router = inject(Router);
+  competitors: any[] = [];
+  filteredItems: any[] = [];
+  marketActivity: any[] = [];
 
   ngOnInit() {
-    this.processCompetitors();
-    this.updateDerivedData();
+    this.fetchCompetitors();
   }
 
   ngOnDestroy() { }
 
-  processCompetitors() {
-    this.competitors = this._competitors.map(c => ({
-      ...c,
-      aggression: c.aggressiveness,
-      sparklineColor: c.sparkColor,
-      sparklinePath: this.getSparklinePath(c.history)
-    }));
+  fetchCompetitors() {
+    this.resellerService.getCompetitors()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (comps) => {
+          this.competitors = comps.map(c => ({
+            ...c,
+            aggression: c.aggressiveness,
+            sparklineColor: c.spark_color,
+            sparklinePath: this.getSparklinePath([50, 48, 49, 45, 42, 40, 38, 44, 46, 42, 38, 35]) // Placeholder
+          }));
+          this.updateDerivedData();
+        }
+      });
   }
 
   updateDerivedData() {
-    this.filteredItems = this._matchups
-      .filter(m =>
-        m.name.toLowerCase().includes(this.productFilter.toLowerCase())
-      )
-      .map(m => ({
-        ...m,
-        competitorPrices: m.compPrices
-      }));
-
-    this.marketActivity = [...this._activities];
+    this.filteredItems = []; // Needs inventory join
+    this.marketActivity = []; // Needs history worker
   }
   getSparklinePath(history: number[]): string {
     if (!history || history.length < 2) return '';
@@ -1352,12 +1335,13 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
   }
 
   isAlreadyTracked(name: string): boolean {
-    return this._competitors.some(c => c.name.toLowerCase() === name.toLowerCase());
+    return this.competitors.some(c => c.seller_name.toLowerCase() === name.toLowerCase());
   }
 
   refreshData() {
     if (this.isSyncing) return;
     this.isSyncing = true;
+    this.fetchCompetitors();
     setTimeout(() => {
       this.isSyncing = false;
     }, 2000);
@@ -1386,9 +1370,9 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
 
   removeRival(id: string) {
     if (confirm('Are you sure you want to stop monitoring this competitor?')) {
-      this._competitors = this._competitors.filter(c => c.id !== id);
-      this.processCompetitors();
-      this.updateDerivedData();
+      this.resellerService.deleteCompetitor(id).subscribe(() => {
+        this.fetchCompetitors();
+      });
     }
   }
   openAddRivalModal() {
@@ -1413,32 +1397,22 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
       return;
     }
 
-    const newId = (this._competitors.length + 1).toString();
-    const newComp: Competitor = {
-      id: newId,
-      name: this.selectedRival.name,
-      logo: this.selectedRival.name.charAt(0),
-      lastUpdated: 'Just now',
-      logoGrad: 'linear-gradient(135deg, #60A5FA, #3B82F6)',
-      competitiveness: 0,
-      competitivenessTrend: 0,
-      aggressiveness: 'Low',
-      aggressionDescription: 'Newly added competitor.',
-      sparkColor: '#3B82F6',
-      history: [50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50, 50],
+    const payload = {
+      seller_name: this.selectedRival.name,
+      seller_id: this.selectedRival.name.toLowerCase().replace(' ', '-'),
+      platform: this.selectedRival.name,
       domain: this.selectedRival.domain
     };
 
-    this._competitors.push(newComp);
-    this.processCompetitors();
-    this.closeAddRivalModal();
-
-    // Show a quick sync as we "fetch" initial data for the new rival
-    this.refreshData();
+    this.resellerService.createCompetitor(payload).subscribe(() => {
+      this.fetchCompetitors();
+      this.closeAddRivalModal();
+      this.refreshData();
+    });
   }
 
   openCardMenu(competitor: any) {
-    alert(`Menu for ${competitor.name}: This feature is coming soon to our premium plan.`);
+    alert(`Menu for ${competitor.seller_name}: This feature is coming soon to our premium plan.`);
   }
 
   viewAllActivity() {

@@ -1,8 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { Router, RouterModule } from '@angular/router';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ResellerService, SellerProduct } from '../../../core/services/reseller.service';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
 
 interface CatalogItem {
@@ -441,10 +443,14 @@ interface CatalogItem {
 })
 export class CatalogTrackerComponent implements OnInit {
   private router = inject(Router);
+  private resellerService = inject(ResellerService);
+  private destroyRef = inject(DestroyRef);
+
   searchQuery = '';
   categoryFilter = 'all';
   statusFilter = 'all';
   currentPage = 1;
+  isLoading = false;
 
   showAddModal = false;
   showDropdown = false;
@@ -454,7 +460,7 @@ export class CatalogTrackerComponent implements OnInit {
   toastTimeout: any;
 
   editingProduct: any = null;
-  newProduct: any = { name: '', yourPrice: null, image: '' };
+  newProduct: any = { name: '', yourPrice: null, image: '', category: '', platform: '' };
 
   availableProducts = PLATFORM_PRODUCT_LIBRARY;
 
@@ -476,19 +482,49 @@ export class CatalogTrackerComponent implements OnInit {
     this.newProduct.name = item.name;
     this.newProduct.yourPrice = item.defaultPrice;
     this.newProduct.image = item.image;
+    this.newProduct.category = item.category;
+    this.newProduct.platform = item.platform || 'Amazon';
     this.showDropdown = false;
   }
 
-  items: CatalogItem[] = [
-    { id: '1', name: 'Sony WH-1000XM5 Noise Cancelling', category: 'Audio', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200', yourPrice: 299, lowestComp: 279, margin: 38, status: 'healthy' },
-    { id: '2', name: 'iPhone 15 Pro 256GB Titanium', category: 'Phones', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200', yourPrice: 999, lowestComp: 949, margin: 24, status: 'risk' },
-    { id: '3', name: 'Samsung Galaxy S24 Ultra 512GB', category: 'Phones', image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=200', yourPrice: 1199, lowestComp: 1149, margin: 19, status: 'risk' },
-    { id: '4', name: 'MacBook Air M3 13-inch', category: 'Laptops', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200', yourPrice: 1099, lowestComp: 1019, margin: 22, status: 'risk' },
-    { id: '5', name: 'Keychron Q1 Max Mechanical Keyboard', category: 'Périphériques', image: 'https://images.unsplash.com/photo-1595225442460-394136278fc4?w=200', yourPrice: 199, lowestComp: 189, margin: 15, status: 'healthy' },
-    { id: '6', name: 'iPad Air M2 64GB WiFi', category: 'Tablets', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200', yourPrice: 549, lowestComp: 599, margin: 31, status: 'healthy' }
-  ];
+  items: CatalogItem[] = [];
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.fetchProducts();
+  }
+
+  fetchProducts() {
+    this.isLoading = true;
+    this.resellerService.getProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prods) => {
+          this.items = prods.map(p => ({
+            id: p.id,
+            name: p.product_name,
+            category: p.category || 'Other',
+            image: p.emoji_icon || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
+            yourPrice: p.my_price,
+            lowestComp: p.cached_lowest_comp_price || p.my_price * 0.95,
+            margin: p.cached_market_visibility_pct || 15,
+            status: this.deriveStatus(p)
+          }));
+          this.isLoading = false;
+        },
+        error: () => {
+          this.showToast('Failed to load catalog.');
+          this.isLoading = false;
+        }
+      });
+  }
+
+  deriveStatus(p: SellerProduct): 'healthy' | 'risk' | 'critical' {
+    if (!p.cached_lowest_comp_price) return 'healthy';
+    const diff = ((p.my_price - p.cached_lowest_comp_price) / p.my_price) * 100;
+    if (diff > 10) return 'critical';
+    if (diff > 0) return 'risk';
+    return 'healthy';
+  }
 
   get filteredItems(): CatalogItem[] {
     return this.items.filter(item => {
@@ -502,10 +538,16 @@ export class CatalogTrackerComponent implements OnInit {
   openAddModal(item: any = null) {
     if (item) {
       this.editingProduct = item;
-      this.newProduct = { ...item };
+      this.newProduct = { 
+        name: item.name, 
+        yourPrice: item.yourPrice, 
+        image: item.image,
+        category: item.category,
+        platform: 'Amazon'
+      };
     } else {
       this.editingProduct = null;
-      this.newProduct = { name: '', yourPrice: null, image: '' };
+      this.newProduct = { name: '', yourPrice: null, image: '', category: '', platform: '' };
     }
     this.showAddModal = true;
   }
@@ -520,45 +562,49 @@ export class CatalogTrackerComponent implements OnInit {
       return;
     }
 
-    const matchedProduct = PLATFORM_PRODUCT_LIBRARY.find(p => p.name === this.newProduct.name);
-    if (!matchedProduct) {
-      this.showToast('Please select a valid product from the suggestions.');
-      return;
-    }
+    const payload = {
+      product_name: this.newProduct.name,
+      my_price: this.newProduct.yourPrice || 0,
+      category: this.newProduct.category,
+      platform: this.newProduct.platform,
+      emoji_icon: this.newProduct.image
+    };
     
     if (this.editingProduct) {
-      const idx = this.items.findIndex(p => p.id === this.editingProduct.id);
-      if (idx !== -1) {
-        this.items[idx] = { 
-          ...this.items[idx], 
-          name: this.newProduct.name, 
-          yourPrice: this.newProduct.yourPrice || 0,
-          image: this.newProduct.image || this.items[idx].image
-        };
-        this.showToast('Product parameters updated.');
-      }
+      this.resellerService.updateProduct(this.editingProduct.id, payload)
+        .subscribe({
+          next: () => {
+            this.showToast('Product parameters updated.');
+            this.fetchProducts();
+            this.closeAddModal();
+          },
+          error: () => this.showToast('Failed to update product.')
+        });
     } else {
-      const suggestion = this.availableProducts.find(p => p.name === this.newProduct.name);
-      this.items.unshift({
-        id: Math.random().toString(),
-        name: this.newProduct.name,
-        category: suggestion ? suggestion.category : 'Other',
-        image: this.newProduct.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
-        yourPrice: this.newProduct.yourPrice || 0,
-        lowestComp: (this.newProduct.yourPrice || 0) * 0.95, 
-        margin: 15,
-        status: 'risk'
-      });
-      this.showToast('Product added successfully!');
+      this.resellerService.createProduct(payload)
+        .subscribe({
+          next: () => {
+            this.showToast('Product added successfully!');
+            this.fetchProducts();
+            this.closeAddModal();
+          },
+          error: () => this.showToast('Failed to add product.')
+        });
     }
-    this.closeAddModal();
   }
 
   removeProduct(event: Event, id: string) {
     event.preventDefault();
     event.stopPropagation();
-    this.items = this.items.filter(item => item.id !== id);
-    this.showToast('Product successfully removed from tracking.');
+    if (!confirm('Are you sure you want to remove this product?')) return;
+    
+    this.resellerService.deleteProduct(id).subscribe({
+      next: () => {
+        this.items = this.items.filter(item => item.id !== id);
+        this.showToast('Product successfully removed from tracking.');
+      },
+      error: () => this.showToast('Failed to remove product.')
+    });
   }
 
   navigateToDetail(id: string) {

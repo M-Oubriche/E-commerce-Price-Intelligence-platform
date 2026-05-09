@@ -1,8 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { CommonModule, CurrencyPipe } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
+import { ResellerService, SellerProduct } from '../../../core/services/reseller.service';
 
 interface StatCard { icon: string; label: string; value: number; displayValue: number; prefix: string; suffix: string; colorClass: string; }
 interface ProductRow { name: string; category: string; image: string; yourPrice: number; lowestComp: number; margin: number; status: 'healthy' | 'risk' | 'critical'; platform: string; }
@@ -522,6 +524,9 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
 })
 export class ResellerOverviewComponent implements OnInit {
   authService = inject(AuthService);
+  private resellerService = inject(ResellerService);
+  private destroyRef = inject(DestroyRef);
+
   isLoading = true;
 
   get userName(): string {
@@ -537,53 +542,61 @@ export class ResellerOverviewComponent implements OnInit {
   }
 
   stats: StatCard[] = [
-    { icon: '', label: 'Products Tracked', value: 48, displayValue: 0, prefix: '', suffix: '', colorClass: 'blue' },
-    { icon: '', label: 'Competitors', value: 7, displayValue: 0, prefix: '', suffix: '', colorClass: 'purple' },
-    { icon: '', label: 'Price Alerts', value: 3, displayValue: 0, prefix: '', suffix: '', colorClass: 'red' },
+    { icon: '', label: 'Products Tracked', value: 0, displayValue: 0, prefix: '', suffix: '', colorClass: 'blue' },
+    { icon: '', label: 'Competitors', value: 0, displayValue: 0, prefix: '', suffix: '', colorClass: 'purple' },
+    { icon: '', label: 'Price Alerts', value: 0, displayValue: 0, prefix: '', suffix: '', colorClass: 'red' },
     { icon: '', label: 'Competitiveness', value: 84, displayValue: 0, prefix: '', suffix: '%', colorClass: 'green' },
   ];
 
-  products: ProductRow[] = [
-    { name: 'Sony WH-1000XM5', category: 'Audio', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200', yourPrice: 299, lowestComp: 279, margin: 38, status: 'healthy', platform: 'Amazon' },
-    { name: 'iPhone 15 Pro 256GB', category: 'Phones', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200', yourPrice: 999, lowestComp: 949, margin: 24, status: 'risk', platform: 'BestBuy' },
-    { name: 'Samsung Galaxy S24 Ultra', category: 'Phones', image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=200', yourPrice: 1199, lowestComp: 1149, margin: 19, status: 'risk', platform: 'Walmart' },
-    { name: 'iPad Air M2 64GB', category: 'Tablets', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200', yourPrice: 549, lowestComp: 599, margin: 31, status: 'healthy', platform: 'Amazon' },
-    { name: 'Logitech G Pro X 2', category: 'Périphériques', image: 'https://images.unsplash.com/photo-1629429464245-487019807575?w=200', yourPrice: 129, lowestComp: 119, margin: 22, status: 'healthy', platform: 'Amazon' },
-  ];
+  products: ProductRow[] = [];
 
-  marketMoves: MarketMove[] = [
-    { event: 'Sony dropped WH-1000XM5 by $20', product: 'Sony WH-1000XM5', platform: 'Amazon', change: '−$20', direction: 'down', time: '12 min ago', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200' },
-    { event: 'Apple raised AirPods Pro to $279', product: 'AirPods Pro 2nd Gen', platform: 'Apple Store', change: '+$30', direction: 'up', time: '1 hr ago', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200' },
-    { event: 'BestBuy slashed Galaxy S24 Ultra', product: 'Samsung Galaxy S24 Ultra', platform: 'BestBuy', change: '−$100', direction: 'down', time: '2 hr ago', image: 'https://images.unsplash.com/photo-1610945415295-d9bbf067e59c?w=200' },
-    { event: 'Walmart raised Pixel 8 Pro pricing', product: 'Google Pixel 8 Pro', platform: 'Walmart', change: '+$50', direction: 'up', time: '3 hr ago', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200' },
-    { event: 'Amazon dropped MacBook Air M3', product: 'MacBook Air M3 13"', platform: 'Amazon', change: '−$80', direction: 'down', time: '4 hr ago', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200' },
-  ];
-
-  insights: Insight[] = [
-    { product: 'Logitech G Pro X 2', message: 'You\'re now $10 above the lowest price. Competitor dropped to $119. Review your dynamic pricing rule.', type: 'watch', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', link:  '/reseller/catalog' },
-    { product: 'Sony WH-1000XM5', message: 'You\'re now $20 above the lowest price after Sony\'s drop. Lower to $279 to recapture the #1 position on Amazon.', type: 'watch', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', link:  '/reseller/catalog' },
-    { product: 'iPad Air M2', message: 'Your price is $50 above the lowest competitor — but you\'re still #2. Target visibility maintained.', type: 'win', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', link:  '/reseller/catalog' },
-    { product: 'MacBook Air M3', message: 'Amazon dropped price by $80. You\'re now overpriced by $65. Update your pricing to stay competitive.', type: 'risk', icon: 'M13 10V3L4 14h7v7l9-11h-7z', link:  '/reseller/competitors' },
-  ];
-
-  topOpps: TopOpp[] = [
-    { name: 'Sony WH-1000XM5', category: 'Headphones', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300', opportunity: 78, action: 'Lower by $10 → capture #1', accentColor: '#10B981', accentBg: 'rgba(16,185,129,0.12)' },
-    { name: 'iPad Air M2', category: 'Tablets', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=300', opportunity: 64, action: 'Bundle with accessories', accentColor: '#7C3AED', accentBg: 'rgba(124,58,237,0.12)' },
-    { name: 'Keychron Q1 Max', category: 'Périphériques', image: 'https://images.unsplash.com/photo-1595225442460-394136278fc4?w=300', opportunity: 52, action: 'Set price floor alert', accentColor: '#EF4444', accentBg: 'rgba(239,68,68,0.12)' },
-    { name: 'MacBook Air M3', category: 'Laptops', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=300', opportunity: 45, action: 'Monitor Amazon — undercut $80', accentColor: '#F59E0B', accentBg: 'rgba(245,158,11,0.12)' },
-  ];
-
-  activeAlerts = [
-    { title: 'Logitech G Pro X 2 — Watch', meta: 'Comp. undercut by $10 on Amazon', severity: 'risk', label: 'Price Risk' },
-    { title: 'iPhone 15 Pro 256GB', meta: 'Comp. undercut by $50 on BestBuy', severity: 'risk', label: 'Price Risk' },
-    { title: 'Samsung Galaxy S24 Ultra', meta: 'Market share dropped below 20%', severity: 'risk', label: 'Trend Loss' },
-  ];
+  marketMoves: any[] = [];
+  insights: any[] = [];
+  topOpps: any[] = [];
+  activeAlerts: any[] = [];
 
   ngOnInit() {
-    setTimeout(() => {
-      this.isLoading = false;
-      setTimeout(() => this.animateStats(), 50);
-    }, 700);
+    this.fetchDashboardData();
+  }
+
+  fetchDashboardData() {
+    this.isLoading = true;
+
+    // Load Products
+    this.resellerService.getProducts()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (prods) => {
+          this.stats[0].value = prods.length;
+          this.products = prods.slice(0, 5).map(p => ({
+            name: p.product_name,
+            category: p.category || 'Other',
+            image: p.emoji_icon || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200',
+            yourPrice: p.my_price,
+            lowestComp: p.cached_lowest_comp_price || p.my_price * 0.95,
+            margin: p.cached_market_visibility_pct || 15,
+            status: this.deriveStatus(p),
+            platform: p.platform || 'Amazon'
+          }));
+          this.animateStats();
+          this.isLoading = false;
+        },
+        error: () => this.isLoading = false
+      });
+
+    // Load Competitors count
+    this.resellerService.getCompetitors().subscribe(comps => this.stats[1].value = comps.length);
+
+    // Load Alerts count
+    this.resellerService.getAlerts().subscribe(alerts => this.stats[2].value = alerts.length);
+  }
+
+  deriveStatus(p: SellerProduct): 'healthy' | 'risk' | 'critical' {
+    if (!p.cached_lowest_comp_price) return 'healthy';
+    const diff = ((p.my_price - p.cached_lowest_comp_price) / p.my_price) * 100;
+    if (diff > 10) return 'critical';
+    if (diff > 0) return 'risk';
+    return 'healthy';
   }
 
   animateStats() {

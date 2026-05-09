@@ -1403,7 +1403,6 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
   showStatsDetail(insight: Insight) {
     this.selectedInsight = insight;
     this.showStatsModal = true;
-    console.log('Detailed Stats Modal opened for:', insight);
   }
 
   closeStatsModal() {
