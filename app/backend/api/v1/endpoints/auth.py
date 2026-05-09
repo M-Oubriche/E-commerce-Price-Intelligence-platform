@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from typing import Optional
 
 from api import deps
+from core.rate_limit import rate_limit_auth, rate_limit_login, rate_limit_register
 from models.users import User
 from schemas.users import UserCreate, UserOut, Token, SingleUserResponse
 from services.auth import AuthService
@@ -11,7 +12,7 @@ from core.config import settings
 
 router = APIRouter()
 
-@router.post("/register", response_model=SingleUserResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=SingleUserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_register)])
 async def register(
     user_in: UserCreate, 
     db: AsyncSession = Depends(deps.get_db)
@@ -30,7 +31,7 @@ async def register(
     return {"data": new_user}
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(rate_limit_login)])
 async def login(
     response: Response,
     request: Request,
@@ -144,13 +145,13 @@ async def verify_email(token: str, db: AsyncSession = Depends(deps.get_db)):
         )
     return {"message": "Email vérifié avec succès."}
 
-@router.post("/forgot-password")
+@router.post("/forgot-password", dependencies=[Depends(rate_limit_auth)])
 async def forgot_password(email: str, db: AsyncSession = Depends(deps.get_db)):
     # Create token if user exists (always returns 200 to prevent enumeration)
     await AuthService.create_password_reset_token(db, email)
     return {"message": "Si l'email existe, un lien de réinitialisation a été envoyé."}
 
-@router.post("/reset-password")
+@router.post("/reset-password", dependencies=[Depends(rate_limit_auth)])
 async def reset_password(token: str, new_password: str, db: AsyncSession = Depends(deps.get_db)):
     success = await AuthService.reset_password(db, token, new_password)
     if not success:

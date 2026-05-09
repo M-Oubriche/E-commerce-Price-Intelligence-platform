@@ -6,6 +6,7 @@ from typing import List
 from uuid import UUID
 
 from api import deps
+from core.rate_limit import rate_limit_watchlist
 from models.users import User
 from models.client import WatchlistItem, ShopperAlert
 from schemas.watchlist import (
@@ -35,7 +36,7 @@ async def get_watchlist(
     items = result.scalars().all()
     return {"data": items}
 
-@router.post("/", response_model=SingleWatchlistResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", response_model=SingleWatchlistResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_watchlist)])
 async def add_to_watchlist(
     item_in: WatchlistItemCreate,
     db: AsyncSession = Depends(deps.get_db),
