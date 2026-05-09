@@ -1,4 +1,4 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from typing import Dict, List
 import json
 import logging
@@ -38,28 +38,28 @@ class ConnectionManager:
 manager = ConnectionManager()
 router = APIRouter()
 
-@router.websocket("/")
+@router.websocket("/{user_id}")
 async def websocket_endpoint(
     websocket: WebSocket,
-    token: str = None
+    user_id: str,
+    token: str = Query(...)
 ):
     """
     WebSocket endpoint for real-time notifications.
     Handshake validation with JWT.
     """
-    # 1. Manual JWT Validation (FastAPI Depends doesn't work perfectly with Websockets out of the box)
+    # 1. Manual JWT Validation
     from jose import jwt
     from core.config import settings
     
-    if not token:
-        await websocket.close(code=1008)
-        return
-
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
-        user_id = payload.get("sub")
+        token_user_id = payload.get("sub")
+        if token_user_id != user_id:
+            await websocket.close(code=4001)
+            return
     except Exception:
-        await websocket.close(code=1008)
+        await websocket.close(code=4001)
         return
 
     # 2. Accept and Manage connection

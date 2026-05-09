@@ -1,11 +1,14 @@
-import { Component, inject, HostListener } from '@angular/core';
+import { Component, inject, HostListener, OnInit, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
-import { filter } from 'rxjs/operators';
+import { filter, take } from 'rxjs/operators';
 import { AuthService } from '../../core/services/auth.service';
 import { FormsModule } from '@angular/forms';
 import { ThemeToggleComponent } from '../../shared/components/theme-toggle/theme-toggle.component';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
+import { WebSocketService } from '../../core/services/websocket.service';
+import { NotificationsService, Notification } from '../../core/services/notifications.service';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
 @Component({
   selector: 'app-client-dashboard',
@@ -562,68 +565,82 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
     }
   `]
 })
-export class ClientDashboardComponent {
+export class ClientDashboardComponent implements OnInit {
   currentPageTitle = 'Dashboard';
   searchQuery = '';
   showSuggestions = false;
   showNotifications = false;
+  unreadCount = 0;
 
-  notifications = [
-    {
-      id: 1,
-      type: 'price_drop',
-      message: 'iPhone 15 Pro dropped $45 on Amazon — now $854',
-      time: '2 hours ago',
-      read: false,
-      productId: '1'
-    },
-    {
-      id: 2,
-      type: 'alert_close',
-      message: 'MacBook Pro 14" is 85% close to your $1,800 target',
-      time: '3 hours ago',
-      read: false,
-      productId: '2'
-    },
-    {
-      id: 3,
-      type: 'price_drop',
-      message: 'Sony WH-1000XM5 dropped $30 on BestBuy — now $279',
-      time: '5 hours ago',
-      read: true,
-      productId: '3'
-    },
-    {
-      id: 4,
-      type: 'alert_triggered',
-      message: 'PS5 Console alert triggered — price hit $449 on Amazon',
-      time: '1 day ago',
-      read: true,
-      productId: '4'
-    },
-    {
-      id: 5,
-      type: 'price_drop',
-      message: 'RTX 4080 GPU dropped $200 on Newegg — now $899',
-      time: '1 day ago',
-      read: true,
-      productId: '6'
-    }
-  ];
+  notifications: any[] = [];
 
   public authService = inject(AuthService);
   public router = inject(Router);
+  private wsService = inject(WebSocketService);
+  private notifService = inject(NotificationsService);
+  private destroyRef = inject(DestroyRef);
+
+  ngOnInit() {
+    this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
+      if (user) {
+        this.authService.accessToken$.pipe(filter(t => !!t), take(1)).subscribe(token => {
+          this.wsService.connect(user.id, token!);
+        });
+        this.loadNotifications();
+      } else {
+        this.wsService.disconnect();
+      }
+    });
+
+    this.wsService.messages$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(msg => {
+      if (msg.type === 'PRICE_DROP') {
+        this.unreadCount++;
+        this.notifications.unshift({
+          id: msg.data.id || Math.random().toString(),
+          type: 'price_drop',
+          message: `${msg.data.product_name} dropped to ${msg.data.new_price} on ${msg.data.platform}`,
+          time: 'Just now',
+          read: false,
+          productId: msg.data.product_id
+        });
+      }
+    });
+  }
+
+  loadNotifications() {
+    this.notifService.getNotifications().subscribe(notes => {
+      this.notifications = notes.map(n => ({
+        id: n.id,
+        type: 'price_drop',
+        message: `${n.product_name} dropped to ${n.new_price} on ${n.platform}`,
+        time: this.formatDate(n.created_at),
+        read: n.is_read,
+        productId: n.product_name // Using name as fallback for routing if id missing
+      }));
+    });
+    this.notifService.getUnreadCount().subscribe(count => this.unreadCount = count);
+  }
+
+  formatDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+    if (diffMins < 60) return `${diffMins} mins ago`;
+    const diffHours = Math.round(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return date.toLocaleDateString();
+  }
 
   constructor() {
     this.router.events.pipe(
       filter(event => event instanceof NavigationEnd)
     ).subscribe((event: any) => {
       this.updateTitle(event.url);
+      if (event.url.includes('/alerts')) {
+        this.unreadCount = 0;
+      }
     });
-  }
-
-  get unreadCount(): number {
-    return this.notifications.filter(n => !n.read).length;
   }
 
   toggleNotifications() {
@@ -631,12 +648,22 @@ export class ClientDashboardComponent {
   }
 
   markAllRead() {
-    this.notifications.forEach(n => n.read = true);
+    this.notifService.markAllRead().subscribe(() => {
+      this.notifications.forEach(n => n.read = true);
+      this.unreadCount = 0;
+    });
   }
 
-  markRead(id: number) {
-    const notif = this.notifications.find(n => n.id === id);
-    if (notif) notif.read = true;
+  markRead(id: any) {
+    if (typeof id === 'string') {
+      this.notifService.markAsRead(id).subscribe(() => {
+        const notif = this.notifications.find(n => n.id === id);
+        if (notif && !notif.read) {
+          notif.read = true;
+          this.unreadCount = Math.max(0, this.unreadCount - 1);
+        }
+      });
+    }
   }
 
   closeNotifications() {
@@ -680,6 +707,7 @@ export class ClientDashboardComponent {
 
   logout() {
     this.authService.logout().subscribe(() => {
+      this.wsService.disconnect();
       this.router.navigate(['/']);
     });
   }

@@ -71,8 +71,8 @@ app.add_middleware(
 
 # Register all API routes under /api/v1
 app.include_router(api_router, prefix="/api/v1")
-# Register WebSockets separately (often don't have prefix or have special handling)
-app.include_router(ws.router, prefix="/ws", tags=["websockets"])
+# Register WebSockets under the same prefix
+app.include_router(ws.router, prefix="/api/v1/ws", tags=["websockets"])
 
 @app.get("/health")
 async def health():

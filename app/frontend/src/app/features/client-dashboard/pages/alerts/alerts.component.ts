@@ -4,6 +4,7 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { WatchlistService } from '../../../../core/services/watchlist.service';
 import { NotificationsService, Notification } from '../../../../core/services/notifications.service';
+import { WebSocketService } from '../../../../core/services/websocket.service';
 
 interface AlertDisplayItem {
   id: string;
@@ -478,6 +479,7 @@ interface AlertDisplayItem {
 export class AlertsComponent implements OnInit {
   private watchlistService = inject(WatchlistService);
   private notificationsService = inject(NotificationsService);
+  private wsService = inject(WebSocketService);
   private destroyRef = inject(DestroyRef);
   
   showDrawer = false;
@@ -493,6 +495,29 @@ export class AlertsComponent implements OnInit {
   ngOnInit() {
     this.fetchAlerts();
     this.fetchNotifications();
+    this.listenToRealTimeUpdates();
+  }
+
+  listenToRealTimeUpdates() {
+    this.wsService.messages$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(msg => {
+      if (msg.type === 'PRICE_DROP') {
+        const newNotif: Notification = {
+          id: msg.data.id || Math.random().toString(),
+          alert_event_id: msg.data.alert_event_id || 0,
+          product_name: msg.data.product_name,
+          old_price: Number(msg.data.old_price),
+          new_price: Number(msg.data.new_price),
+          drop_percent: Number(msg.data.drop_percent),
+          platform: msg.data.platform,
+          channel: 'WEBSOCKET',
+          status: 'PENDING',
+          is_read: false,
+          created_at: new Date().toISOString()
+        };
+        this.notifications = [newNotif, ...this.notifications];
+        this.unreadCount++;
+      }
+    });
   }
 
   fetchAlerts() {
