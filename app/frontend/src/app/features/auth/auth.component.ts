@@ -6,6 +6,7 @@ import { trigger, state, style, transition, animate } from '@angular/animations'
 import { AuthService, User } from '../../core/services/auth.service';
 import { UserRole } from '../../core/models/user.model';
 import { ToastService } from '../../core/services/toast.service';
+import { SocialAuthService, GoogleLoginProvider, GoogleSigninButtonModule } from '@abacritt/angularx-social-login';
 
 interface FloatingIcon {
   path: string;
@@ -21,7 +22,7 @@ interface FloatingIcon {
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, GoogleSigninButtonModule],
   templateUrl: './auth.component.html',
   styleUrls: ['./auth.component.scss'],
   animations: [
@@ -67,6 +68,7 @@ export class AuthComponent implements OnInit {
   showConfirmPassword = false;
 
   private authService = inject(AuthService);
+  private socialAuthService = inject(SocialAuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private fb = inject(FormBuilder);
@@ -103,6 +105,17 @@ export class AuthComponent implements OnInit {
       this.router.navigate(['/dashboard']);
       return;
     }
+
+    this.socialAuthService.authState.subscribe((user) => {
+      if (user && user.idToken) {
+        this.isGoogleLoading = true;
+        const type = this.accountType || UserRole.CLIENT;
+        this.authService.googleAuth(user.idToken, type).subscribe({
+          next: (u) => this.onLoginSuccess(u),
+          error: () => this.isGoogleLoading = false
+        });
+      }
+    });
 
     const path = this.router.url;
     if (path.includes('verify-email')) {
@@ -211,15 +224,6 @@ export class AuthComponent implements OnInit {
         this.toastService.show('Account created! Please check your email.', 'success');
       },
       error: () => this.isSubmitting = false
-    });
-  }
-
-  loginWithGoogle() {
-    this.isGoogleLoading = true;
-    const type = this.accountType || UserRole.CLIENT;
-    this.authService.loginWithGoogle(type).subscribe({
-      next: (u) => this.onLoginSuccess(u),
-      error: () => this.isGoogleLoading = false
     });
   }
 

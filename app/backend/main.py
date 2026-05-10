@@ -89,6 +89,8 @@ async def rate_limit_middleware(request: Request, call_next):
 async def add_rate_limit_headers(request: Request, call_next):
     response = await call_next(request)
     response.headers["X-RateLimit-Policy"] = "see-documentation"
+    # Required for Google OAuth Popup to communicate with main window
+    response.headers["Cross-Origin-Opener-Policy"] = "unsafe-none"
     return response
 
 # Register all API routes under /api/v1

@@ -31,17 +31,17 @@ export class WebSocketService {
         const data = JSON.parse(event.data);
         this.messageSubject.next(data);
       } catch (e) {
-        console.error('Error parsing WebSocket message', e);
+        // console.error('Error parsing WebSocket message', e);
       }
     };
 
     this.socket.onclose = () => {
-      console.log('WebSocket closed. Attempting reconnect in 5s...');
+      // console.log('WebSocket closed. Attempting reconnect in 5s...');
       this.scheduleReconnect();
     };
 
     this.socket.onerror = (error) => {
-      console.error('WebSocket error:', error);
+      // console.error('WebSocket error:', error);
       this.socket?.close();
     };
   }

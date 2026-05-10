@@ -15,3 +15,6 @@ python-multipart==0.0.12
 emails==0.6.0
 email-validator==2.1.1
 sib-api-v3-sdk==7.6.0
+google-auth==2.29.0
+google-auth-oauthlib==1.2.0
+google-auth-httplib2==0.2.0

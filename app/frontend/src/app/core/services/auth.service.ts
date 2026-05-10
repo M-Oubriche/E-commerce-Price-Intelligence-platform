@@ -152,7 +152,25 @@ export class AuthService {
   }
 
   loginWithGoogle(role: UserRole): Observable<User> {
-    return throwError(() => new Error('Google OAuth not yet configured'));
+    return throwError(() => new Error('Google OAuth handled via SocialAuthService'));
+  }
+
+  googleAuth(idToken: string, role: string): Observable<User> {
+    return this.httpBackend.post<ApiResponse<TokenResponse>>(
+      `${this.API_URL}/google`,
+      { token: idToken, role }
+    ).pipe(
+      tap(res => {
+        this.setAccessToken(res.data.access_token);
+        if (res.data.refresh_token && this.isBrowser) {
+          localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.data.refresh_token);
+        }
+      }),
+      switchMap(() => this.getUserProfile()),
+      tap(() => {
+        this.readySubject.next(true); // AFTER getUserProfile — same as login()
+      })
+    );
   }
 
   updateUser(updates: Partial<User>): Observable<User> {
