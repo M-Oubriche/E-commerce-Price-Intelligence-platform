@@ -53,10 +53,6 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
         <div class="nav-right">
           <div class="desktop-actions">
             <div class="nav-links">
-              <a (click)="scrollToSection('categories')" class="nav-link-item">Categories</a>
-              <a (click)="scrollToSection('features')" class="nav-link-item">Features</a>
-              <a (click)="scrollToSection('how-it-works')" class="nav-link-item">How it Works</a>
-              <a (click)="scrollToSection('reseller')" class="nav-link-item">Reseller</a>
               <a routerLink="/deals" class="deal-feed-link" routerLinkActive="active">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                 Deal Feed
@@ -140,10 +136,6 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
       </div>
 
       <nav class="drawer-nav">
-        <a (click)="scrollToSection('categories')" class="drawer-link">Categories</a>
-        <a (click)="scrollToSection('features')" class="drawer-link">Features</a>
-        <a (click)="scrollToSection('how-it-works')" class="drawer-link">How it Works</a>
-        <a (click)="scrollToSection('reseller')" class="drawer-link">Reseller</a>
         <a routerLink="/deals" class="drawer-link" routerLinkActive="active" (click)="closeMobileMenu()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
           Deal Feed
@@ -173,13 +165,14 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
     .public-navbar {
       position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
       padding: 1.5rem 0;
-      background: transparent;
+      background: var(--bg-primary);
       transition: all 0.3s ease;
       border-bottom: 1px solid transparent;
     }
     .public-navbar.scrolled {
       padding: 1rem 0;
-      background: rgba(10, 15, 30, 0.8);
+      background: var(--bg-primary);
+      opacity: 0.98;
       backdrop-filter: blur(12px);
       -webkit-backdrop-filter: blur(12px);
       border-bottom-color: var(--border);
@@ -188,7 +181,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
 
     /* ── LIGHT MODE ── */
     :host-context(html.light-mode) .public-navbar {
-      background: #FFFFFF;
+      background: var(--bg-primary);
       border-bottom: 1px solid #E8E6E0;
     }
     :host-context(html.light-mode) .public-navbar.scrolled {
@@ -272,8 +265,8 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
       display: flex; align-items: center;
       font-size: 1.35rem; font-weight: 900; text-decoration: none;
       letter-spacing: -0.03em; flex-shrink: 0;
-      .logo-pulse { color: var(--accent-blue); }
-      .logo-price { color: var(--text-primary, #fff); }
+      .logo-pulse { color: #539BF5; }
+      .logo-price { color: #FFFFFF; }
     }
 
     /* Search */
@@ -289,17 +282,18 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
     .nav-search input {
       width: 100%; height: 38px;
       padding: 0 3.5rem 0 2.75rem;
-      background: var(--bg-elevated);
-      border: 1px solid var(--border);
-      border-radius: 100px; .logo-pulse { color: var(--accent-blue); }
-      .logo-price { color: #fff; } font-size: 0.85rem;
+      background: #373E47;
+      border: 1px solid #444C56;
+      border-radius: 100px;
+      color: #fff;
+      font-size: 0.85rem;
       transition: all 0.2s;
-      &::placeholder { color: var(--text-muted); }
+      &::placeholder { color: #768390; }
       &:focus {
         outline: none;
-        background: var(--bg-hover);
-        border-color: var(--accent-blue);
-        box-shadow: 0 0 0 3px var(--accent-blue-light);
+        background: #444C56;
+        border-color: #539BF5;
+        box-shadow: 0 0 0 3px rgba(83, 155, 245, 0.15);
       }
     }
     .search-hint {
@@ -321,43 +315,40 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
       @media (max-width: 1100px) { display: none; }
     }
     .nav-link-item {
-      color: var(--text-secondary); text-decoration: none;
+      color: #ADBAC7; text-decoration: none;
       font-size: 0.85rem; font-weight: 600; cursor: pointer;
       transition: color 0.2s;
-      &:hover { .logo-pulse { color: var(--accent-blue); }
-      .logo-price { color: #fff; } }
+      &:hover { color: #fff; }
     }
 
     .deal-feed-link {
       display: flex; align-items: center; gap: 0.4rem;
-      color: var(--text-secondary); text-decoration: none;
+      color: #ADBAC7; text-decoration: none;
       font-size: 0.85rem; font-weight: 600; padding: 0.4rem 0.75rem;
       border-radius: 100px; transition: all 0.2s;
       svg { width: 15px; height: 15px; color: var(--accent-amber); }
-      &:hover { .logo-pulse { color: var(--accent-blue); }
-      .logo-price { color: #fff; } background: var(--bg-hover); }
+      &:hover { color: #fff; background: var(--bg-hover); }
       &.active { color: var(--accent-amber); }
     }
 
     .btn-ghost {
       display: inline-flex; align-items: center;
       padding: 0.4rem 1rem;
-      background: transparent; border: 1px solid var(--border-mid);
-      .logo-pulse { color: var(--accent-blue); }
-      .logo-price { color: #fff; } font-size: 0.85rem; font-weight: 600;
+      background: transparent; border: 1px solid #545D68;
+      color: #ADBAC7; font-size: 0.85rem; font-weight: 600;
       border-radius: 100px; cursor: pointer; text-decoration: none;
       transition: all 0.2s;
-      &:hover { border-color: var(--text-secondary); background: var(--bg-hover); }
+      &:hover { border-color: #ADBAC7; background: #373E47; color: #fff; }
     }
 
     .btn-primary {
       display: inline-flex; align-items: center;
       padding: 0.45rem 1.1rem;
-      background: var(--accent-blue); color: #fff;
+      background: #539BF5; color: #fff;
       font-size: 0.85rem; font-weight: 600;
       border-radius: 100px; cursor: pointer; text-decoration: none;
       border: none; transition: all 0.2s;
-      &:hover { background: var(--accent-blue); filter: brightness(1.1); box-shadow: 0 0 15px var(--accent-blue-light); }
+      &:hover { background: #539BF5; filter: brightness(1.1); box-shadow: 0 0 15px rgba(83, 155, 245, 0.4); }
     }
 
     /* User Menu */
