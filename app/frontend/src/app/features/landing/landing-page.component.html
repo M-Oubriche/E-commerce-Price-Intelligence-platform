@@ -1,125 +1,50 @@
 <!-- NAVBAR -->
 <app-public-navbar></app-public-navbar>
 
+<!-- PROMO BAR -->
+<div class="promo-bar" *ngIf="promoBannerVisible">
+  <div class="promo-content">
+    <span>Prices updated every 6 hours &nbsp;·&nbsp; 214 stores tracked &nbsp;·&nbsp; <strong>Free forever</strong> — no credit card needed</span>
+  </div>
+  <button class="promo-close" (click)="dismissPromoBanner()">✕</button>
+</div>
+
 <main>
-  <!-- HERO SECTION -->
+
+  
+
+  <!-- ══ HERO SECTION ══════════════════════════════════════ -->
   <section class="hero-section">
-    <div class="floating-icons" aria-hidden="true">
-      <svg
-        *ngFor="let icon of floatingIcons"
-        [attr.viewBox]="icon.viewBox"
-        [style.width.px]="icon.size"
-        [style.height.px]="icon.size"
-        [style.left.vw]="icon.x"
-        [style.top.vh]="icon.y"
-        [style.opacity]="icon.opacity"
-        [style.color]="icon.color"
-        [style.animationDuration]="icon.duration + 's'"
-        [style.animationDelay]="icon.delay + 's'"
-        class="floating-icon"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="1.5"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <g [innerHTML]="icon.svg | safeHtml"></g>
-      </svg>
-    </div>
+    <div class="container">
 
-    <div class="container hero-grid">
-      <div class="hero-text" appScrollReveal>
-        <h1>Stop Overpaying for<br><span class="text-gradient">Electronics.</span></h1>
-        <p class="subheadline">
-          The smartest way to buy electronics. Compare 200+ stores instantly, expose fake deals, and never miss a price drop.
-        </p>
-
-        <div class="hero-actions">
-          <a routerLink="/deals" class="btn-primary btn-lg">Start Saving Now</a>
-          <button (click)="scrollToSection('how-it-works')" class="btn-ghost btn-lg">How it works</button>
-        </div>
-
-        <!-- Search Mockup -->
-        <div class="search-mockup">
-          <div class="mock-search-bar">
-            <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="11" cy="11" r="8"></circle>
-              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-            </svg>
-            <span class="typewriter-text">{{ typewriterText }}<span class="type-cursor">|</span></span>
-          </div>
-
-          <!-- Results wrapper with fixed height to prevent layout shift -->
-          <div class="mock-results-wrapper">
-            <div class="mock-results" *ngIf="showStoreCards" @staggerFade>
-              <div class="stagger-item result-card">
-                <span class="store">Amazon</span>
-                <span class="price">$999</span>
-              </div>
-              <div class="stagger-item result-card best">
-                <span class="store">eBay</span>
-                <span class="price">$949</span>
-                <div class="best-badge">Best Price</div>
-              </div>
-              <div class="stagger-item result-card">
-                <span class="store">Jumia</span>
-                <span class="price">$1050</span>
-              </div>
-              <div class="stagger-item result-card">
-                <span class="store">AliExpress</span>
-                <span class="price">$980</span>
-              </div>
-            </div>
-            <!-- Invisible placeholder reserves space before cards appear -->
-            <div class="mock-results mock-results-placeholder" *ngIf="!showStoreCards" aria-hidden="true">
-              <div class="result-card placeholder-card"></div>
-              <div class="result-card placeholder-card"></div>
-              <div class="result-card placeholder-card"></div>
-              <div class="result-card placeholder-card"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="hero-visuals desktop-only">
-        <!-- Real Search Bar - Now positioned on the right -->
-        <div class="hero-search-wrapper">
-          <div class="hero-search-bar" [class.focused]="isFocused" [class.has-results]="suggestions.length > 0">
+      <!-- Full-width search bar -->
+      <div class="hero-search-area">
+        <h1>Stop overpaying. <span class="text-gradient">Know the real price.</span></h1>
+        <p class="hero-tagline">PulsePrice tracks prices across 200+ stores and shows 30-day history charts — so you never fall for a fake deal again.</p>
+        <div class="hero-search-bar-wrap">
+          <div class="hero-search-bar" [class.focused]="isFocused">
             <div class="search-inner">
               <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <circle cx="11" cy="11" r="8"></circle>
-                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
               </svg>
               <input
-                #searchInput
                 type="text"
                 [(ngModel)]="searchQuery"
                 (input)="onSearchInput()"
                 (keydown.enter)="onSearchSubmit()"
                 (focus)="isFocused = true"
                 (blur)="onBlur()"
-                placeholder="Search for any electronics..."
+                placeholder="Search any product — iPhone 15, PS5, MacBook..."
                 autocomplete="off"
               />
-              <button
-                *ngIf="searchQuery.length > 0"
-                class="clear-btn"
-                (click)="clearSearch()"
-              >✕</button>
-              <button class="search-submit-btn" (click)="onSearchSubmit()">
-                Search
-              </button>
+              <button *ngIf="searchQuery.length > 0" class="clear-btn" (click)="clearSearch()">✕</button>
+              <button class="search-submit-btn" (click)="onSearchSubmit()">Compare Prices</button>
             </div>
-
-            <!-- Dropdown suggestions -->
+            <!-- Suggestions -->
             <div class="suggestions-dropdown" *ngIf="suggestions.length > 0 && isFocused">
               <div class="suggestions-group" *ngIf="productSuggestions.length > 0">
                 <div class="group-label">Products</div>
-                <div
-                  class="suggestion-item"
-                  *ngFor="let item of productSuggestions"
-                  (mousedown)="selectSuggestion(item)"
-                >
+                <div class="suggestion-item" *ngFor="let item of productSuggestions" (mousedown)="selectSuggestion(item)">
                   <img [src]="item.image" [alt]="item.name" class="suggestion-img" onerror="this.style.display='none'"/>
                   <div class="suggestion-info">
                     <span class="suggestion-name">{{ item.name }}</span>
@@ -130,12 +55,8 @@
               </div>
               <div class="suggestions-group" *ngIf="categorySuggestions.length > 0">
                 <div class="group-label">Categories</div>
-                <div
-                  class="suggestion-item category-item"
-                  *ngFor="let cat of categorySuggestions"
-                  (mousedown)="selectCategory(cat)"
-                >
-                  <div class="cat-icon">{{ cat.icon }}</div>
+                <div class="suggestion-item category-item" *ngFor="let cat of categorySuggestions" (mousedown)="selectCategory(cat)">
+                  <div class="sug-cat-icon">{{ cat.name[0] }}</div>
                   <span class="suggestion-name">{{ cat.name }}</span>
                   <span class="suggestion-count">{{ cat.count }}+ products</span>
                 </div>
@@ -146,91 +67,388 @@
               </div>
             </div>
           </div>
-
           <div class="search-hints">
-            <span class="hint-label">Popular:</span>
-            <span
-              class="hint-tag"
-              *ngFor="let hint of popularSearches"
-              (click)="setQuery(hint)"
-            >{{ hint }}</span>
+            <span class="hint-label">Trending:</span>
+            <span class="hint-tag" *ngFor="let hint of popularSearches" (click)="setQuery(hint)">{{ hint }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero Deal Banner Grid: 1 big + 4 mini -->
+      <div class="hero-deals-grid">
+
+        <!-- Left: Big featured deal -->
+        <div class="featured-deal-card">
+          <div class="featured-tag-pill">Deal of the Day</div>
+          <div class="featured-lowest-ribbon">Lowest Ever Price</div>
+          <img
+            src="https://images.pexels.com/photos/2047905/pexels-photo-2047905.jpeg"
+            alt="MacBook Pro"
+            class="featured-img"
+            loading="eager"
+            onerror="this.onerror=null; this.src='https://images.pexels.com/photos/18105/pexels-photo.jpg';"
+          >
+          <div class="featured-overlay">
+            <div class="featured-category-tag">Laptops</div>
+            <h2 class="featured-name">MacBook Pro 14" M3 Pro</h2>
+            <p class="featured-specs">18GB RAM · 512GB SSD · Space Black</p>
+            <div class="featured-pricing">
+              <span class="feat-price">$1,749</span>
+              <span class="feat-old">$1,999</span>
+              <span class="feat-pct">-12%</span>
+            </div>
+            <div class="featured-store-line">Best at: <strong>Amazon</strong> · eBay $1,810 · BestBuy $1,849</div>
+            <a routerLink="/search" [queryParams]="{q: 'MacBook Pro 14 M3'}" class="btn-featured">View Best Price →</a>
           </div>
         </div>
 
-        <div class="floating-cards">
-          <div class="product-card card-1">
-            <div class="badge green">Price Dropped</div>
-            <img src="https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=300" alt="MacBook Pro" onerror="this.style.display='none'">
-            <div class="card-info"><h4>MacBook Pro 14"</h4></div>
-          </div>
-          <div class="product-card card-2">
-            <div class="badge blue">Best Deal</div>
-            <img src="https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=300" alt="iPhone 15 Pro" onerror="this.style.display='none'">
-            <div class="card-info"><h4>iPhone 15 Pro</h4></div>
-          </div>
-          <div class="product-card card-3">
-            <div class="badge green">Price Dropped</div>
-            <img src="https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=300" alt="Sony Headphones" onerror="this.style.display='none'">
-            <div class="card-info"><h4>Sony WH-1000XM5</h4></div>
+        <!-- Right: 2x2 mini deals -->
+        <div class="side-deals-grid">
+          <div class="side-deal-card" *ngFor="let deal of heroSideDeals" [routerLink]="['/search']" [queryParams]="{q: deal.name}">
+            <div class="side-img-wrap">
+              <div class="side-pct-badge">-{{ deal.discount }}%</div>
+              <div class="side-lowest-tag" *ngIf="deal.isLowestEver">Low</div>
+              <img [src]="deal.image || 'https://images.pexels.com/photos/279906/pexels-photo-279906.jpeg?auto=compress&cs=tinysrgb&w=400'" [alt]="deal.name" loading="lazy" onerror="this.src='https://images.pexels.com/photos/279906/pexels-photo-279906.jpeg?auto=compress&cs=tinysrgb&w=400'">
+            </div>
+            <div class="side-info">
+              <div class="side-category">{{ deal.category }}</div>
+              <div class="side-name">{{ deal.name }}</div>
+              <div class="side-pricing">
+                <span class="side-price">{{ deal.currentPrice | currency }}</span>
+                <span class="side-old">{{ deal.oldPrice | currency }}</span>
+              </div>
+              <div class="btn-side-view">Compare →</div>
+            </div>
           </div>
         </div>
+
       </div>
     </div>
   </section>
 
-  <!-- CATEGORIES SECTION -->
-  <section id="categories" class="section categories-section" appScrollReveal>
-    <div class="container">
-      <h2 class="section-title text-center">Tracking prices across all major electronics categories.</h2>
-      <div class="categories-grid">
-        <div class="category-card" *ngFor="let cat of categories" [routerLink]="['/search']" [queryParams]="{category: cat.link}">
-          <div class="cat-image">
-            <img [src]="cat.image" [alt]="cat.name" loading="lazy" onerror="this.style.display='none'">
-          </div>
-          <div class="cat-name">{{ cat.name }}</div>
-        </div>
-      </div>
+  <!-- ══ LIVE DROPS TICKER ══════════════════════════════════ -->
+  <div class="drops-ticker">
+    <div class="ticker-label-box">
+      <span class="ticker-live-dot"></span>
+      <span class="ticker-label-text">LIVE DROPS</span>
     </div>
-  </section>
-
-  <!-- TRUST BAR -->
-  <div class="trust-bar">
-    <div class="container trust-flex">
-      <div class="scrolling-names">
-        <div class="names-track">
-          <span>Amazon · eBay · AliExpress · Jumia · Walmart · BestBuy · Newegg · Target · B&H · Samsung · Apple ·&nbsp;</span>
-          <span>Amazon · eBay · AliExpress · Jumia · Walmart · BestBuy · Newegg · Target · B&H · Samsung · Apple ·&nbsp;</span>
+    <div class="ticker-scroll-mask">
+      <div class="ticker-track">
+        <div class="ticker-item" *ngFor="let drop of liveDrops">
+          <span class="tick-icon">{{ drop.icon }}</span>
+          <span class="tick-name">{{ drop.name }}</span>
+          <span class="tick-drop">↓ {{ drop.drop }}</span>
+          <span class="tick-store">at {{ drop.store }}</span>
+          <span class="tick-sep">·</span>
+        </div>
+        <div class="ticker-item" *ngFor="let drop of liveDrops" aria-hidden="true">
+          <span class="tick-icon">{{ drop.icon }}</span>
+          <span class="tick-name">{{ drop.name }}</span>
+          <span class="tick-drop">↓ {{ drop.drop }}</span>
+          <span class="tick-store">at {{ drop.store }}</span>
+          <span class="tick-sep">·</span>
         </div>
       </div>
-      <div class="tracked-label">200+ stores tracked</div>
     </div>
   </div>
 
-  <!-- FEATURES SECTION -->
-  <section id="features" class="section features-section" appScrollReveal>
+  <!-- ══ CATEGORY PILLS NAV ════════════════════════════════ -->
+  <div class="category-pills-nav" id="categories">
     <div class="container">
-      <h2 class="section-title text-center">Everything you need to shop smarter.</h2>
-      <div class="features-grid">
-        <div class="feature-card" *ngFor="let feature of features">
-          <div class="feature-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path [attr.d]="feature.icon"></path>
-            </svg>
+      <div class="pills-scroll">
+        <a
+          class="cat-pill"
+          *ngFor="let cat of categories"
+          [routerLink]="['/search']"
+          [queryParams]="{category: cat.link}"
+        >
+          <span class="pill-name">{{ cat.name }}</span>
+          <span class="pill-count">{{ cat.count }}</span>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ FLASH DEALS ════════════════════════════════════════ -->
+  <section class="flash-section">
+    <div class="container">
+      <div class="flash-header">
+        <div class="flash-title-group">
+          <div class="flash-fire-badge">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="18" height="18"><path d="M13 2L3 14h8l-2 8 12-14h-8l2-8z"/></svg>
           </div>
-          <h3>{{ feature.title }}</h3>
-          <p>{{ feature.description }}</p>
+          <div>
+            <h2 class="flash-title">Flash Deals</h2>
+            <p class="flash-subtitle">Limited time — biggest drops of the day</p>
+          </div>
+        </div>
+        <div class="flash-countdown">
+          <span class="cd-label">Ends in</span>
+          <div class="cd-blocks">
+            <div class="cd-block">
+              <span class="cd-num">{{ countdown.hours }}</span>
+              <span class="cd-unit">HRS</span>
+            </div>
+            <span class="cd-colon">:</span>
+            <div class="cd-block">
+              <span class="cd-num">{{ countdown.minutes }}</span>
+              <span class="cd-unit">MIN</span>
+            </div>
+            <span class="cd-colon">:</span>
+            <div class="cd-block">
+              <span class="cd-num">{{ countdown.seconds }}</span>
+              <span class="cd-unit">SEC</span>
+            </div>
+          </div>
+        </div>
+        <a routerLink="/deals" class="view-all-link">View all →</a>
+      </div>
+
+      <div class="flash-scroll-outer">
+        <div class="flash-cards-row">
+          <div class="flash-card" *ngFor="let deal of flashDeals">
+            <div class="flash-img-wrap">
+              <div class="flash-pct">-{{ deal.discount }}%</div>
+              <div class="flash-lowest" *ngIf="deal.isLowestEver">Lowest Price</div>
+              <img [src]="deal.image" [alt]="deal.name" loading="lazy" onerror="this.style.display='none'">
+            </div>
+            <div class="flash-body">
+              <div class="flash-category">{{ deal.category }}</div>
+              <div class="flash-name">{{ deal.name }}</div>
+              <div class="flash-rating-row">
+                <span class="f-star">★</span>
+                <span class="f-rating">{{ deal.rating }}</span>
+                <span class="f-reviews">({{ deal.reviews | number }})</span>
+              </div>
+              <div class="flash-price-row">
+                <span class="f-price">{{ deal.currentPrice | currency }}</span>
+                <span class="f-old">{{ deal.oldPrice | currency }}</span>
+              </div>
+              <div class="flash-stock-wrap">
+                <div class="stock-bar-bg">
+                  <div class="stock-bar-fill" [style.width.%]="deal.stockPercent"></div>
+                </div>
+                <span class="stock-label">{{ 100 - deal.stockPercent }}% claimed</span>
+              </div>
+              <a [routerLink]="['/search']" [queryParams]="{q: deal.name}" class="btn-flash-deal">View Deal</a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- HOW IT WORKS SECTION -->
-  <section id="how-it-works" class="section how-section" appScrollReveal>
+  <!-- ══ TRENDING PRODUCTS GRID (5-col · 12 products) ══════ -->
+  <section class="section products-section" id="features" appScrollReveal>
     <div class="container">
-      <h2 class="section-title text-center">How it works</h2>
-      <div class="steps-container">
-        <div class="step-item" *ngFor="let step of steps; let i = index">
+      <div class="section-header-flex">
+        <div>
+          <h2 class="section-title">Trending Deals</h2>
+          <p class="section-sub">Best prices found across all 214 stores — updated every 6 hours</p>
+        </div>
+        <a routerLink="/deals" class="view-all-link">View all deals →</a>
+      </div>
+      <div class="products-grid">
+        <div class="product-card" *ngFor="let p of products">
+          <div class="pcard-img-wrap">
+            <div class="pcard-discount">-{{ p.discount }}%</div>
+            <div class="pcard-lowest" *ngIf="p.isLowestEver">Low</div>
+            <img [src]="p.image" [alt]="p.name" loading="lazy" onerror="this.style.display='none'">
+          </div>
+          <div class="pcard-body">
+            <div class="pcard-category">{{ p.category }}</div>
+            <div class="pcard-name">{{ p.name }}</div>
+            <div class="pcard-rating">
+              <span class="pcard-star">★</span>
+              <span class="pcard-rating-num">{{ p.rating }}</span>
+              <span class="pcard-reviews">({{ p.reviews | number }})</span>
+            </div>
+            <div class="pcard-price-row">
+              <span class="pcard-price">{{ p.currentPrice | currency }}</span>
+              <span class="pcard-old">{{ p.oldPrice | currency }}</span>
+            </div>
+            <div class="pcard-store">Best: <strong>{{ p.store }}</strong></div>
+            <a [routerLink]="['/search']" [queryParams]="{q: p.name}" class="btn-pcard">View Deal →</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ PRICE HISTORY CALLOUT ══════════════════════════════ -->
+  <div class="history-callout" appScrollReveal>
+    <div class="container callout-inner">
+
+      <!-- Left: text + bullets -->
+      <div class="callout-text">
+        <div class="callout-eyebrow">30-Day Price Intelligence</div>
+        <h2>Before you buy, <span class="text-gradient">check the history.</span></h2>
+        <p>Don't fall for fake discounts. PulsePrice shows the real 30-day price trend for every product, across every store.</p>
+        <div class="callout-items">
+          <div class="callout-item">
+            <span class="ci-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"></polyline><polyline points="17 18 23 18 23 12"></polyline></svg>
+            </span>
+            <div><strong>Spot fake deals</strong><span>See if that "50% off" was just a price hike last week</span></div>
+          </div>
+          <div class="callout-item">
+            <span class="ci-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+            </span>
+            <div><strong>Best time to buy</strong><span>Know historically when prices drop for each model</span></div>
+          </div>
+          <div class="callout-item">
+            <span class="ci-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="22" height="22"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path><path d="M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+            </span>
+            <div><strong>Get alerted instantly</strong><span>Set your target price and we'll notify you by email</span></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Right: SVG Price History Chart -->
+      <div class="callout-chart-wrap">
+        <div class="chart-product-header">
+          <div>
+            <div class="chart-product-name">MacBook Air M3 15"</div>
+            <div class="chart-product-sub">30-day price history · 3 stores</div>
+          </div>
+          <div class="chart-header-badges">
+            <span class="chart-badge-low">↓ Lowest Ever</span>
+            <span class="chart-badge-store">Best: Amazon</span>
+          </div>
+        </div>
+
+        <div class="chart-svg-wrap">
+          <!-- Y-axis labels -->
+          <div class="chart-y-axis">
+            <span>$1,249</span>
+            <span>$1,199</span>
+            <span>$1,149</span>
+            <span>$1,099</span>
+            <span>$1,049</span>
+          </div>
+
+          <!-- Chart area -->
+          <div class="chart-plot-area">
+            <svg viewBox="0 0 480 155" preserveAspectRatio="none" class="chart-svg">
+              <defs>
+                <linearGradient id="priceGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(59,130,246,0.25)"/>
+                  <stop offset="100%" stop-color="rgba(59,130,246,0)"/>
+                </linearGradient>
+                <linearGradient id="dropGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stop-color="rgba(16,185,129,0.2)"/>
+                  <stop offset="100%" stop-color="rgba(16,185,129,0)"/>
+                </linearGradient>
+              </defs>
+              <!-- Horizontal grid lines -->
+              <line x1="0" y1="10"  x2="480" y2="10"  stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="47"  x2="480" y2="47"  stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="84"  x2="480" y2="84"  stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="120" x2="480" y2="120" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+              <line x1="0" y1="145" x2="480" y2="145" stroke="rgba(255,255,255,0.04)" stroke-width="1"/>
+
+              <!-- Area fill (price line + drop to bottom) -->
+              <path d="M 0,47 C 30,47 55,43 80,45 C 105,47 130,43 160,45 C 175,46 190,18 210,10 C 225,4 240,10 255,28 C 268,42 280,47 295,54 C 315,65 335,84 360,100 C 385,116 420,120 450,130 L 480,140 L 480,155 L 0,155 Z" fill="url(#priceGrad)"/>
+
+              <!-- Price line -->
+              <path d="M 0,47 C 30,47 55,43 80,45 C 105,47 130,43 160,45 C 175,46 190,18 210,10 C 225,4 240,10 255,28 C 268,42 280,47 295,54 C 315,65 335,84 360,100 C 385,116 420,120 450,130 L 480,140" fill="none" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+
+              <!-- Fake-spike vertical marker -->
+              <line x1="210" y1="0" x2="210" y2="155" stroke="rgba(239,68,68,0.35)" stroke-width="1.5" stroke-dasharray="5,4"/>
+
+              <!-- Spike peak dot -->
+              <circle cx="210" cy="10" r="4" fill="#EF4444"/>
+              <circle cx="210" cy="10" r="8" fill="rgba(239,68,68,0.15)"/>
+
+              <!-- Current price dot (lowest) -->
+              <circle cx="480" cy="140" r="5" fill="#10B981"/>
+              <circle cx="480" cy="140" r="10" fill="rgba(16,185,129,0.18)"/>
+            </svg>
+
+            <!-- Spike annotation -->
+            <div class="chart-spike-ann">
+              <span class="spike-label">Fake "sale" +$50</span>
+            </div>
+
+            <!-- Current price annotation -->
+            <div class="chart-current-ann">
+              <span class="current-price-val">$1,049</span>
+              <span class="current-price-sub">Today · Lowest Ever</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- X axis -->
+        <div class="chart-x-axis">
+          <span>Apr 10</span>
+          <span>Apr 20</span>
+          <span>May 1</span>
+          <span>May 10</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ══ WHO IT'S FOR ═══════════════════════════════════════ -->
+  <section class="section audience-section" id="reseller" appScrollReveal>
+    <div class="container">
+      <div class="audience-header">
+        <h2 class="section-title">Built for two types of users</h2>
+        <p class="section-sub">PulsePrice provides powerful tools tailored to your specific needs.</p>
+      </div>
+      <div class="audience-grid">
+
+        <!-- Shoppers -->
+        <div class="audience-card shopper-card">
+          <div class="aud-top">
+            <span class="aud-badge aud-badge-blue">For Clients</span>
+          </div>
+          <h3>Buy at the right price, every time</h3>
+          <p>Stop manually checking dozens of websites. Track any product, see its full price history, and get alerted the moment it drops to your target.</p>
+          <ul class="aud-list">
+            <li><span class="aud-check">✓</span>30-day price history charts</li>
+            <li><span class="aud-check">✓</span>Instant email price alerts</li>
+            <li><span class="aud-check">✓</span>Spot fake "sale" prices instantly</li>
+            <li><span class="aud-check">✓</span>Compare 200+ stores side by side</li>
+          </ul>
+          <a routerLink="/auth" [queryParams]="{mode: 'signup'}" class="btn-aud-primary">Get Free Alerts →</a>
+        </div>
+
+        <!-- Resellers -->
+        <div class="audience-card reseller-card">
+          <div class="aud-top">
+            <span class="aud-badge aud-badge-purple">For Resellers</span>
+          </div>
+          <h3>Dominate your market with real data</h3>
+          <p>Track competitor prices in real time, monitor stock levels across stores, and access our full API to power your repricing strategy at scale.</p>
+          <ul class="aud-list">
+            <li><span class="aud-check">✓</span>Live competitor price monitoring</li>
+            <li><span class="aud-check">✓</span>Bulk product tracking via API</li>
+            <li><span class="aud-check">✓</span>Market trend analytics dashboard</li>
+            <li><span class="aud-check">✓</span>Webhook alerts for instant repricing</li>
+          </ul>
+          <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}" class="btn-aud-ghost">Explore Reseller Plan →</a>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ══ HOW IT WORKS ════════════════════════════════════════ -->
+  <section class="section how-section" id="how-it-works" appScrollReveal>
+    <div class="container">
+      <h2 class="section-title text-center">How PulsePrice works</h2>
+      <div class="steps-row">
+        <div class="step-card" *ngFor="let step of steps; let i = index">
           <div class="step-num">{{ i + 1 }}</div>
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path [attr.d]="step.icon"></path>
+            </svg>
+          </div>
           <h3>{{ step.title }}</h3>
           <p>{{ step.description }}</p>
         </div>
@@ -238,115 +456,61 @@
     </div>
   </section>
 
-  <!-- DATA FRESHNESS BANNER -->
-  <div class="data-fresness-banner">
-    <div class="container freshness-grid">
-      <div class="fresh-item">
-        <svg class="check-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>Prices updated every 6 hours</span>
-      </div>
-      <div class="fresh-item">
-        <svg class="check-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>200+ stores monitored 24/7</span>
-      </div>
-      <div class="fresh-item">
-        <svg class="check-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"></polyline></svg>
-        <span>Data verified across multiple sources</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- TESTIMONIALS SECTION -->
+  <!-- ══ TESTIMONIALS ════════════════════════════════════════ -->
   <section class="section testimonials-section" appScrollReveal>
     <div class="container">
-      <h2 class="section-title text-center">Trusted by smart shoppers and resellers.</h2>
+      <div class="section-header-flex">
+        <div>
+          <h2 class="section-title">Trusted by smart shoppers</h2>
+          <p class="section-sub">Real savings from real people — no fake discounts, no gimmicks.</p>
+        </div>
+        <div class="trust-badge">
+          <span class="trust-stars">★★★★★</span>
+          <span class="trust-score">4.9 / 5</span>
+          <span class="trust-count">from 2,400+ reviews</span>
+        </div>
+      </div>
       <div class="testimonials-grid">
         <div class="testimonial-card" *ngFor="let t of testimonials">
-          <div class="stars">★★★★★</div>
-          <p class="quote">"{{ t.quote }}"</p>
-          <div class="author-box">
-            <div class="author-avatar">{{ t.initials }}</div>
-            <div class="author-info">
-              <div class="author-name">{{ t.author }}</div>
-              <div class="author-role">{{ t.role }}</div>
+          <div class="t-stars">
+            <span *ngFor="let s of [1,2,3,4,5]">★</span>
+          </div>
+          <p class="t-quote">"{{ t.quote }}"</p>
+          <div class="t-savings-badge" *ngIf="t.savings">Saved {{ t.savings }}</div>
+          <div class="t-author">
+            <div class="t-avatar">{{ t.name[0] }}</div>
+            <div class="t-info">
+              <div class="t-name">{{ t.name }}</div>
+              <div class="t-role">{{ t.role }}</div>
             </div>
-            <img [src]="t.productImage" class="testimonial-thumb" [alt]="t.author + ' purchase'" onerror="this.style.display='none'">
           </div>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- FAQ SECTION -->
-  <section id="faq" class="section faq-section" appScrollReveal>
-    <div class="container">
-      <h2 class="section-title text-center">Frequently asked questions.</h2>
-      <div class="faq-container">
-        <div class="faq-item" *ngFor="let f of faqs" [class.open]="f.isOpen">
-          <div class="faq-header" (click)="toggleFaq(f)">
-            <h3>{{ f.question }}</h3>
-            <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
-          </div>
-          <div class="faq-body" *ngIf="f.isOpen" @faqAnimation>
-            <p>{{ f.answer }}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ENTREPRENEURS SECTION -->
-  <section id="business" class="section biz-section" appScrollReveal>
-    <div class="container">
-      <div class="biz-card">
-        <div class="biz-header">
-          <h2 class="biz-title">Built for electronics resellers and businesses.</h2>
-          <p class="biz-subtitle">Join 1,000+ resellers already using PulsePrice to protect their margins.</p>
-        </div>
-        <div class="biz-grid">
-          <div class="biz-feature" *ngFor="let bf of businessFeatures">
-            <h4>{{ bf.title }}</h4>
-            <p>{{ bf.description }}</p>
-          </div>
-        </div>
-        <div class="biz-cta">
-          <a routerLink="/auth" [queryParams]="{mode: 'signup', type: 'business'}" class="btn-primary">Learn more about business features →</a>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- STATS BAR -->
-  <section class="stats-bar" appScrollReveal>
-    <div class="container stats-grid">
-      <div class="stat-item" *ngFor="let s of stats">
-        <div class="stat-num" [appCountUp]="s.value" [suffix]="s.suffix">0</div>
-        <div class="stat-label">{{ s.label }}</div>
-      </div>
-    </div>
-  </section>
-
-  <!-- FINAL CTA -->
-  <section class="final-cta-section" appScrollReveal>
+  <!-- ══ FINAL CTA ═══════════════════════════════════════════ -->
+  <section class="final-cta" appScrollReveal>
     <div class="cta-glow"></div>
-    <div class="container text-center relative-z">
-      <h2>Your next big electronics deal is one search away.</h2>
-      <a routerLink="/auth" [queryParams]="{mode: 'signup'}" class="btn-primary btn-xl">Get started — it's free</a>
-      <p class="cta-muted">Free forever for everyone · No credit card required</p>
+    <div class="container cta-inner">
+      <div class="cta-badge">Free forever · No credit card required</div>
+      <h2>Never overpay for electronics again.</h2>
+      <p>Join 11,000+ smart shoppers already saving money with PulsePrice.</p>
+      <div class="cta-btns">
+        <a routerLink="/auth" [queryParams]="{mode: 'signup'}" class="btn-cta-primary">Get Free Price Alerts →</a>
+        <a routerLink="/deals" class="btn-cta-ghost">Browse Deals</a>
+      </div>
     </div>
   </section>
+
 </main>
 
 <!-- FOOTER -->
-<footer class="footer">
+<footer class="site-footer">
   <div class="container footer-top">
     <div class="footer-brand">
-      <div class="logo">
-        <span class="logo-pulse">Pulse</span><span class="logo-price">Price</span>
-      </div>
-      <p class="tagline">
-        The smartest way to buy electronics online. Real-time tracking, data-driven deals, and total price transparency.
-      </p>
+      <div class="logo"><span class="logo-pulse">Pulse</span><span class="logo-price">Price</span></div>
+      <p class="footer-tagline">The smartest way to buy electronics. Real-time tracking, data-driven deals, and total price transparency.</p>
     </div>
     <div class="footer-links-grid">
       <div class="footer-col">
@@ -355,7 +519,6 @@
         <a routerLink="/auth" [queryParams]="{mode: 'signup'}">Alerts</a>
         <a routerLink="/search">Price History</a>
         <a routerLink="/deals">Deal Score</a>
-        <a (click)="scrollToSection('categories')">Categories</a>
       </div>
       <div class="footer-col">
         <h4>For Business</h4>
@@ -378,8 +541,6 @@
     </div>
   </div>
   <div class="footer-bottom">
-    <div class="container">
-      <p>© 2026 PulsePrice. All rights reserved.</p>
-    </div>
+    <div class="container"><p>© 2026 PulsePrice. All rights reserved.</p></div>
   </div>
 </footer>

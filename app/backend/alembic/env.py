@@ -8,7 +8,7 @@ from alembic import context
 # --- CORRECTION DES IMPORTS (Plus de "app.") ---
 from core.config import settings
 from core.database import Base
-from models.users import User, UserSession 
+import models # Import the models package to register all models with Base
 # ----------------------------------------------
 
 config = context.config

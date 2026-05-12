@@ -18,7 +18,7 @@ export interface Deal {
   originalPrice: number;
   savingsAmount: number;
   savingsPercent: number;
-  store: string;
+  platform: string;
   dealScore: number;
   upvotes: number;
   isUpvoted: boolean;
@@ -87,7 +87,8 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=600',
       currentPrice: 449, originalPrice: 599,
       savingsAmount: 150, savingsPercent: 25,
-      store: 'Amazon', dealScore: 9.4,
+      platform: 'Amazon',
+      dealScore: 9.4,
       upvotes: 342, isUpvoted: false, timeAgo: '2 hours ago'
     },
     {
@@ -97,7 +98,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400',
       currentPrice: 949, originalPrice: 1099,
       savingsAmount: 150, savingsPercent: 14,
-      store: 'eBay', dealScore: 8.9,
+      platform: 'eBay', dealScore: 8.9,
       upvotes: 218, isUpvoted: false, timeAgo: '3 hours ago'
     },
     {
@@ -107,7 +108,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400',
       currentPrice: 1899, originalPrice: 1999,
       savingsAmount: 100, savingsPercent: 5,
-      store: 'BestBuy', dealScore: 2.1,
+      platform: 'BestBuy', dealScore: 2.1,
       upvotes: 89, isUpvoted: false, timeAgo: '4 hours ago',
       isFakeDeal: true
     },
@@ -118,7 +119,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
       currentPrice: 279, originalPrice: 399,
       savingsAmount: 120, savingsPercent: 30,
-      store: 'Newegg', dealScore: 9.1,
+      platform: 'Newegg', dealScore: 9.1,
       upvotes: 156, isUpvoted: false, timeAgo: '5 hours ago'
     },
     {
@@ -128,7 +129,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400',
       currentPrice: 899, originalPrice: 1099,
       savingsAmount: 200, savingsPercent: 18,
-      store: 'Newegg', dealScore: 8.7,
+      platform: 'Newegg', dealScore: 8.7,
       upvotes: 203, isUpvoted: false, timeAgo: '6 hours ago'
     },
     {
@@ -138,7 +139,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400',
       currentPrice: 299, originalPrice: 449,
       savingsAmount: 150, savingsPercent: 33,
-      store: 'Amazon', dealScore: 9.2,
+      platform: 'Amazon', dealScore: 9.2,
       upvotes: 134, isUpvoted: false, timeAgo: '7 hours ago'
     },
     {
@@ -148,7 +149,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=400',
       currentPrice: 1299, originalPrice: 1499,
       savingsAmount: 200, savingsPercent: 13,
-      store: 'Samsung', dealScore: 1.8,
+      platform: 'Samsung', dealScore: 1.8,
       upvotes: 445, isUpvoted: false, timeAgo: '8 hours ago',
       isFakeDeal: true
     },
@@ -159,7 +160,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400',
       currentPrice: 799, originalPrice: 1099,
       savingsAmount: 300, savingsPercent: 27,
-      store: 'Apple', dealScore: 9.0,
+      platform: 'Apple', dealScore: 9.0,
       upvotes: 178, isUpvoted: false, timeAgo: '9 hours ago'
     },
     {
@@ -169,7 +170,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1629429464245-487019807575?w=400',
       currentPrice: 129, originalPrice: 159,
       savingsAmount: 30, savingsPercent: 19,
-      store: 'Amazon', dealScore: 9.3,
+      platform: 'Amazon', dealScore: 9.3,
       upvotes: 142, isUpvoted: false, timeAgo: '10 hours ago'
     },
     {
@@ -179,7 +180,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400',
       currentPrice: 1299, originalPrice: 1599,
       savingsAmount: 300, savingsPercent: 19,
-      store: 'Dell', dealScore: 8.5,
+      platform: 'Dell', dealScore: 8.5,
       upvotes: 167, isUpvoted: false, timeAgo: '11 hours ago'
     },
     {
@@ -189,7 +190,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=400',
       currentPrice: 399, originalPrice: 499,
       savingsAmount: 100, savingsPercent: 20,
-      store: 'Walmart', dealScore: 8.1,
+      platform: 'Walmart', dealScore: 8.1,
       upvotes: 143, isUpvoted: false, timeAgo: '12 hours ago'
     },
     {
@@ -199,7 +200,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
       image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400',
       currentPrice: 899, originalPrice: 1199,
       savingsAmount: 300, savingsPercent: 25,
-      store: 'Amazon', dealScore: 8.8,
+      platform: 'Amazon', dealScore: 8.8,
       upvotes: 201, isUpvoted: false, timeAgo: '13 hours ago'
     }
   ];
@@ -213,11 +214,11 @@ export class DealFeedComponent implements OnInit, OnDestroy {
   ];
 
   biggestDrops = [
-    { productName: 'PS5 Console', store: 'Amazon', savingsPercent: 25, savingsAmount: 150, image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=80' },
-    { productName: 'Sony WH-1000XM5', store: 'Newegg', savingsPercent: 30, savingsAmount: 120, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=80' },
-    { productName: 'iPad Pro 12.9"', store: 'Apple', savingsPercent: 27, savingsAmount: 300, image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=80' },
-    { productName: 'RTX 4080 GPU', store: 'Newegg', savingsPercent: 18, savingsAmount: 200, image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=80' },
-    { productName: 'LG 27" 4K Monitor', store: 'Amazon', savingsPercent: 33, savingsAmount: 150, image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=80' }
+    { productName: 'PS5 Console', platform: 'Amazon', savingsPercent: 25, savingsAmount: 150, image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=80' },
+    { productName: 'Sony WH-1000XM5', platform: 'Newegg', savingsPercent: 30, savingsAmount: 120, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=80' },
+    { productName: 'iPad Pro 12.9"', platform: 'Apple', savingsPercent: 27, savingsAmount: 300, image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=80' },
+    { productName: 'RTX 4080 GPU', platform: 'Newegg', savingsPercent: 18, savingsAmount: 200, image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=80' },
+    { productName: 'LG 27" 4K Monitor', platform: 'Amazon', savingsPercent: 33, savingsAmount: 150, image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=80' }
   ];
 
   browseCategories = [
@@ -248,7 +249,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
           originalPrice: 849,
           savingsAmount: 150,
           savingsPercent: 18,
-          store: 'Amazon',
+          platform: 'Amazon',
           dealScore: 8.7,
           upvotes: 1,
           isUpvoted: false,

@@ -24,10 +24,10 @@ export class ThemeService {
     return this.themeSubject.value === 'dark';
   }
 
-  setRoleTheme(role: 'BUYER' | 'SELLER' | 'PUBLIC') {
+  setRoleTheme(role: 'CLIENT' | 'RESELLER' | 'PUBLIC') {
     if (isPlatformBrowser(this.platformId)) {
       const html = document.documentElement;
-      html.classList.remove('buyer-theme', 'seller-theme', 'public-theme');
+      html.classList.remove('client-theme', 'reseller-theme', 'public-theme');
       html.classList.add(`${role.toLowerCase()}-theme`);
     }
   }

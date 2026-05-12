@@ -27,7 +27,7 @@ export class ProductDetailComponent implements OnInit {
   productId = '';
   product: any = {
     name: '', brand: '', category: '', rating: 0, reviewCount: 0, dealScore: 0, isFakeDeal: false,
-    description: '', image: '', images: [], storeCount: 0, stores: [], bestPrice: 0, bestStore: '',
+    description: '', image: '', images: [], platformCount: 0, platforms: [], bestPrice: 0, bestPlatform: '',
     priceChange: 0, specs: []
   };
   activeTab = '1W';
@@ -61,16 +61,16 @@ export class ProductDetailComponent implements OnInit {
   ];
 
   similarProducts = [
-    { id: '2', name: 'Samsung Galaxy S24 Ultra', bestPrice: 1199, image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=200', dealScore: 8.8, category: 'Smartphones', store: 'Amazon' },
-    { id: '3', name: 'Google Pixel 8 Pro', bestPrice: 899, image: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=200', dealScore: 9.1, category: 'Smartphones', store: 'BestBuy' },
-    { id: '4', name: 'OnePlus 12', bestPrice: 799, image: 'https://images.unsplash.com/photo-1678911820864-e2c567c655d7?w=200', dealScore: 7.5, category: 'Smartphones', store: 'Newegg' },
-    { id: '5', name: 'iPhone 14 Pro', bestPrice: 749, image: 'https://images.unsplash.com/photo-1678685888221-cda773a3dcdb?w=200', dealScore: 6.4, category: 'Smartphones', store: 'eBay' }
+    { id: '2', name: 'Samsung Galaxy S24 Ultra', bestPrice: 1199, image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=200', dealScore: 8.8, category: 'Smartphones', platform: 'Amazon' },
+    { id: '3', name: 'Google Pixel 8 Pro', bestPrice: 899, image: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=200', dealScore: 9.1, category: 'Smartphones', platform: 'BestBuy' },
+    { id: '4', name: 'OnePlus 12', bestPrice: 799, image: 'https://images.unsplash.com/photo-1678911820864-e2c567c655d7?w=200', dealScore: 7.5, category: 'Smartphones', platform: 'Newegg' },
+    { id: '5', name: 'iPhone 14 Pro', bestPrice: 749, image: 'https://images.unsplash.com/photo-1678685888221-cda773a3dcdb?w=200', dealScore: 6.4, category: 'Smartphones', platform: 'eBay' }
   ];
 
   scoreFactors = [
     { label: 'Price vs history', score: 8.5, description: 'Currently 15% below the 90-day average price', color: '#10B981' },
-    { label: 'Store reliability', score: 9.0, description: 'Amazon has a 98% accuracy rating on our platform', color: '#10B981' },
-    { label: 'Availability', score: 7.5, description: 'In stock at 6 of 8 tracked stores', color: '#F59E0B' }
+    { label: 'Platform reliability', score: 9.0, description: 'Amazon has a 98% accuracy rating on our platform', color: '#10B981' },
+    { label: 'Availability', score: 7.5, description: 'In stock at 6 of 8 tracked platforms', color: '#F59E0B' }
   ];
 
   suggestedAlertPrice = 0;
@@ -83,8 +83,8 @@ export class ProductDetailComponent implements OnInit {
       
       // Initialize tracking and alert state from service
       if (this.isLoggedIn) {
-        this.isTracking = this.authService.isTracked(this.productId);
-        this.alertSet = this.authService.alerts.some(a => a.productId === this.productId);
+        this.isTracking = false;
+        this.alertSet = false;
       }
 
       // Look for product in library
@@ -103,17 +103,17 @@ export class ProductDetailComponent implements OnInit {
           description: libraryProduct.description || 'Experience the next generation of electronics with advanced features and premium build quality.',
           image: libraryProduct.image,
           images: [libraryProduct.image, 'https://images.unsplash.com/photo-1592890288564-76628a30a657?w=800', 'https://images.unsplash.com/photo-1556656793-062ff9878258?w=800'],
-          storeCount: 8,
+          platformCount: 8,
           bestPrice: libraryProduct.defaultPrice,
-          bestStore: 'Amazon',
-          bestStoreUrl: 'https://amazon.com',
+          bestPlatform: 'Amazon',
+          bestPlatformUrl: 'https://amazon.com',
           priceChange: -45,
           specs: [
             { label: 'Category', value: libraryProduct.category },
             { label: 'Quality', value: 'Certified' },
             { label: 'Warranty', value: '1 Year' }
           ],
-          stores: [
+          platforms: [
             { name: 'Amazon', shipping: 'Free shipping', inStock: true, price: libraryProduct.defaultPrice, vsLastWeek: -45, url: '#' },
             { name: 'eBay', shipping: 'Free shipping', inStock: true, price: Math.round(libraryProduct.defaultPrice * 1.05), vsLastWeek: -30, url: '#' },
             { name: 'AliExpress', shipping: '$15.00 shipping', inStock: true, price: Math.round(libraryProduct.defaultPrice * 1.02), vsLastWeek: -10, url: '#' },
@@ -186,23 +186,11 @@ export class ProductDetailComponent implements OnInit {
       return;
     }
 
-    const alert: any = {
-      id: Math.random().toString(36).substring(2, 9),
-      productId: this.productId,
-      conditionType: 'price_below',
-      targetValue: this.alertTargetPrice,
-      stores: [this.product.bestStore],
-      notifyEmail: true,
-      notifyApp: true,
-      status: 'active',
-      createdAt: new Date().toISOString()
-    };
-
-    this.authService.addAlert(alert);
+    // No-op for now as addAlert was removed from AuthService
     this.alertSet = true;
     this.showAlertForm = false;
     this.isTracking = true;
-    this.toastService.show('Price alert set successfully!');
+    this.toastService.show('Price alert set successfully (Stub)!');
   }
 
   toggleTrack() {
@@ -210,14 +198,15 @@ export class ProductDetailComponent implements OnInit {
       this.router.navigate(['/auth'], { queryParams: { mode: 'signup', returnUrl: this.currentUrl } });
       return;
     }
-    this.isTracking = this.authService.toggleTracked(this.productId);
+    // No-op for now as toggleTracked was removed from AuthService
+    this.isTracking = !this.isTracking;
     
-    // If tracking was removed, alertSet should also be false because the service removed it
+    // If tracking was removed, alertSet should also be false
     if (!this.isTracking) {
       this.alertSet = false;
     }
     
-    this.toastService.show(this.isTracking ? 'Product tracked' : 'Tracking removed');
+    this.toastService.show(this.isTracking ? 'Product tracked (Stub)' : 'Tracking removed (Stub)');
   }
 
   get currentUrl(): string {

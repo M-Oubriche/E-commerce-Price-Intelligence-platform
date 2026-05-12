@@ -12,19 +12,19 @@ import {
   TermsComponent, 
   CookiesComponent 
 } from './features/placeholders/placeholders.component';
-import { ShopperDashboardComponent } from './features/shopper-dashboard/shopper-dashboard.component';
-import { DashboardHomeComponent } from './features/shopper-dashboard/pages/home/dashboard-home.component';
-import { TrackedProductsComponent } from './features/shopper-dashboard/pages/tracked/tracked-products.component';
-import { AlertsComponent } from './features/shopper-dashboard/pages/alerts/alerts.component';
-import { DashboardSettingsComponent } from './features/shopper-dashboard/pages/settings/dashboard-settings.component';
-import { EntrepreneurDashboardComponent } from './features/entrepreneur-dashboard/entrepreneur-dashboard.component';
-import { BusinessOverviewComponent } from './features/entrepreneur-dashboard/home/business-overview.component';
-import { CatalogTrackerComponent } from './features/entrepreneur-dashboard/catalog/catalog-tracker.component';
-import { BusinessCompetitorScannerComponent } from './features/entrepreneur-dashboard/competitors/business-competitor-scanner.component';
-import { BusinessProductDetailComponent } from './features/entrepreneur-dashboard/catalog/business-product-detail.component';
-import { BusinessAlertsComponent } from './features/entrepreneur-dashboard/alerts/business-alerts.component';
-import { BusinessAnalyticsComponent } from './features/entrepreneur-dashboard/analytics/business-analytics.component';
-import { BusinessSettingsComponent } from './features/entrepreneur-dashboard/settings/business-settings.component';
+import { ClientDashboardComponent } from './features/client-dashboard/shopper-dashboard.component';
+import { DashboardHomeComponent } from './features/client-dashboard/pages/home/dashboard-home.component';
+import { TrackedProductsComponent } from './features/client-dashboard/pages/tracked/tracked-products.component';
+import { AlertsComponent } from './features/client-dashboard/pages/alerts/alerts.component';
+import { DashboardSettingsComponent } from './features/client-dashboard/pages/settings/dashboard-settings.component';
+import { ResellerDashboardComponent } from './features/reseller-dashboard/entrepreneur-dashboard.component';
+import { ResellerOverviewComponent } from './features/reseller-dashboard/home/business-overview.component';
+import { CatalogTrackerComponent } from './features/reseller-dashboard/catalog/catalog-tracker.component';
+import { ResellerCompetitorScannerComponent } from './features/reseller-dashboard/competitors/business-competitor-scanner.component';
+import { ResellerProductDetailComponent } from './features/reseller-dashboard/catalog/business-product-detail.component';
+import { ResellerAlertsComponent } from './features/reseller-dashboard/alerts/business-alerts.component';
+import { ResellerAnalyticsComponent } from './features/reseller-dashboard/analytics/business-analytics.component';
+import { ResellerSettingsComponent } from './features/reseller-dashboard/settings/business-settings.component';
 import { NotFoundComponent } from './features/not-found/not-found.component';
 
 export const routes: Routes = [
@@ -33,6 +33,7 @@ export const routes: Routes = [
   { path: 'product/:id', component: ProductDetailComponent },
   { path: 'deals', component: DealFeedComponent },
   { path: 'auth', component: AuthComponent },
+  { path: 'auth/verify-email', component: AuthComponent },
   { path: 'about', component: AboutComponent },
   { path: 'contact', component: ContactComponent },
   { path: 'privacy', component: PrivacyComponent },
@@ -40,7 +41,7 @@ export const routes: Routes = [
   { path: 'cookies', component: CookiesComponent },
   {
     path: 'dashboard',
-    component: ShopperDashboardComponent,
+    component: ClientDashboardComponent,
     canActivate: [authGuard],
     children: [
       { path: '', component: DashboardHomeComponent, data: { animation: 'Home' } },
@@ -51,17 +52,17 @@ export const routes: Routes = [
     ]
   },
   {
-    path: 'business',
-    component: EntrepreneurDashboardComponent,
+    path: 'reseller',
+    component: ResellerDashboardComponent,
     canActivate: [authGuard],
     children: [
-      { path: '', component: BusinessOverviewComponent },
+      { path: '', component: ResellerOverviewComponent },
       { path: 'catalog', component: CatalogTrackerComponent },
-      { path: 'catalog/:id', component: BusinessProductDetailComponent },
-      { path: 'competitors', component: BusinessCompetitorScannerComponent },
-      { path: 'alerts', component: BusinessAlertsComponent },
-      { path: 'analytics', component: BusinessAnalyticsComponent },
-      { path: 'settings', component: BusinessSettingsComponent },
+      { path: 'catalog/:id', component: ResellerProductDetailComponent },
+      { path: 'competitors', component: ResellerCompetitorScannerComponent },
+      { path: 'alerts', component: ResellerAlertsComponent },
+      { path: 'analytics', component: ResellerAnalyticsComponent },
+      { path: 'settings', component: ResellerSettingsComponent },
       { path: '**', redirectTo: '' }
     ]
   },

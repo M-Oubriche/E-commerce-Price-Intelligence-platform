@@ -4,7 +4,9 @@ import { FormBuilder, FormGroup, ReactiveFormsModule, Validators, AbstractContro
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { trigger, state, style, transition, animate } from '@angular/animations';
 import { AuthService, User } from '../../core/services/auth.service';
+import { UserRole } from '../../core/models/user.model';
 import { ToastService } from '../../core/services/toast.service';
+import { SocialAuthService, GoogleLoginProvider, GoogleSigninButtonModule } from '@abacritt/angularx-social-login';
 
 interface FloatingIcon {
   path: string;
@@ -20,7 +22,7 @@ interface FloatingIcon {
 @Component({
   selector: 'app-auth',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule, RouterLink],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink, GoogleSigninButtonModule],
   templateUrl: './auth.component.html',
   styleUrls: ['./auth.component.scss'],
   animations: [
@@ -48,9 +50,13 @@ interface FloatingIcon {
   ]
 })
 export class AuthComponent implements OnInit {
-  mode: 'login' | 'signup' | 'forgot' | 'success' = 'login';
+  mode: 'login' | 'signup' | 'forgot' | 'success' | 'verify' | 'signup-success' = 'login';
   signupStep: 1 | 2 = 1;
-  accountType: 'BUYER' | 'BUSINESS' | null = null;
+  accountType: UserRole | null = null;
+  UserRole = UserRole;
+  
+  verificationStatus: 'loading' | 'success' | 'error' = 'loading';
+  verificationMessage: string = '';
   
   loginForm: FormGroup;
   signupForm: FormGroup;
@@ -62,6 +68,7 @@ export class AuthComponent implements OnInit {
   showConfirmPassword = false;
 
   private authService = inject(AuthService);
+  private socialAuthService = inject(SocialAuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private fb = inject(FormBuilder);
@@ -99,20 +106,58 @@ export class AuthComponent implements OnInit {
       return;
     }
 
-    this.route.queryParams.subscribe(params => {
-      if (params['mode'] === 'signup') {
-        this.mode = 'signup';
-        this.signupStep = 1;
-        if (params['type'] === 'business') this.accountType = 'BUSINESS';
-        else if (params['type'] === 'shopper') this.accountType = 'BUYER';
-      } else {
-        this.mode = 'login';
+    this.socialAuthService.authState.subscribe((user) => {
+      if (user && user.idToken) {
+        this.isGoogleLoading = true;
+        const type = this.accountType || UserRole.CLIENT;
+        this.authService.googleAuth(user.idToken, type).subscribe({
+          next: (u) => this.onLoginSuccess(u),
+          error: () => this.isGoogleLoading = false
+        });
       }
     });
+
+    const path = this.router.url;
+    if (path.includes('verify-email')) {
+      this.mode = 'verify';
+      const token = this.route.snapshot.queryParams['token'];
+      if (token) {
+        this.performEmailVerification(token);
+      } else {
+        this.verificationStatus = 'error';
+        this.verificationMessage = 'Invalid verification link. No token found.';
+      }
+    } else {
+      this.route.queryParams.subscribe(params => {
+        if (params['mode'] === 'signup') {
+          this.mode = 'signup';
+          this.signupStep = 1;
+          if (params['type'] === 'reseller') this.accountType = UserRole.RESELLER;
+          else if (params['type'] === 'client') this.accountType = UserRole.CLIENT;
+        } else {
+          this.mode = 'login';
+        }
+      });
+    }
 
     if (isPlatformBrowser(this.platformId)) {
       this.generateFloatingIcons();
     }
+  }
+
+  private performEmailVerification(token: string) {
+    this.verificationStatus = 'loading';
+    this.authService.verifyEmail(token).subscribe({
+      next: (res) => {
+        this.verificationStatus = 'success';
+        this.verificationMessage = 'Your email has been verified successfully!';
+        setTimeout(() => this.switchMode('login'), 3000);
+      },
+      error: (err) => {
+        this.verificationStatus = 'error';
+        this.verificationMessage = err.error?.detail || 'Verification failed. The token may be expired or invalid.';
+      }
+    });
   }
 
   get sf() { return this.signupForm.controls; }
@@ -153,7 +198,7 @@ export class AuthComponent implements OnInit {
     this.signupStep = 1;
   }
 
-  selectAccountType(type: 'BUYER' | 'BUSINESS') { this.accountType = type; }
+  selectAccountType(type: UserRole) { this.accountType = type; }
   continueToStep2() { if (this.accountType) this.signupStep = 2; }
   togglePasswordVisibility(f: 'password' | 'confirm') {
     if (f === 'password') this.showPassword = !this.showPassword;
@@ -172,19 +217,13 @@ export class AuthComponent implements OnInit {
   onSignup() {
     if (this.signupForm.invalid || !this.accountType) return;
     this.isSubmitting = true;
-    const type = this.accountType === 'BUYER' ? 'shopper' : 'business';
-    this.authService.signup(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password, type).subscribe({
-      next: (u) => this.onLoginSuccess(u),
+    this.authService.register(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password, this.accountType).subscribe({
+      next: () => {
+        this.isSubmitting = false;
+        this.mode = 'signup-success';
+        this.toastService.show('Account created! Please check your email.', 'success');
+      },
       error: () => this.isSubmitting = false
-    });
-  }
-
-  loginWithGoogle() {
-    this.isGoogleLoading = true;
-    const type = this.accountType === 'BUYER' ? 'shopper' : 'business';
-    this.authService.loginWithGoogle(type).subscribe({
-      next: (u) => this.onLoginSuccess(u),
-      error: () => this.isGoogleLoading = false
     });
   }
 
@@ -198,7 +237,7 @@ export class AuthComponent implements OnInit {
         this.router.navigateByUrl(decodeURIComponent(returnUrl));
       } else {
         // Redirect based on user type
-        this.router.navigate([user.type === 'business' ? '/business' : '/dashboard']);
+        this.router.navigate([user.role === UserRole.RESELLER ?  '/reseller' : '/dashboard']);
       }
     }, 2000);
   }

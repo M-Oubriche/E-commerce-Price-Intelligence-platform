@@ -1,11 +1,107 @@
-from fastapi import FastAPI
-from api.v1.endpoints import auth # Import de nouveau fichier
+import asyncio
+import json
+import logging
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import JSONResponse
+from fastapi.middleware.cors import CORSMiddleware
+from api.v1.router import api_router
+from api.v1.endpoints import ws
+from core.redis import redis_client
+from core.rate_limit import rate_limit_api
 
-app = FastAPI(title="PulsePrice API")
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
-# On branche le module d'authentification
-app.include_router(auth.router, prefix="/api/v1/auth", tags=["Authentication"])
+async def redis_notification_subscriber():
+    """
+    Background task to listen for notifications in Redis and push them to WebSockets.
+    """
+    pubsub = redis_client.pubsub()
+    # Subscribe to a pattern for all user notifications
+    await pubsub.psubscribe("notifications:*")
+    
+    logger.info("Redis Notification Subscriber started")
+    
+    try:
+        async for message in pubsub.listen():
+            if message["type"] == "pmessage":
+                channel = message["channel"]
+                # Extract user_id from channel name 'notifications:{user_id}'
+                user_id = channel.split(":")[1]
+                data = json.loads(message["data"])
+                
+                # Push to WebSocket
+                await ws.manager.send_personal_message(data, user_id)
+    except Exception as e:
+        logger.error(f"Redis Subscriber Error: {str(e)}")
+    finally:
+        await pubsub.punsubscribe("notifications:*")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # STARTUP
+    # Create background task for Redis subscriber
+    subscriber_task = asyncio.create_task(redis_notification_subscriber())
+    yield
+    # SHUTDOWN
+    subscriber_task.cancel()
+    try:
+        await subscriber_task
+    except asyncio.CancelledError:
+        pass
+
+app = FastAPI(
+    title="PulsePrice API",
+    version="1.0.0",
+    description="Real-time E-commerce Price Intelligence Platform",
+    lifespan=lifespan
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:4200",
+        "http://localhost:80",
+        "http://localhost",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@app.middleware("http")
+async def rate_limit_middleware(request: Request, call_next):
+    # Apply general rate limit to /api/v1/ but skip auth endpoints
+    # because they have their own stricter limits
+    if request.url.path.startswith("/api/v1/") and not request.url.path.startswith("/api/v1/auth/"):
+        try:
+            await rate_limit_api(request)
+        except HTTPException as exc:
+            return JSONResponse(
+                status_code=exc.status_code,
+                content=exc.detail
+            )
+    return await call_next(request)
+
+@app.middleware("http")
+async def add_rate_limit_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["X-RateLimit-Policy"] = "see-documentation"
+    # Required for Google OAuth Popup to communicate with main window
+    response.headers["Cross-Origin-Opener-Policy"] = "unsafe-none"
+    return response
+
+# Register all API routes under /api/v1
+app.include_router(api_router, prefix="/api/v1")
+# Register WebSockets under the same prefix
+app.include_router(ws.router, prefix="/api/v1/ws", tags=["websockets"])
 
 @app.get("/health")
 async def health():
-    return "OK"
+    return {"status": "ok", "message": "PulsePrice API is running"}
+
+@app.get("/")
+async def root():
+    return {"message": "Welcome to PulsePrice API"}

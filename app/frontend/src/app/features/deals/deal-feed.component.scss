@@ -227,7 +227,7 @@
   background: rgba(79, 142, 247, 0.1);
   padding: 4px 10px; border-radius: 4px; text-transform: uppercase;
 }
-.featured-store { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
+.featured-platform { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
 
 .featured-headline { font-size: 24px; font-weight: 800; margin: 0 0 16px; line-height: 1.3; }
 
@@ -359,7 +359,7 @@
   padding: 10px 16px; border-top: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between;
 }
-.store-pill { font-size: 11px; font-weight: 700; color: var(--text-secondary); background: var(--bg-elevated); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); }
+.platform-pill { font-size: 11px; font-weight: 700; color: var(--text-secondary); background: var(--bg-elevated); padding: 2px 8px; border-radius: 4px; border: 1px solid var(--border); }
 .view-link { font-size: 12px; font-weight: 700; color: var(--accent-blue); text-decoration: none; &:hover { text-decoration: underline; } }
 .footer-right { display: flex; gap: 8px; }
 .btn-action-sm {
@@ -436,7 +436,7 @@
     flex-direction: column;
     gap: 2px;
     .drop-name { font-size: 12px; font-weight: 500; color: #EDF2F7; }
-    .drop-store { font-size: 11px; color: #718096; }
+    .drop-platform { font-size: 11px; color: #718096; }
   }
 
   .drop-amount {
@@ -529,7 +529,7 @@
   .savings-pill { background: rgba(26,127,90,0.12) !important; color: #1A7F5A !important; }
   .stock-dot { background: #1A7F5A !important; }
   .stock-text { color: #6B6B6B !important; }
-  .featured-store { color: #6B6B6B !important; }
+  .featured-platform { color: #6B6B6B !important; }
   .featured-headline { color: #1C1C1E !important; }
 
   .btn-view-hero {
@@ -558,7 +558,7 @@
     border-top-color: #E8E6E0 !important;
   }
 
-  .store-pill {
+  .platform-pill {
     background: #F5F4F0 !important;
     border-color: #E8E6E0 !important;
     color: #6B6B6B !important;
@@ -597,7 +597,7 @@
     border-bottom-color: #E8E6E0 !important;
     &:hover { background: rgba(0,0,0,0.03) !important; }
     .drop-info .drop-name { color: #1C1C1E !important; }
-    .drop-info .drop-store { color: #9E9E9E !important; }
+    .drop-info .drop-platform { color: #9E9E9E !important; }
     .drop-amount .drop-percent { color: #1A7F5A !important; }
     .drop-amount .drop-saved { color: #9E9E9E !important; }
   }

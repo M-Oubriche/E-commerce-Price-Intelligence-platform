@@ -1,391 +1,301 @@
-import { Component, OnInit, OnDestroy, AfterViewInit, ElementRef, Inject, PLATFORM_ID, HostListener, Pipe, PipeTransform } from '@angular/core';
+import { Component, OnInit, OnDestroy, Inject, PLATFORM_ID, Pipe, PipeTransform } from '@angular/core';
 import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { RouterLink, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
-import { trigger, state, style, transition, animate, query, stagger } from '@angular/animations';
-import { AuthService, User } from '../../core/services/auth.service';
+import { AuthService } from '../../core/services/auth.service';
 import { ScrollRevealDirective } from '../../shared/directives/scroll-reveal.directive';
 import { CountUpDirective } from '../../shared/directives/count-up.directive';
 import { PublicNavbarComponent } from '../../shared/components/public-navbar/public-navbar.component';
-import { Observable } from 'rxjs';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
 
 @Pipe({ name: 'safeHtml', standalone: true })
 export class SafeHtmlPipe implements PipeTransform {
   constructor(private sanitizer: DomSanitizer) {}
-  transform(value: string): SafeHtml {
-    return this.sanitizer.bypassSecurityTrustHtml(value);
-  }
+  transform(value: string): SafeHtml { return this.sanitizer.bypassSecurityTrustHtml(value); }
 }
 
-interface Feature {
-  title: string;
-  description: string;
-  icon: string;
+interface Product {
+  id: string; name: string; category: string; image: string;
+  currentPrice: number; oldPrice: number; discount: number;
+  store: string; isLowestEver: boolean; rating: number; reviews: number;
 }
 
-interface Step {
-  title: string;
-  description: string;
+interface FlashDeal extends Product { stockPercent: number; }
+
+interface HeroDeal {
+  id: string; name: string; category: string; image: string;
+  currentPrice: number; oldPrice: number; discount: number; isLowestEver?: boolean;
 }
 
-interface Category {
-  name: string;
-  image: string;
-  link: string;
-}
-
-interface Testimonial {
-  rating: number;
-  quote: string;
-  author: string;
-  role: string;
-  initials: string;
-  productImage: string;
-}
-
-interface FAQ {
-  question: string;
-  answer: string;
-  isOpen: boolean;
-}
-
-interface BusinessFeature {
-  title: string;
-  description: string;
-}
-
-interface Stat {
-  value: number;
-  label: string;
-  suffix: string;
-}
-
-interface FloatingIcon {
-  svg: string;
-  viewBox: string;
-  x: number;
-  y: number;
-  size: number;
-  duration: number;
-  delay: number;
-  opacity: number;
-  color: string;
-}
-
-interface ProductSuggestion {
-  id: string;
-  name: string;
-  category: string;
-  image: string;
-  bestPrice: number;
-}
-
-interface CategorySuggestion {
-  name: string;
-  icon: string;
-  count: number;
-  slug: string;
-}
+interface Category { name: string; icon: string; link: string; count: string; }
+interface Step { title: string; description: string; icon: string; }
+interface PriceDrop { name: string; drop: string; store: string; time: string; icon: string; }
+interface ProductSuggestion { id: string; name: string; category: string; image: string; bestPrice: number; }
+interface CategorySuggestion { name: string; icon: string; count: number; slug: string; }
+interface Testimonial { name: string; role: string; quote: string; savings?: string; }
 
 @Component({
   selector: 'app-landing-page',
   standalone: true,
   imports: [CommonModule, RouterLink, FormsModule, ScrollRevealDirective, CountUpDirective, SafeHtmlPipe, PublicNavbarComponent],
   templateUrl: './landing-page.component.html',
-  styleUrls: ['./landing-page.component.scss'],
-  animations: [
-    trigger('faqAnimation', [
-      state('void', style({ height: '0', opacity: '0', overflow: 'hidden' })),
-      state('*', style({ height: '*', opacity: '1' })),
-      transition('void <=> *', animate('300ms cubic-bezier(0.4, 0, 0.2, 1)'))
-    ]),
-    trigger('staggerFade', [
-      transition(':enter', [
-        query('.stagger-item', [
-          style({ opacity: 0, transform: 'translateY(20px)' }),
-          stagger(150, [
-            animate('400ms ease-out', style({ opacity: 1, transform: 'translateY(0)' }))
-          ])
-        ], { optional: true })
-      ])
-    ])
-  ]
+  styleUrls: ['./landing-page.component.scss']
 })
-export class LandingPageComponent implements OnInit, OnDestroy, AfterViewInit {
-  floatingIcons: FloatingIcon[] = [];
+export class LandingPageComponent implements OnInit, OnDestroy {
 
-  features: Feature[] = [
-    {
-      title: 'Fake Deal Detector',
-      description: 'Our system analyzes price history to tell you if that "50% off" is actually a good deal or just marketing fluff. The chart never lies.',
-      icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-    },
-    {
-      title: 'Price Drop Alerts',
-      description: 'Set your target price and get instant notifications via email or WhatsApp when it hits your budget.',
-      icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'
-    },
-    {
-      title: 'Smart Deal Score',
-      description: 'Every product gets a score from 1–10 based on price history, availability, and store reliability. Know instantly if now is the right time to buy.',
-      icon: 'M13 10V3L4 14h7v7l9-11h-7z'
-    }
-  ];
+  promoBannerVisible = true;
+  private isBrowser: boolean;
+  private countdownInterval: any;
+  private searchDebounce: any;
 
-  steps: Step[] = [
-    { title: 'Search any device', description: 'Enter the model name, brand, or specific specs you are looking for.' },
-    { title: 'Compare prices + history', description: 'See real-time prices across all major retailers and how they have trended.' },
-    { title: 'Buy smart or set an alert', description: 'Grab the best deal immediately or set a smart alert for future drops.' }
-  ];
+  countdown = { hours: '04', minutes: '22', seconds: '18' };
 
-  categories: Category[] = [
-    { name: 'Smartphones', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200', link: 'smartphones' },
-    { name: 'Laptops', image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200', link: 'laptops' },
-    { name: 'Monitors', image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=200', link: 'monitors' },
-    { name: 'Headphones', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200', link: 'headphones' },
-    { name: 'Périphériques', image: '/home/aya/.gemini/antigravity/brain/62262f9d-2483-46d6-b4ab-3568bc10b454/peripherals_category_image_1775136446458.png', link: 'peripheriques' },
-    { name: 'Gaming', image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=200', link: 'gaming' },
-    { name: 'Tablets', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200', link: 'tablets' },
-    { name: 'Components', image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=200', link: 'components' }
-  ];
-
-  testimonials: Testimonial[] = [
-    {
-      rating: 5,
-      quote: 'I saved $120 on a laptop in my first week. The price history chart exposed a fake Black Friday deal immediately.',
-      author: 'Youssef M.',
-      role: 'Student, Casablanca',
-      initials: 'YM',
-      productImage: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=120'
-    },
-    {
-      rating: 5,
-      quote: 'I track 300 SKUs for my reselling business. PulsePrice replaced 3 tools I was paying for.',
-      author: 'Sara K.',
-      role: 'Electronics Reseller, Marrakech',
-      initials: 'SK',
-      productImage: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=120'
-    },
-    {
-      rating: 5,
-      quote: 'The price drop alert on my wishlist TV finally fired. Bought it $80 cheaper than launch price.',
-      author: 'Ahmed R.',
-      role: 'Tech Enthusiast, Tangier',
-      initials: 'AR',
-      productImage: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=120'
-    }
-  ];
-
-  faqs: FAQ[] = [
-    { question: 'Is PulsePrice really free?', answer: 'Yes, completely free for both shoppers and business users. No credit card, no hidden fees, ever.', isOpen: true },
-    { question: 'How often are prices updated?', answer: 'We refresh prices from all stores every 6 hours, so you always have accurate, up-to-date data.', isOpen: false },
-    { question: 'Which stores do you track?', answer: 'We currently track 200+ stores including Amazon, eBay, AliExpress, Jumia, Walmart, BestBuy, Newegg, and many more regional retailers.', isOpen: false },
-    { question: 'How do price drop alerts work?', answer: 'Set a target price on any product. The moment any tracked store drops to or below that price, we send you an instant email notification.', isOpen: false },
-    { question: 'What is the difference between a shopper and a business account?', answer: 'Shopper accounts get personal deal tools — price comparison, alerts, and deal scoring. Business accounts get bulk tracking, competitor scanning, margin alerts, and data export.', isOpen: false }
-  ];
-
-  businessFeatures: BusinessFeature[] = [
-    { title: 'Bulk Catalog Tracker', description: 'Monitor thousands of SKUs simultaneously across global marketplaces.' },
-    { title: 'Competitor Price Scanner', description: 'Get instant alerts when competitors change their pricing strategy.' },
-    { title: 'Margin Protection Alerts', description: 'Automated alerts to ensure your resale margins never dip below profitable levels.' }
-  ];
-
-  stats: Stat[] = [
-    { value: 52400, label: 'Products', suffix: '+' },
-    { value: 214, label: 'Stores', suffix: '' },
-    { value: 11200, label: 'Users', suffix: '+' }
-  ];
-
-  currentUser$: Observable<User | null>;
-  typewriterText = '';
-  showStoreCards = false;
-  
-  // Real Search Properties
   searchQuery = '';
   isFocused = false;
   suggestions: any[] = [];
   productSuggestions: ProductSuggestion[] = [];
   categorySuggestions: CategorySuggestion[] = [];
-  private searchDebounce: any;
-
-  popularSearches = [
-    'Sony WH-1000XM5', 'PS5', 'Samsung Galaxy'
-  ];
-
+  popularSearches = ['RTX 4090', 'Ryzen 7 7800X3D', 'Logitech G Pro', 'Samsung 990 Pro'];
   private allProducts: any[] = PLATFORM_PRODUCT_LIBRARY;
-
-  private allCategories: CategorySuggestion[] = [
-    { name: 'Smartphones', icon: '📱', count: 1200, slug: 'smartphones' },
-    { name: 'Laptops', icon: '💻', count: 850, slug: 'laptops' },
-    { name: 'Headphones', icon: '🎧', count: 430, slug: 'headphones' },
-    { name: 'Gaming', icon: '🎮', count: 620, slug: 'gaming' },
-    { name: 'Périphériques', icon: '📷', count: 380, slug: 'peripheriques' },
-    { name: 'Monitors', icon: '🖥️', count: 290, slug: 'monitors' },
-    { name: 'Tablets', icon: '📟', count: 310, slug: 'tablets' },
-    { name: 'Components', icon: '⚙️', count: 540, slug: 'components' },
+  private allCategorySuggestions: CategorySuggestion[] = [
+    { name: 'GPU', icon: 'monitor', count: 1200, slug: 'gpu' },
+    { name: 'CPU', icon: 'cpu', count: 850, slug: 'cpu' },
+    { name: 'RAM', icon: 'memory', count: 430, slug: 'ram' },
+    { name: 'SSD', icon: 'storage', count: 620, slug: 'ssd' },
+    { name: 'Keyboards', icon: 'keyboard', count: 290, slug: 'keyboard' },
+    { name: 'Mice', icon: 'mouse', count: 310, slug: 'mouse' },
+    { name: 'Laptops', icon: 'laptop', count: 540, slug: 'laptop' },
   ];
 
-  private typewriterInterval: any;
-  private isBrowser: boolean;
+  liveDrops: PriceDrop[] = [
+    { name: 'RTX 4080 Super 16GB', drop: '$120', store: 'Newegg', time: '2m ago', icon: 'GPU' },
+    { name: 'Core i9-14900K', drop: '$45', store: 'Amazon', time: '5m ago', icon: 'CPU' },
+    { name: 'Logitech G Pro X Superlight', drop: '$15', store: 'Ultra PC', time: '12m ago', icon: 'Mouse' },
+    { name: 'Samsung 990 Pro 2TB', drop: '$30', store: 'Jumia', time: '18m ago', icon: 'SSD' },
+    { name: 'Corsair Vengeance DDR5 32GB', drop: '$25', store: 'PC21', time: '25m ago', icon: 'RAM' },
+    { name: 'ASUS ROG Swift OLED', drop: '$200', store: 'BestBuy', time: '31m ago', icon: 'Monitor' },
+    { name: 'Ryzen 7 7800X3D', drop: '$40', store: 'eBay', time: '38m ago', icon: 'CPU' },
+  ];
 
-  constructor(
-    private authService: AuthService,
-    private router: Router,
-    @Inject(PLATFORM_ID) platformId: Object
-  ) {
-    this.currentUser$ = this.authService.currentUser$;
+  categories: Category[] = [
+    { name: 'GPU', icon: 'monitor', link: 'gpu', count: '1.2k' },
+    { name: 'CPU', icon: 'cpu', link: 'cpu', count: '850' },
+    { name: 'RAM', icon: 'memory', link: 'ram', count: '430' },
+    { name: 'SSD', icon: 'ssd', link: 'ssd', count: '620' },
+    { name: 'Monitors', icon: 'monitor', link: 'monitors', count: '290' },
+    { name: 'Keyboards', icon: 'keyboard', link: 'keyboards', count: '310' },
+    { name: 'Mice', icon: 'mouse', link: 'mice', count: '540' },
+    { name: 'Laptops', icon: 'laptop', link: 'laptops', count: '180' },
+    { name: 'PSU', icon: 'power', link: 'psu', count: '220' },
+    { name: 'Motherboards', icon: 'motherboard', link: 'motherboards', count: '160' },
+  ];
+
+  heroSideDeals: HeroDeal[] = [
+    {
+      id: 'rtx-4090-strix', name: 'ASUS ROG Strix RTX 4090', category: 'GPU',
+      image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400',
+      currentPrice: 1599, oldPrice: 1799, discount: 11
+    },
+    {
+      id: 'logitech-g-pro-x', name: 'Logitech G Pro X Superlight 2', category: 'Mouse',
+      image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400',
+      currentPrice: 129, oldPrice: 159, discount: 19, isLowestEver: true
+    },
+    {
+      id: 'samsung-990-pro', name: 'Samsung 990 Pro 2TB NVMe', category: 'SSD',
+      image: 'https://images.unsplash.com/photo-1597872200370-493dee2474a5?w=400',
+      currentPrice: 169, oldPrice: 199, discount: 15, isLowestEver: true
+    },
+    {
+      id: 'corsair-vengeance-ddr5', name: 'Corsair Vengeance 32GB DDR5 6000', category: 'RAM',
+      image: 'https://images.unsplash.com/photo-1562976540-1502c2145186?w=400',
+      currentPrice: 109, oldPrice: 139, discount: 21
+    },
+  ];
+
+  flashDeals: FlashDeal[] = [
+    {
+      id: 'rtx-4080-super', name: 'NVIDIA RTX 4080 Super 16GB', category: 'GPU',
+      image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400',
+      currentPrice: 949, oldPrice: 1099, discount: 13, store: 'Ultra PC', isLowestEver: true,
+      rating: 4.8, reviews: 1241, stockPercent: 18
+    },
+    {
+      id: 'i9-14900k', name: 'Intel Core i9-14900K 24-Core', category: 'CPU',
+      image: 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=400',
+      currentPrice: 549, oldPrice: 629, discount: 12, store: 'Newegg', isLowestEver: true,
+      rating: 4.8, reviews: 2156, stockPercent: 12
+    },
+    {
+      id: 'samsung-990-pro-4tb', name: 'Samsung 990 Pro 4TB NVMe SSD', category: 'SSD',
+      image: 'https://images.unsplash.com/photo-1597872200370-493dee2474a5?w=400',
+      currentPrice: 289, oldPrice: 349, discount: 17, store: 'PC21', isLowestEver: true,
+      rating: 4.9, reviews: 843, stockPercent: 44
+    },
+    {
+      id: 'corsair-dominator-64gb', name: 'Corsair Dominator Titanium 64GB', category: 'RAM',
+      image: 'https://images.unsplash.com/photo-1562976540-1502c2145186?w=400',
+      currentPrice: 219, oldPrice: 279, discount: 21, store: 'Jumia', isLowestEver: true,
+      rating: 4.8, reviews: 312, stockPercent: 35
+    },
+    {
+      id: 'rog-swift-pg27aqdm', name: 'ASUS ROG Swift 27" 1440p OLED', category: 'Monitor',
+      image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400',
+      currentPrice: 849, oldPrice: 999, discount: 15, store: 'Amazon', isLowestEver: true,
+      rating: 4.7, reviews: 562, stockPercent: 22
+    },
+    {
+      id: 'logitech-g915', name: 'Logitech G915 TKL Wireless Mechanical', category: 'Keyboard',
+      image: 'https://images.unsplash.com/photo-1595225402772-2f3483df4ed2?w=400',
+      currentPrice: 149, oldPrice: 199, discount: 25, store: 'BestBuy', isLowestEver: false,
+      rating: 4.7, reviews: 4210, stockPercent: 60
+    },
+  ];
+
+  products: Product[] = [
+    {
+      id: 'rtx-4090-strix', name: 'ASUS ROG Strix RTX 4090', category: 'GPU',
+      image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400',
+      currentPrice: 1599, oldPrice: 1799, discount: 11, store: 'Ultra PC', isLowestEver: true, rating: 4.9, reviews: 1241
+    },
+    {
+      id: 'i9-14900k', name: 'Intel Core i9-14900K', category: 'CPU',
+      image: 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=400',
+      currentPrice: 549, oldPrice: 629, discount: 12, store: 'Amazon', isLowestEver: true, rating: 4.8, reviews: 2156
+    },
+    {
+      id: 'logitech-g-pro-x', name: 'Logitech G Pro X Superlight 2', category: 'Mouse',
+      image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400',
+      currentPrice: 129, oldPrice: 159, discount: 19, store: 'Materiel.net', isLowestEver: true, rating: 4.8, reviews: 4210
+    },
+    {
+      id: 'samsung-990-pro', name: 'Samsung 990 Pro 2TB NVMe', category: 'SSD',
+      image: 'https://images.unsplash.com/photo-1597872200370-493dee2474a5?w=400',
+      currentPrice: 169, oldPrice: 199, discount: 15, store: 'Jumia', isLowestEver: true, rating: 4.9, reviews: 843
+    },
+    {
+      id: 'corsair-vengeance-ddr5', name: 'Corsair Vengeance 32GB DDR5', category: 'RAM',
+      image: 'https://images.unsplash.com/photo-1562976540-1502c2145186?w=400',
+      currentPrice: 109, oldPrice: 139, discount: 21, store: 'BestBuy', isLowestEver: true, rating: 4.8, reviews: 312
+    },
+    {
+      id: 'rog-swift-pg27aqdm', name: 'ASUS ROG Swift OLED 27"', category: 'Monitor',
+      image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400',
+      currentPrice: 849, oldPrice: 999, discount: 15, store: 'Amazon', isLowestEver: true, rating: 4.7, reviews: 562
+    },
+    {
+      id: 'ryzen-7800x3d', name: 'AMD Ryzen 7 7800X3D', category: 'CPU',
+      image: 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=400',
+      currentPrice: 349, oldPrice: 449, discount: 22, store: 'Amazon', isLowestEver: true, rating: 4.9, reviews: 5120
+    },
+    {
+      id: 'z790-aorus-elite', name: 'Gigabyte Z790 AORUS Elite AX', category: 'Motherboard',
+      image: 'https://images.unsplash.com/photo-1518770660439-4636190af475?w=400',
+      currentPrice: 239, oldPrice: 289, discount: 17, store: 'Newegg', isLowestEver: false, rating: 4.6, reviews: 890
+    },
+    {
+      id: 'rm1000x', name: 'Corsair RM1000x 80+ Gold PSU', category: 'PSU',
+      image: 'https://images.unsplash.com/photo-1587202392411-e1b211fa3f95?w=400',
+      currentPrice: 159, oldPrice: 189, discount: 15, store: 'Ultra PC', isLowestEver: false, rating: 4.8, reviews: 1540
+    },
+    {
+      id: 'h9-flow', name: 'NZXT H9 Flow Dual-Chamber', category: 'Case',
+      image: 'https://images.unsplash.com/photo-1547082299-de196ea013d6?w=400',
+      currentPrice: 159, oldPrice: 159, discount: 0, store: 'Cdiscount', isLowestEver: false, rating: 4.8, reviews: 2105
+    },
+    {
+      id: 'g915-tkl', name: 'Logitech G915 TKL Wireless', category: 'Keyboard',
+      image: 'https://images.unsplash.com/photo-1595225402772-2f3483df4ed2?w=400',
+      currentPrice: 149, oldPrice: 199, discount: 25, store: 'BestBuy', isLowestEver: false, rating: 4.7, reviews: 4210
+    },
+    {
+      id: '980-pro-1tb', name: 'Samsung 980 Pro 1TB NVMe', category: 'SSD',
+      image: 'https://images.unsplash.com/photo-1597872200370-493dee2474a5?w=400',
+      currentPrice: 89, oldPrice: 109, discount: 18, store: 'Jumia', isLowestEver: true, rating: 4.9, reviews: 15672
+    },
+  ];
+
+  steps: Step[] = [
+    { title: 'Search any device', description: 'Type the model name, brand, or category you are looking for.', icon: 'M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z' },
+    { title: 'Compare across 200+ stores', description: 'See live prices and full 30-day price history charts instantly.', icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z' },
+    { title: 'Buy or set a price alert', description: 'Grab the best deal now or get notified when prices drop further.', icon: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9' },
+  ];
+
+  testimonials: Testimonial[] = [
+    {
+      name: 'Lena M.',
+      role: 'Freelance Designer, Paris',
+      quote: 'I set a price alert for the MacBook Air M3 and got notified the same day Amazon dropped it by $100. Bought it instantly. This tool is insane.',
+      savings: '$100'
+    },
+    {
+      name: 'Carlos R.',
+      role: 'Gaming Enthusiast, Madrid',
+      quote: 'Used to manually check 5 different sites for PS5 deals. PulsePrice showed me the price was actually cheaper on eBay — something I never would have found.',
+      savings: '$40'
+    },
+    {
+      name: 'Amira T.',
+      role: 'Tech Lead, Berlin',
+      quote: 'The 30-day price history feature is a game changer. I could immediately see the "sale" on BestBuy was just them inflating the price the week before. Saved me from a fake deal.',
+      savings: '$89'
+    },
+  ];
+
+  constructor(private authService: AuthService, private router: Router, @Inject(PLATFORM_ID) platformId: Object) {
     this.isBrowser = isPlatformBrowser(platformId);
   }
 
   ngOnInit() {
-    window.scrollTo({ top: 0, behavior: 'instant' });
     if (this.isBrowser) {
-      this.startTypewriter();
-      this.initFloatingIcons();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      this.initCountdown();
     }
   }
-
-  ngAfterViewInit() {}
 
   ngOnDestroy() {
-    if (this.typewriterInterval) {
-      clearInterval(this.typewriterInterval);
-    }
+    if (this.countdownInterval) clearInterval(this.countdownInterval);
   }
 
-  scrollToSection(id: string) {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: 'smooth' });
-    }
+  dismissPromoBanner() { this.promoBannerVisible = false; }
+
+  private initCountdown() {
+    let total = 4 * 3600 + 22 * 60 + 18;
+    this.countdownInterval = setInterval(() => {
+      total--;
+      if (total < 0) total = 24 * 3600;
+      this.countdown = {
+        hours: String(Math.floor(total / 3600)).padStart(2, '0'),
+        minutes: String(Math.floor((total % 3600) / 60)).padStart(2, '0'),
+        seconds: String(total % 60).padStart(2, '0'),
+      };
+    }, 1000);
   }
 
-  // Real Search input handler — debounced 250ms
   onSearchInput(): void {
     clearTimeout(this.searchDebounce);
-    if (this.searchQuery.trim().length < 1) {
-      this.productSuggestions = [];
-      this.categorySuggestions = [];
-      this.suggestions = [];
-      return;
-    }
+    if (!this.searchQuery.trim()) { this.suggestions = this.productSuggestions = this.categorySuggestions = []; return; }
     this.searchDebounce = setTimeout(() => {
       const q = this.searchQuery.toLowerCase().trim();
-      this.productSuggestions = this.allProducts
-        .filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q))
-        .slice(0, 4);
-      this.categorySuggestions = this.allCategories
-        .filter(c => c.name.toLowerCase().includes(q))
-        .slice(0, 2);
+      this.productSuggestions = this.allProducts.filter(p => p.name.toLowerCase().includes(q) || p.category.toLowerCase().includes(q)).slice(0, 4);
+      this.categorySuggestions = this.allCategorySuggestions.filter(c => c.name.toLowerCase().includes(q)).slice(0, 2);
       this.suggestions = [...this.productSuggestions, ...this.categorySuggestions];
     }, 250);
   }
 
-  // Real Search Submit — navigate to search results
   onSearchSubmit(): void {
-    if (this.searchQuery.trim().length === 0) {
-      // Shake animation on empty submit
-      const el = document.querySelector('.hero-search-bar');
-      el?.classList.add('shake');
-      setTimeout(() => el?.classList.remove('shake'), 500);
+    if (!this.searchQuery.trim()) {
+      document.querySelector('.hero-search-bar')?.classList.add('shake');
+      setTimeout(() => document.querySelector('.hero-search-bar')?.classList.remove('shake'), 500);
       return;
     }
-    this.router.navigate(['/search'], {
-      queryParams: { q: encodeURIComponent(this.searchQuery.trim()) }
-    });
+    this.router.navigate(['/search'], { queryParams: { q: encodeURIComponent(this.searchQuery.trim()) } });
   }
 
-  // Select a product suggestion
-  selectSuggestion(product: ProductSuggestion): void {
-    this.searchQuery = product.name;
-    this.suggestions = [];
-    this.router.navigate(['/product', product.id]);
-  }
-
-  // Select a category suggestion
-  selectCategory(cat: CategorySuggestion): void {
-    this.searchQuery = cat.name;
-    this.suggestions = [];
-    this.router.navigate(['/search'], { queryParams: { category: cat.slug } });
-  }
-
-  // Set query from popular tag click
-  setQuery(query: string): void {
-    this.searchQuery = query;
-    this.onSearchSubmit();
-  }
-
-  // Blur — delay close so mousedown on suggestion fires first
-  onBlur(): void {
-    setTimeout(() => {
-      this.isFocused = false;
-      this.suggestions = [];
-    }, 200);
-  }
-
-  clearSearch(): void {
-    this.searchQuery = '';
-    this.suggestions = [];
-  }
-
-  toggleFaq(faq: FAQ) {
-    const currentState = faq.isOpen;
-    this.faqs.forEach(f => f.isOpen = false);
-    faq.isOpen = !currentState;
-  }
-
-  logout() {
-    this.authService.logout();
-  }
-
-  getDashboardLink(user: User): string {
-    return user.type === 'business' ? '/business' : '/dashboard';
-  }
-
-  private initFloatingIcons() {
-    const devices = [
-      { viewBox: '0 0 24 24', paths: '<rect x="5" y="2" width="14" height="20" rx="2" ry="2"/><line x1="12" y1="18" x2="12" y2="18"/>' },
-      { viewBox: '0 0 24 24', paths: '<rect x="2" y="4" width="20" height="14" rx="2"/><path d="M0 22h24M8 18l-1 4M16 18l1 4"/>' },
-      { viewBox: '0 0 24 24', paths: '<path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>' },
-      { viewBox: '0 0 24 24', paths: '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>' },
-      { viewBox: '0 0 24 24', paths: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>' },
-      { viewBox: '0 0 24 24', paths: '<line x1="6" y1="12" x2="10" y2="12"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="15" y1="13" x2="15.01" y2="13"/><line x1="18" y1="11" x2="18.01" y2="11"/><path d="M17 5H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2z"/>' },
-      { viewBox: '0 0 24 24', paths: '<rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/>' },
-      { viewBox: '0 0 24 24', paths: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M16 2v4M8 2v4M16 18v4M8 18v4"/><circle cx="12" cy="12" r="3"/>' }
-    ];
-
-    const colors = ['#3B82F6', '#7C3AED'];
-
-    this.floatingIcons = Array.from({ length: 14 }, (_, i) => ({
-      svg: devices[i % devices.length].paths,
-      viewBox: devices[i % devices.length].viewBox,
-      x: 5 + (i * 7),
-      y: 10 + (i * 8) % 100,
-      size: 48 + (i % 3) * 12,
-      duration: 18 + (i % 5) * 2,
-      delay: -(i * 1.5),
-      opacity: 0.12 + (i % 3) * 0.03,
-      color: colors[i % colors.length]
-    }));
-  }
-
-  private startTypewriter() {
-    const text = 'iPhone 15 Pro';
-    let i = 0;
-    this.typewriterText = '';
-    this.showStoreCards = false;
-
-    this.typewriterInterval = setInterval(() => {
-      this.typewriterText += text.charAt(i);
-      i++;
-      if (i >= text.length) {
-        clearInterval(this.typewriterInterval);
-        setTimeout(() => {
-          this.showStoreCards = true;
-        }, 300);
-      }
-    }, 100);
-  }
+  selectSuggestion(p: ProductSuggestion): void { this.searchQuery = p.name; this.suggestions = []; this.router.navigate(['/product', p.id]); }
+  selectCategory(c: CategorySuggestion): void { this.searchQuery = c.name; this.suggestions = []; this.router.navigate(['/search'], { queryParams: { category: c.slug } }); }
+  setQuery(q: string): void { this.searchQuery = q; this.onSearchSubmit(); }
+  onBlur(): void { setTimeout(() => { this.isFocused = false; this.suggestions = []; }, 200); }
+  clearSearch(): void { this.searchQuery = ''; this.suggestions = []; }
 }
