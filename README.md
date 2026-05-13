@@ -166,15 +166,95 @@ When ready, document:
 ## Dashboard
 
 > **Owner: Full Stack**
-> This section will be filled once Angular frontend and FastAPI backend are working.
+> This section covers the real-time interactive layer of the platform, including the price monitoring dashboards and the supporting API.
 
-<!--
-When ready, document:
-- How to run the frontend locally (Angular)
-- How to run the backend API locally (FastAPI)
-- List of available API endpoints
-- Dashboard features and pages overview
--->
+### 1. Backend API (FastAPI)
+
+The backend provides a high-performance RESTful API and WebSocket support for real-time notifications.
+
+#### Setup via Docker
+The backend is automatically started with Docker Compose:
+```bash
+docker compose up backend -d
+```
+- **Port**: `8000`
+- **Hot-Reload**: Enabled via volume mount (`./app/backend`)
+- **Interactive Docs**: Available at `http://localhost:8000/docs` (Swagger UI)
+
+#### Key API Endpoints
+- **Authentication**: `POST /api/v1/auth/register`, `POST /api/v1/auth/login`
+- **Watchlist**: `GET /api/v1/watchlist/`, `POST /api/v1/watchlist/`
+- **Shopper Alerts**: `GET /api/v1/shopper-alerts/`, `POST /api/v1/shopper-alerts/`
+- **Real-time Notifications**: `WS /ws/{user_id}` (Redis-backed WebSocket)
+
+### 2. Frontend Dashboard (Angular)
+
+A modern, responsive dashboard built with Angular 17+ and TailwindCSS.
+
+#### Setup via Docker
+The frontend is automatically started with Docker Compose:
+```bash
+docker compose up frontend -d
+```
+- **Port**: `4200`
+- **Dev Server**: Runs with `--poll 2000` to ensure hot-reload works across Docker volumes.
+- **Access**: `http://localhost:4200`
+
+#### Core Features
+- **Client (Shopper) Dashboard**:
+  - **Price Watcher**: Track specific products across multiple platforms.
+  - **Smart Alerts**: Configure target prices and notification channels.
+  - **Deal Feed**: Real-time stream of detected price drops.
+- **Reseller (Entrepreneur) Dashboard**:
+  - **Catalog Tracker**: Manage and monitor your own product listings.
+  - **Competitor Scanner**: Automatic matching and price-gap analysis.
+  - **Business Analytics**: Margin protection and market visibility trends.
+
+### 3. Database Schema (PostgreSQL)
+
+The relational layer is hosted in the `app_postgres` container and managed via Alembic migrations.
+
+#### Initialize Database Tables
+To create or update the tables in your local environment, run the migrations using Docker:
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+#### Database Schema Overview
+
+The database consists of **18 tables** organized into five functional modules. 
+
+![PulsePrice Database ERD](./database_erd.png)
+
+**1. Identity & Security**
+*   `users`: (id, email, password_hash, full_name, role, is_active, google_sub)
+*   `user_sessions`: (id, user_id, refresh_token_hash, device_info, ip_address, expires_at)
+*   `login_attempts`: (id, email, ip_address, was_successful, failure_reason)
+*   `email_verification_tokens`: (id, user_id, token_hash, is_used, expires_at)
+*   `password_reset_tokens`: (id, user_id, token_hash, is_used, expires_at)
+
+**2. User Preferences**
+*   `alert_preferences`: (id, user_id, price_drop_alerts, email_notifications, websocket_live)
+*   `display_preferences`: (id, user_id, theme, language, currency, timezone)
+
+**3. Shopper Features (Client Role)**
+*   `watchlist_items`: (id, user_id, product_id, product_name, platform, target_price)
+*   `shopper_alerts`: (id, user_id, watchlist_item_id, condition_type, target_value, status)
+*   `alert_events`: (id, product_id, product_name, source, old_price, new_price, drop_percent)
+*   `notification_deliveries`: (id, alert_event_id, user_id, channel, status, failed_reason)
+
+**4. Reseller Intelligence (Reseller Role)**
+*   `seller_products`: (id, user_id, product_name, my_price, min_price_floor, max_price_ceiling)
+*   `seller_product_price_history`: (id, seller_product_id, old_price, new_price, recorded_at)
+*   `tracked_competitors`: (id, user_id, seller_name, platform, aggressiveness, competitiveness)
+*   `tracked_competitor_products`: (id, tracked_competitor_id, seller_product_id, their_price, price_gap)
+*   `price_alerts`: (id, user_id, seller_product_id, trigger_mode, threshold_value, priority)
+
+**5. System & Audit**
+*   `platform_meta_registry`: (id, platform_name, slug, base_url, currency_code, is_scraping_enabled)
+*   `activity_logs`: (id, user_id, action, entity_type, entity_id, log_metadata)
+
+> **Note:** For exact field types (UUID, Numeric, etc.), refer to the models in `app/backend/models/`.
 
 ---
 

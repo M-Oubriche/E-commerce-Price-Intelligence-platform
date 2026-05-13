@@ -36,13 +36,13 @@ import { CommonModule } from '@angular/common';
       background: var(--bg-secondary);
     }
 
-    .pill--buyer {
+    .pill--client {
       border-color: transparent;
       color: var(--accent-blue);
       background: rgba(59, 130, 246, 0.1);
     }
 
-    .pill--seller {
+    .pill--reseller {
       border-color: transparent;
       color: var(--accent-green);
       background: rgba(16, 185, 129, 0.1);
@@ -56,5 +56,5 @@ import { CommonModule } from '@angular/common';
   `]
 })
 export class StatusPillComponent {
-  @Input() variant: 'neutral' | 'buyer' | 'seller' | 'error' = 'neutral';
+  @Input() variant: 'neutral' | 'client' | 'reseller' | 'error' = 'neutral';
 }

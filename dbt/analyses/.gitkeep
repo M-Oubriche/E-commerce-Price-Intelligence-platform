@@ -1,0 +1,1 @@
+# This directory is for ad hoc SQL queries that dbt won't materialize as models

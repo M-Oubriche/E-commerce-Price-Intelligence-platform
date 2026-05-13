@@ -35,6 +35,7 @@ yarn-error.log*
 dbt/target/
 dbt/dbt_packages/
 dbt/logs/
+dbt/.user.yml
 
 # Analytics & Jupyter
 .ipynb_checkpoints/
@@ -48,7 +49,18 @@ Thumbs.db
 *.ntvs*
 *.njsproj
 *.sln
-*.sw?start.sh
-docker-compose.override.yml
+*.sw?
 start.sh
 docker-compose.override.yml
+
+# GCP Service Account Keys — NEVER commit these
+infrastructure/keys/
+**/service-account*.json
+**/bigquery-service-account.json
+
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.backup
+*.tfvars
+!*.tfvars.example

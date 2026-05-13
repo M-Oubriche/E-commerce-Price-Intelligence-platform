@@ -1,0 +1,15 @@
+# dbt/profiles.yml
+
+price_intelligence:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: service-account
+      project: "{{ env_var('BIGQUERY_PROJECT_ID') }}"
+      dataset: "{{ env_var('BIGQUERY_DATASET') }}"
+      threads: 4
+      keyfile: /secrets/bigquery-service-account.json
+      location: US
+      timeout_seconds: 300
+      priority: interactive

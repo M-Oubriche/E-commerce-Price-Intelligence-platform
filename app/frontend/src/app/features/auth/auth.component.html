@@ -44,6 +44,46 @@
       <p>Taking you to your dashboard...</p>
     </div>
 
+    <!-- SIGNUP SUCCESS STATE -->
+    <div *ngIf="mode === 'signup-success'" class="success-state" [@fadeSlideUp]>
+      <div class="checkmark-wrapper email-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="email-svg"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+      </div>
+      <h2>Check your email</h2>
+      <p>We've sent a verification link to your email address. Please click it to activate your account.</p>
+      <button class="btn-primary mt-6 w-full" (click)="switchMode('login')">Return to Login</button>
+    </div>
+
+    <!-- VERIFICATION STATE -->
+    <div *ngIf="mode === 'verify'" class="success-state" [@fadeSlideUp]>
+      <div *ngIf="verificationStatus === 'loading'">
+        <div class="spinner-large"></div>
+        <h2>Verifying...</h2>
+        <p>Please wait while we verify your email.</p>
+      </div>
+
+      <div *ngIf="verificationStatus === 'success'">
+        <div class="checkmark-wrapper">
+          <svg class="checkmark" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 52 52">
+            <circle class="checkmark-circle" cx="26" cy="26" r="25" fill="none"/>
+            <path class="checkmark-check" fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"/>
+          </svg>
+        </div>
+        <h2>Verified!</h2>
+        <p>{{ verificationMessage }}</p>
+        <p class="mt-4 text-sm text-gray-400">Redirecting to login...</p>
+      </div>
+
+      <div *ngIf="verificationStatus === 'error'">
+        <div class="error-icon-wrapper">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+        </div>
+        <h2>Verification Failed</h2>
+        <p>{{ verificationMessage }}</p>
+        <button class="btn-primary mt-6 w-full" (click)="switchMode('login')">Go to Login</button>
+      </div>
+    </div>
+
     <!-- MAIN FORM MODES -->
     <div *ngIf="mode !== 'success'" class="card-body">
       
@@ -62,44 +102,44 @@
 
       <!-- Google Button (Prominent & First) -->
       <div *ngIf="mode !== 'forgot'" class="social-auth" [@fadeSlideUp]>
-        <button class="btn-google" (click)="loginWithGoogle()" [disabled]="isGoogleLoading">
-          <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
-            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.16v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.16C1.43 8.55 1 10.22 1 12s.43 3.45 1.16 4.93l3.68-2.84z" fill="#FBBC05"/>
-            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.16 7.07l3.68 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-          </svg>
-          <span *ngIf="!isGoogleLoading">Continue with Google</span>
-          <span class="spinner dark" *ngIf="isGoogleLoading"></span>
-        </button>
+        <div class="google-btn-container">
+          <asl-google-signin-button 
+            type="standard"
+            size="large"
+            theme="outline"
+            text="continue_with"
+            shape="rectangular"
+            [width]="384">
+          </asl-google-signin-button>
+        </div>
         <div class="divider-text"><span>or continue with email</span></div>
       </div>
 
       <!-- SIGNUP STEP 1: Account Selection -->
       <div *ngIf="mode === 'signup' && signupStep === 1" [@fadeSlideUp]>
         <div class="account-cards">
-          <div class="account-card" [class.selected]="accountType === 'BUYER'" (click)="selectAccountType('BUYER')">
-            <div class="card-icon shopper">
+          <div class="account-card" [class.selected]="accountType === UserRole.CLIENT" (click)="selectAccountType(UserRole.CLIENT)">
+            <div class="card-icon client">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
             </div>
             <div class="card-text">
-              <h3>I'm a Shopper</h3>
+              <h3>I'm a Client</h3>
               <p>Find the best prices, track deals, get alerts.</p>
             </div>
-            <div class="check-badge" *ngIf="accountType === 'BUYER'">
+            <div class="check-badge" *ngIf="accountType === UserRole.CLIENT">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </div>
           </div>
 
-          <div class="account-card" [class.selected]="accountType === 'BUSINESS'" (click)="selectAccountType('BUSINESS')">
-            <div class="card-icon business">
+          <div class="account-card" [class.selected]="accountType === UserRole.RESELLER" (click)="selectAccountType(UserRole.RESELLER)">
+            <div class="card-icon reseller">
               <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
             </div>
             <div class="card-text">
               <h3>I'm a Reseller</h3>
               <p>Track competitors, protect margins, export data.</p>
             </div>
-            <div class="check-badge" *ngIf="accountType === 'BUSINESS'">
+            <div class="check-badge" *ngIf="accountType === UserRole.RESELLER">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
             </div>
           </div>
@@ -113,8 +153,8 @@
       <!-- SIGNUP STEP 2: Form -->
       <div *ngIf="mode === 'signup' && signupStep === 2" [@fadeSlideUp]>
         <div class="account-type-summary">
-          <span class="type-badge" [class.business]="accountType === 'BUSINESS'">
-            {{ accountType === 'BUSINESS' ? 'Business Account' : 'Shopper Account' }}
+          <span class="type-badge" [class.reseller]="accountType === UserRole.RESELLER">
+            {{ accountType === UserRole.RESELLER ? 'Reseller Account' : 'Client Account' }}
           </span>
           <button (click)="signupStep = 1" class="btn-link">Change</button>
         </div>

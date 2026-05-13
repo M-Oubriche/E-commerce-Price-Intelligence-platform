@@ -49,33 +49,33 @@
       <!-- 2. Price comparison table -->
       <div class="card price-table-section">
         <div class="section-header">
-          <h2 class="section-title">Prices across all stores</h2>
-          <span class="section-sub">{{ product.storeCount }} stores · updated 3 hours ago</span>
+          <h2 class="section-title">Prices across all platform.</h2>
+          <span class="section-sub">{{ product.platformCount }} platform. · updated 3 hours ago</span>
         </div>
 
         <div class="price-table">
           <div
             class="price-row"
-            *ngFor="let store of product.stores; let i = index"
+            *ngFor="let platform of product.platforms; let i = index"
             [class.best-price]="i === 0"
-            [class.worst-price]="i === product.stores.length - 1"
+            [class.worst-price]="i === product.platforms.length - 1"
           >
-            <div class="store-info">
-              <div class="store-rank">{{ i + 1 }}</div>
-              <div class="store-name-wrap">
-                <span class="store-name">{{ store.name }}</span>
+            <div class="platform.info">
+              <div class="platform.rank">{{ i + 1 }}</div>
+              <div class="platform.name-wrap">
+                <span class="platform.name">{{ platform.name }}</span>
               </div>
             </div>
 
-            <div class="store-availability">
-              <span class="in-stock" *ngIf="store.inStock">In stock</span>
-              <span class="out-stock" *ngIf="!store.inStock">Out of stock</span>
+            <div class="platform.availability">
+              <span class="in-stock" *ngIf="platform.inStock">In stock</span>
+              <span class="out-stock" *ngIf="!platform.inStock">Out of stock</span>
             </div>
 
-            <div class="store-price-wrap">
-              <span class="store-price">{{ store.price | currency }}</span>
-              <span class="price-vs-week" [class.positive]="store.vsLastWeek < 0" [class.negative]="store.vsLastWeek > 0">
-                {{ store.vsLastWeek > 0 ? '+' : '' }}{{ store.vsLastWeek | currency }} vs last week
+            <div class="platform.price-wrap">
+              <span class="platform.price">{{ platform.price | currency }}</span>
+              <span class="price-vs-week" [class.positive]="platform.vsLastWeek < 0" [class.negative]="platform.vsLastWeek > 0">
+                {{ platform.vsLastWeek > 0 ? '+' : '' }}{{ platform.vsLastWeek | currency }} vs last week
               </span>
             </div>
 
@@ -83,7 +83,7 @@
               <span class="best-price-badge">Best price</span>
             </div>
 
-            <a [href]="store.url" target="_blank" class="buy-btn" [class.disabled]="!store.inStock">
+            <a [href]="platform.url" target="_blank" class="buy-btn" [class.disabled]="!platform.inStock">
               Buy now →
             </a>
           </div>
@@ -99,7 +99,7 @@
 
           <div class="panel-price-block">
             <span class="panel-price">{{ product.bestPrice | currency }}</span>
-            <span class="panel-store">on {{ product.bestStore }}</span>
+            <span class="panel-platform">on {{ product.bestPlatform }}</span>
             <div class="panel-price-change" [class.down]="product.priceChange < 0" [class.up]="product.priceChange > 0">
               {{ product.priceChange < 0 ? '↓' : '↑' }} {{ product.priceChange | currency }} vs last week
             </div>
@@ -109,8 +109,8 @@
             Deal Score {{ product.dealScore }}/10 · {{ scoreLabel }}
           </div>
 
-          <a [href]="product.bestStoreUrl" target="_blank" class="panel-buy-btn">
-            Buy now — {{ product.bestPrice | currency }} on {{ product.bestStore }} →
+          <a [href]="product.bestPlatformUrl" target="_blank" class="panel-buy-btn">
+            Buy now — {{ product.bestPrice | currency }} on {{ product.bestPlatform }} →
           </a>
 
           <div class="panel-divider"></div>
@@ -183,7 +183,7 @@
             </div>
             <div class="trust-row">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
-              <span>214 stores checked</span>
+              <span>214 platform. checked</span>
             </div>
             <div class="trust-row">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><polyline points="20 6 9 17 4 12"/></svg>
@@ -374,7 +374,7 @@
             <span class="similar-category">{{ similar.category }}</span>
             <span class="similar-name">{{ similar.name }}</span>
             <span class="similar-price">{{ similar.bestPrice | currency }}</span>
-            <span class="similar-store">from {{ similar.store }}</span>
+            <span class="similar-platform">from {{ similar.platform }}</span>
           </div>
         </div>
       </div>

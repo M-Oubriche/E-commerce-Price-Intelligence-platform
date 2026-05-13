@@ -1,5 +1,3 @@
-
-
 x-airflow-env:
   # --- Database ---
   # Points to our postgres service by its service name "postgres"
@@ -41,6 +39,19 @@ x-airflow-env:
   BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
   BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
   BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
+
+  # --- Docker Connectivity ---
+  # Forces the Docker CLI inside Airflow to use the correct socket path.
+  # On Linux: /var/run/docker.sock (default)
+  # On Windows Docker Desktop: uses the same Unix socket via Docker Desktop's compatibility layer
+  DOCKER_HOST: "unix:///var/run/docker.sock"
+  # Force API version 1.44 — Docker CLI 24.0.9 defaults to 1.43
+  # but Windows Docker Desktop requires minimum 1.44
+  DOCKER_API_VERSION: "1.44"
+x-bigquery-env: &bigquery-env
+  BIGQUERY_PROJECT_ID: ${BIGQUERY_PROJECT_ID}
+  BIGQUERY_DATASET: ${BIGQUERY_DATASET}
+  GOOGLE_APPLICATION_CREDENTIALS: /secrets/bigquery-service-account.json
 
 # SERVICES
 
@@ -102,13 +113,14 @@ services:
         # Wait for postgres healthcheck to pass before starting
         condition: service_healthy
     environment:
-      <<: *airflow-env
+      <<: [*airflow-env, *bigquery-env]
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - airflow_logs:/opt/airflow/logs
       # Same bind mount as the scraper — Airflow can read what the scraper writes
       - ./data/raw:/data/raw
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     networks:
       - platform_net
     # Two commands run sequentially:
@@ -134,12 +146,13 @@ services:
         # If init fails, webserver never starts
         condition: service_completed_successfully
     environment:
-      <<: *airflow-env
+      <<: [*airflow-env, *bigquery-env]
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
       - airflow_logs:/opt/airflow/logs
       - ./data/raw:/data/raw
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     ports:
       - "8081:8080"
     networks:
@@ -164,7 +177,7 @@ services:
       airflow-init:
         condition: service_completed_successfully
     environment:
-      <<: *airflow-env
+      <<: [*airflow-env, *bigquery-env]
     volumes:
       - ./airflow/dags:/opt/airflow/dags
       - ./airflow/plugins:/opt/airflow/plugins
@@ -174,6 +187,7 @@ services:
       - ./data/raw:/data/raw
       # Allow Airflow to trigger docker containers
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     networks:
       - platform_net
     command: scheduler
@@ -286,7 +300,7 @@ services:
     networks:
       - platform_net
     healthcheck:
-      test: [ "CMD", "pg_isready", "-U", "${APP_POSTGRES_USER}" ]
+      test: [ "CMD", "pg_isready", "-U", "${APP_POSTGRES_USER}", "-d", "${APP_POSTGRES_DB}" ]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -320,6 +334,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+    env_file:
+      - .env
     environment:
       - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
@@ -329,11 +345,34 @@ services:
       - ./app/backend:/app
     ports:
       - "8000:8000"
-    networks:
+    networks: 
       - platform_net
     # Run Uvicorn with hot-reload enabled. 
     # NOTE: if main.py is in another place, change "main:app" to "<path>.main:app"
     command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+
+  # BACKGROUND WORKER
+  price_worker:
+    build:
+      context: ./app/backend
+      dockerfile: ../../docker/Dockerfiles/backend.Dockerfile
+    container_name: price_worker
+    restart: unless-stopped
+    depends_on:
+      app_postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./app/backend:/app
+    networks:
+      - platform_net
+    command: python worker/main.py
 
   # FRONTEND
   frontend:
@@ -357,6 +396,55 @@ services:
     # The developer can just drop their existing Angular files into app/frontend.
     # Once package.json is detected, it will automatically install dependencies and start the dev server.
     command: sh -c "if [ -f package.json ]; then npm install && npx ng serve --host 0.0.0.0 --poll 2000; else echo 'Waiting for Angular files to be pasted...' && tail -f /dev/null; fi"
+
+  # DBT — Data transformation
+  dbt:
+    build:
+      context: .
+      dockerfile: docker/Dockerfiles/dbt.Dockerfile
+    container_name: price_dbt
+    restart: unless-stopped
+    environment:
+      <<: *bigquery-env
+    volumes:
+      - ./dbt:/dbt
+      - ./dbt/profiles.yml:/root/.dbt/profiles.yml:ro
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+    working_dir: /dbt
+    networks:
+      - platform_net
+    entrypoint: ["tail", "-f", "/dev/null"]
+
+  # DBT DOCS — Lineage documentation server
+  # HOW to use:
+  # 1 - First generate docs: docker compose exec dbt dbt docs generate
+  # 2 - docs server auto-serves at http://localhost:8085
+  dbt-docs:
+    build:
+      context: .
+      dockerfile: docker/Dockerfiles/dbt.Dockerfile
+    container_name: price_dbt_docs
+    restart: unless-stopped
+    environment:
+      <<: *bigquery-env
+    volumes:
+      - ./dbt:/dbt
+      - ./dbt/profiles.yml:/root/.dbt/profiles.yml:ro
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+    working_dir: /dbt
+    ports:
+      - "8085:8085"
+    networks:
+      - platform_net
+    # dbt 1.8 removed the --host flag, so we override the entrypoint and use Python's built-in server
+    entrypoint: ["bash", "-c"]
+    command: >
+      "
+      echo 'Waiting for target/index.html (run: docker-compose exec dbt dbt docs generate)';
+      while [ ! -f target/index.html ]; do sleep 5; done;
+      echo 'Docs generated! Starting server on http://localhost:8085';
+      python -m http.server 8085 --bind 0.0.0.0 --directory target
+      "
 
 # NETWORKS
 #

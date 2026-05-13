@@ -129,6 +129,34 @@
 }
 
 /* Google Button */
+.social-auth {
+  margin-top: 8px;
+  margin-bottom: 24px;
+  width: 100%;
+}
+
+.google-btn-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  min-height: 44px;
+  margin: 4px 0;
+  transition: all 0.3s ease;
+  
+  ::ng-deep {
+    asl-google-signin-button {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+      
+      & > div {
+        margin: 0 auto !important;
+      }
+    }
+  }
+}
+
 .btn-google {
   width: 100%;
   height: 52px;
@@ -187,8 +215,8 @@
   .card-icon {
     width: 44px; height: 44px; margin: 0 auto 12px;
     border-radius: 10px; display: flex; align-items: center; justify-content: center;
-    &.shopper { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
-    &.business { background: rgba(124, 58, 237, 0.15); color: var(--accent-purple); }
+    &.client { background: rgba(59, 130, 246, 0.15); color: var(--accent-blue); }
+    &.reseller { background: rgba(124, 58, 237, 0.15); color: var(--accent-purple); }
   }
 
   h3 { font-size: 0.95rem; font-weight: 700; color: #FFF; margin-bottom: 4px; }
@@ -208,7 +236,7 @@
   
   .type-badge {
     font-size: 0.85rem; font-weight: 600; color: var(--accent-blue);
-    &.business { color: var(--accent-purple); }
+    &.reseller { color: var(--accent-purple); }
   }
 }
 
@@ -331,6 +359,26 @@ form { display: flex; flex-direction: column; gap: 20px; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+.spinner-large {
+  width: 48px; height: 48px; border: 4px solid rgba(255,255,255,0.1);
+  border-top-color: var(--accent-blue); border-radius: 50%;
+  animation: spin 1s linear infinite; margin: 0 auto 24px;
+}
+
+.email-icon {
+  background: rgba(59, 130, 246, 0.1); border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent-blue);
+}
+
+.error-icon-wrapper {
+  margin-bottom: 24px;
+}
+
+.mt-6 { margin-top: 24px; }
+.text-sm { font-size: 0.875rem; }
+.text-gray-400 { color: rgba(255,255,255,0.4); }
+
 .w-full { width: 100%; }
 .mt-4 { margin-top: 16px; }
 .mt-8 { margin-top: 32px; }
@@ -387,8 +435,8 @@ form { display: flex; flex-direction: column; gap: 20px; }
       background: rgba(29,52,97,0.06) !important;
       box-shadow: 0 0 20px rgba(29,52,97,0.08) !important;
     }
-    .card-icon.shopper { background: rgba(29,52,97,0.1) !important; color: #1D3461 !important; }
-    .card-icon.business { background: rgba(124,58,237,0.1) !important; color: #7C3AED !important; }
+    .card-icon.client { background: rgba(29,52,97,0.1) !important; color: #1D3461 !important; }
+    .card-icon.reseller { background: rgba(124,58,237,0.1) !important; color: #7C3AED !important; }
     h3 { color: #1C1C1E !important; }
     p { color: #6B6B6B !important; }
     .check-badge { background: #1D3461 !important; }
@@ -396,7 +444,7 @@ form { display: flex; flex-direction: column; gap: 20px; }
 
   .account-type-summary {
     background: #F5F4F0 !important;
-    .type-badge { color: #1D3461 !important; &.business { color: #7C3AED !important; } }
+    .type-badge { color: #1D3461 !important; &.reseller { color: #7C3AED !important; } }
   }
 
   .form-group {

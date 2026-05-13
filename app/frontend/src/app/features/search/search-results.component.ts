@@ -13,9 +13,9 @@ interface Product {
   category: string;
   image: string;
   bestPrice: number;
-  bestStore: string;
+  bestPlatform: string;
   highestPrice: number;
-  storeCount: number;
+  platformCount: number;
   dealScore: number;
   isFakeDeal: boolean;
   priceTrend: 'up' | 'down' | 'stable';
@@ -48,33 +48,33 @@ export class SearchResultsComponent implements OnInit {
   minPrice = 0;
   maxPrice = 5000;
   selectedCategory = 'All';
-  selectedStores: string[] = [];
+  selectedPlatforms: string[] = [];
   selectedScoreRange: string = 'Any';
   inStockOnly = false;
   freeShipping = false;
   sortBy = 'Best Match';
 
   categories = ['All', 'Smartphones', 'Laptops', 'Monitors', 'Headphones', 'Périphériques', 'Gaming', 'Tablets', 'Components'];
-  stores = ['Amazon', 'eBay', 'AliExpress', 'Jumia', 'Walmart', 'BestBuy', 'Newegg'];
+  platforms = ['Amazon', 'eBay', 'AliExpress', 'Jumia', 'Walmart', 'BestBuy', 'Newegg'];
   
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private authService = inject(AuthService);
 
   allProducts: Product[] = [
-    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', bestPrice: 949, bestStore: 'eBay', highestPrice: 1099, storeCount: 12, dealScore: 9.4, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [999, 980, 980, 970, 960, 950, 949], image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400' },
-    { id: '2', name: 'MacBook Pro 16"', category: 'Laptops', bestPrice: 2299, bestStore: 'Amazon', highestPrice: 2499, storeCount: 8, dealScore: 8.1, isFakeDeal: false, priceTrend: 'stable', priceHistory7d: [2299, 2299, 2299, 2299, 2299, 2299, 2299], image: 'https://images.unsplash.com/photo-1517336712461-4e1a7759533a?w=400' },
-    { id: '3', name: 'Sony WH-1000XM5', category: 'Headphones', bestPrice: 328, bestStore: 'BestBuy', highestPrice: 399, storeCount: 15, dealScore: 9.8, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [380, 370, 360, 350, 340, 330, 328], image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400' },
-    { id: '4', name: 'Samsung S95C OLED TV', category: 'Monitors', bestPrice: 1899, bestStore: 'Amazon', highestPrice: 2299, storeCount: 6, dealScore: 4.2, isFakeDeal: true, priceTrend: 'up', priceHistory7d: [1799, 1850, 1850, 1899, 1899, 1899, 1899], image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=400' },
-    { id: '5', name: 'PlayStation 5', category: 'Gaming', bestPrice: 449, bestStore: 'Walmart', highestPrice: 499, storeCount: 10, dealScore: 7.5, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [499, 499, 480, 470, 460, 450, 449], image: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=400' },
+    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', bestPrice: 949, bestPlatform: 'eBay', highestPrice: 1099, platformCount: 12, dealScore: 9.4, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [999, 980, 980, 970, 960, 950, 949], image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400' },
+    { id: '2', name: 'MacBook Pro 16"', category: 'Laptops', bestPrice: 2299, bestPlatform: 'Amazon', highestPrice: 2499, platformCount: 8, dealScore: 8.1, isFakeDeal: false, priceTrend: 'stable', priceHistory7d: [2299, 2299, 2299, 2299, 2299, 2299, 2299], image: 'https://images.unsplash.com/photo-1517336712461-4e1a7759533a?w=400' },
+    { id: '3', name: 'Sony WH-1000XM5', category: 'Headphones', bestPrice: 328, bestPlatform: 'BestBuy', highestPrice: 399, platformCount: 15, dealScore: 9.8, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [380, 370, 360, 350, 340, 330, 328], image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400' },
+    { id: '4', name: 'Samsung S95C OLED TV', category: 'Monitors', bestPrice: 1899, bestPlatform: 'Amazon', highestPrice: 2299, platformCount: 6, dealScore: 4.2, isFakeDeal: true, priceTrend: 'up', priceHistory7d: [1799, 1850, 1850, 1899, 1899, 1899, 1899], image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=400' },
+    { id: '5', name: 'PlayStation 5', category: 'Gaming', bestPrice: 449, bestPlatform: 'Walmart', highestPrice: 499, platformCount: 10, dealScore: 7.5, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [499, 499, 480, 470, 460, 450, 449], image: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=400' },
     ...PLATFORM_PRODUCT_LIBRARY.map(p => ({
       id: p.id,
       name: p.name,
       category: p.category,
       bestPrice: p.defaultPrice,
-      bestStore: 'Marketplace',
+      bestPlatform: 'Marketplace',
       highestPrice: p.defaultPrice * 1.1,
-      storeCount: 1,
+      platformCount: 1,
       dealScore: 9.0,
       isFakeDeal: false,
       priceTrend: 'stable' as const,
@@ -104,9 +104,9 @@ export class SearchResultsComponent implements OnInit {
       const matchesCategory = this.selectedCategory === 'All' || p.category === this.selectedCategory;
       const matchesPrice = p.bestPrice >= this.minPrice && p.bestPrice <= this.maxPrice;
       const matchesScore = this.checkScoreMatch(p.dealScore);
-      const matchesStore = this.selectedStores.length === 0 || this.selectedStores.includes(p.bestStore);
+      const matchesPlatform = this.selectedPlatforms.length === 0 || this.selectedPlatforms.includes(p.bestPlatform);
       
-      return matchesQuery && matchesCategory && matchesPrice && matchesScore && matchesStore;
+      return matchesQuery && matchesCategory && matchesPrice && matchesScore && matchesPlatform;
     });
     this.sortResults();
   }
@@ -154,10 +154,10 @@ export class SearchResultsComponent implements OnInit {
     }
   }
 
-  toggleStore(store: string) {
-    const index = this.selectedStores.indexOf(store);
-    if (index === -1) this.selectedStores.push(store);
-    else this.selectedStores.splice(index, 1);
+  togglePlatform(platform: string) {
+    const index = this.selectedPlatforms.indexOf(platform);
+    if (index === -1) this.selectedPlatforms.push(platform);
+    else this.selectedPlatforms.splice(index, 1);
     this.applyFilters();
   }
 

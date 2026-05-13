@@ -40,7 +40,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
             <a (click)="scrollToSection('categories')" class="nav-item">Categories</a>
             <a (click)="scrollToSection('features')" class="nav-item">Features</a>
             <a (click)="scrollToSection('how-it-works')" class="nav-item">How it Works</a>
-            <a (click)="scrollToSection('business')" class="nav-item">Business</a>
+            <a (click)="scrollToSection('reseller')" class="nav-item">Reseller</a>
           </div>
         </div>
 
@@ -52,8 +52,8 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
           
           <ng-container *ngIf="currentUser$ | async as user">
             <div class="user-profile" routerLink="/dashboard">
-              <div class="avatar">{{ user.name.substring(0, 1) }}</div>
-              <span class="user-name">{{ user.name }}</span>
+              <div class="avatar">{{ user.full_name.substring(0, 1) }}</div>
+              <span class="user-name">{{ user.full_name }}</span>
             </div>
           </ng-container>
         </div>
