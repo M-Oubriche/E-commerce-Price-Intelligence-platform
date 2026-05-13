@@ -84,8 +84,49 @@
       </div>
     </div>
 
+    <!-- GOOGLE ROLE SELECT STATE -->
+    <div *ngIf="mode === 'google-role-select'" class="card-body" [@fadeSlideUp]>
+      <div class="greeting">
+        <h2>One last step!</h2>
+        <p>Choose how you'll use PulsePrice to tailor your experience.</p>
+      </div>
+
+      <div class="account-cards">
+        <div class="account-card" [class.selected]="accountType === UserRole.CLIENT" (click)="selectAccountType(UserRole.CLIENT)">
+          <div class="card-icon client">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z"></path><line x1="3" y1="6" x2="21" y2="6"></line><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
+          </div>
+          <div class="card-text">
+            <h3>I'm a Client</h3>
+            <p>Find the best prices, track deals, get alerts.</p>
+          </div>
+          <div class="check-badge" *ngIf="accountType === UserRole.CLIENT">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+        </div>
+
+        <div class="account-card" [class.selected]="accountType === UserRole.RESELLER" (click)="selectAccountType(UserRole.RESELLER)">
+          <div class="card-icon reseller">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>
+          </div>
+          <div class="card-text">
+            <h3>I'm a Reseller</h3>
+            <p>Track competitors, protect margins, export data.</p>
+          </div>
+          <div class="check-badge" *ngIf="accountType === UserRole.RESELLER">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+          </div>
+        </div>
+      </div>
+
+      <button class="btn-primary w-full mt-8" [disabled]="!accountType || isSubmitting" (click)="onGoogleRoleSelect()">
+        <span class="spinner" *ngIf="isSubmitting"></span>
+        <span *ngIf="!isSubmitting">Complete Signup &rarr;</span>
+      </button>
+    </div>
+
     <!-- MAIN FORM MODES -->
-    <div *ngIf="mode !== 'success'" class="card-body">
+    <div *ngIf="mode !== 'success' && mode !== 'signup-success' && mode !== 'verify' && mode !== 'google-role-select'" class="card-body">
       
       <!-- Greeting -->
       <div class="greeting" [@fadeSlideUp]>
@@ -267,7 +308,7 @@
 
           <button type="submit" class="btn-primary mt-4" [disabled]="forgotForm.invalid || isSubmitting">
             <span class="spinner" *ngIf="isSubmitting"></span>
-            <span *ngIf="!isSubmitting">Send reset link</span>
+            <span *ngif="!isSubmitting">Send reset link</span>
           </button>
           
           <button type="button" class="btn-outline w-full mt-4" (click)="switchMode('login')">

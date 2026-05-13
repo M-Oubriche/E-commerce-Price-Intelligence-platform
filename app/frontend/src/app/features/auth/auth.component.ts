@@ -50,10 +50,11 @@ interface FloatingIcon {
   ]
 })
 export class AuthComponent implements OnInit {
-  mode: 'login' | 'signup' | 'forgot' | 'success' | 'verify' | 'signup-success' = 'login';
+  mode: 'login' | 'signup' | 'forgot' | 'success' | 'verify' | 'signup-success' | 'google-role-select' = 'login';
   signupStep: 1 | 2 = 1;
   accountType: UserRole | null = null;
   UserRole = UserRole;
+  pendingGoogleToken: string | null = null;
   
   verificationStatus: 'loading' | 'success' | 'error' = 'loading';
   verificationMessage: string = '';
@@ -102,16 +103,30 @@ export class AuthComponent implements OnInit {
 
   ngOnInit() {
     if (this.authService.isLoggedIn()) {
-      this.router.navigate(['/dashboard']);
+      const returnUrl = this.route.snapshot.queryParams['returnUrl'];
+      if (returnUrl) {
+        this.router.navigateByUrl(decodeURIComponent(returnUrl));
+      } else {
+        const user = this.authService.currentUser;
+        this.router.navigate([user?.role === UserRole.RESELLER ? '/reseller' : '/dashboard']);
+      }
       return;
     }
 
     this.socialAuthService.authState.subscribe((user) => {
       if (user && user.idToken) {
         this.isGoogleLoading = true;
-        const type = this.accountType || UserRole.CLIENT;
-        this.authService.googleAuth(user.idToken, type).subscribe({
-          next: (u) => this.onLoginSuccess(u),
+        this.authService.googleAuth(user.idToken).subscribe({
+          next: (res) => {
+            this.isGoogleLoading = false;
+            if (res.is_new_user) {
+              this.pendingGoogleToken = user.idToken;
+              this.mode = 'google-role-select';
+              this.toastService.show('Welcome! Please choose your account type.', 'info');
+            } else if (res.user) {
+              this.onLoginSuccess(res.user);
+            }
+          },
           error: () => this.isGoogleLoading = false
         });
       }
@@ -222,6 +237,18 @@ export class AuthComponent implements OnInit {
         this.isSubmitting = false;
         this.mode = 'signup-success';
         this.toastService.show('Account created! Please check your email.', 'success');
+      },
+      error: () => this.isSubmitting = false
+    });
+  }
+
+  onGoogleRoleSelect() {
+    if (!this.pendingGoogleToken || !this.accountType) return;
+    this.isSubmitting = true;
+    this.authService.confirmGoogleSignup(this.pendingGoogleToken, this.accountType).subscribe({
+      next: (user) => {
+        this.isSubmitting = false;
+        this.onLoginSuccess(user);
       },
       error: () => this.isSubmitting = false
     });

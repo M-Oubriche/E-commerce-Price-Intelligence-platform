@@ -53,6 +53,7 @@ class UserProfileUpdate(BaseModel):
     full_name: Optional[str] = None
     initials: Optional[str] = None
     email: Optional[EmailStr] = None
+    role: Optional[UserRole] = None
 
 class UserProfileOut(BaseModel):
     id: UUID
