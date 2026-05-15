@@ -176,6 +176,24 @@ class AuthService:
         )
 
     @staticmethod
+    async def delete_user(db: AsyncSession, user: User):
+        """
+        Fully deletes a user and all associated data.
+        1. Revokes all sessions (Redis + DB)
+        2. Clears user-specific Redis keys (notifications, etc)
+        3. Deletes user from DB (Cascades handle related tables)
+        """
+        # 1. Revoke sessions
+        await AuthService.revoke_all_user_sessions(db, user.id)
+        
+        # 2. Clear Redis Notifications queue/history for this user
+        await redis_client.delete(f"notifications:{user.id}")
+        
+        # 3. Delete user object
+        await db.delete(user)
+        await db.commit()
+
+    @staticmethod
     async def authenticate(db: AsyncSession, email: str, password: str, ip_address: str):
         """Authenticate with brute-force protection and logging"""
         lockout_key = f"login:failed:{ip_address}"

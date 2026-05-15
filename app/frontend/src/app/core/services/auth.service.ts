@@ -1,4 +1,4 @@
-import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
+import { Injectable, Inject, PLATFORM_ID, inject } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { HttpClient, HttpErrorResponse, HttpBackend } from '@angular/common/http';
 import { BehaviorSubject, Observable, of, throwError } from 'rxjs';
@@ -6,6 +6,7 @@ import { tap, map, catchError, switchMap } from 'rxjs/operators';
 import { UserRole } from '../models/user.model';
 import { ApiResponse } from '../models/api-response.model';
 import { environment } from '../../../environments/environment';
+import { SocialAuthService } from '@abacritt/angularx-social-login';
 
 export enum AlertCondition {
   BELOW_TARGET = 'below_target',
@@ -30,24 +31,11 @@ export interface TokenResponse {
   token_type: string;
 }
 
-export interface Alert {
-  id: string;
-  productId: string;
-  conditionType: AlertCondition;
-  targetValue: number;
-  platforms: string[];
-  notifyEmail: boolean;
-  notifyApp: boolean;
-  status: 'active' | 'paused' | 'triggered';
-  createdAt: string;
-}
-
-export interface Settings {
-  emailAlerts: boolean;
-  pushNotifications: boolean;
-  weeklyDigest: boolean;
-  dealFeedUpdates: boolean;
-  frequency: string;
+export interface GoogleAuthResponse {
+  is_new_user: boolean;
+  access_token?: string;
+  refresh_token?: string;
+  user?: User;
 }
 
 @Injectable({
@@ -75,6 +63,7 @@ export class AuthService {
 
   private isBrowser: boolean;
   private httpBackend: HttpClient;
+  private socialAuthService = inject(SocialAuthService);
 
   constructor(
     private http: HttpClient,
@@ -100,14 +89,20 @@ export class AuthService {
     }
     try {
       const u = localStorage.getItem(this.KEYS.USER);
-      if (u) {
+      const rt = localStorage.getItem(this.KEYS.REFRESH_TOKEN);
+      
+      if (u && rt) {
         this.userSubject.next(JSON.parse(u));
         // Restore access token via refresh endpoint on startup
         this.refresh().subscribe({
           next: () => this.readySubject.next(true),
-          error: () => this.readySubject.next(true)
+          error: () => {
+            this.clearAuthState();
+            this.readySubject.next(true);
+          }
         });
       } else {
+        this.clearAuthState();
         this.readySubject.next(true);
       }
     } catch (e) {
@@ -155,46 +150,91 @@ export class AuthService {
     return throwError(() => new Error('Google OAuth handled via SocialAuthService'));
   }
 
-  googleAuth(idToken: string, role: string): Observable<User> {
-    return this.httpBackend.post<ApiResponse<TokenResponse>>(
+  googleAuth(idToken: string): Observable<GoogleAuthResponse> {
+    return this.httpBackend.post<GoogleAuthResponse>(
       `${this.API_URL}/google`,
+      { token: idToken }
+    ).pipe(
+      tap(res => {
+        if (!res.is_new_user && res.access_token && res.user) {
+          this.setAccessToken(res.access_token);
+          if (res.refresh_token && this.isBrowser) {
+            localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.refresh_token);
+          }
+          this.setUser(res.user);
+          this.readySubject.next(true);
+        }
+      })
+    );
+  }
+
+  confirmGoogleSignup(idToken: string, role: UserRole): Observable<User> {
+    return this.httpBackend.post<GoogleAuthResponse>(
+      `${this.API_URL}/google/confirm`,
       { token: idToken, role }
     ).pipe(
       tap(res => {
-        this.setAccessToken(res.data.access_token);
-        if (res.data.refresh_token && this.isBrowser) {
-          localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.data.refresh_token);
+        if (res.access_token && res.user) {
+          this.setAccessToken(res.access_token);
+          if (res.refresh_token && this.isBrowser) {
+            localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.refresh_token);
+          }
+          this.setUser(res.user);
+          this.readySubject.next(true);
         }
       }),
-      switchMap(() => this.getUserProfile()),
-      tap(() => {
-        this.readySubject.next(true); // AFTER getUserProfile — same as login()
-      })
+      map(res => res.user!)
     );
   }
 
   updateUser(updates: Partial<User>): Observable<User> {
     return this.http.patch<ApiResponse<User>>(`${environment.apiUrl}/users/me`, updates).pipe(
       map(res => res.data),
-      tap(user => this.setUser(user))
+      tap(user => this.setUser(user)),
+      switchMap(user => {
+        // If role changed, we MUST refresh the token to update the JWT payload
+        if (updates.role) {
+          return this.refresh().pipe(
+            map(() => user),
+            catchError(() => of(user)) // Fallback if refresh fails
+          );
+        }
+        return of(user);
+      })
     );
   }
 
   logout(): Observable<void> {
     const refreshToken = this.isBrowser ? localStorage.getItem(this.KEYS.REFRESH_TOKEN) : null;
+    
+    // 1. Mark as not ready to block guards
+    this.readySubject.next(false);
+    
+    // 2. Clear local state immediately
+    this.clearAuthState();
+
+    // 3. Sign out from Google if applicable
+    if (this.isBrowser) {
+      this.socialAuthService.signOut().catch(() => {
+        // Ignore error if not signed in with Google
+      });
+    }
+    
+    // 4. Mark as ready again (now with no user)
+    this.readySubject.next(true);
+
+    if (!refreshToken) return of(undefined);
+
     return this.httpBackend.post<void>(`${this.API_URL}/logout`, { refresh_token: refreshToken }, { withCredentials: true }).pipe(
-      tap(() => {
-        this.clearAuthState();
-      }),
-      catchError(() => {
-        this.clearAuthState();
-        return of(undefined);
-      })
+      map(() => undefined),
+      catchError(() => of(undefined))
     );
   }
 
   refresh(): Observable<string> {
     const refreshToken = this.isBrowser ? localStorage.getItem(this.KEYS.REFRESH_TOKEN) : null;
+    if (!refreshToken) return throwError(() => new Error('No refresh token'));
+
     return this.httpBackend.post<ApiResponse<TokenResponse>>(
       `${this.API_URL}/refresh`, 
       { refresh_token: refreshToken }, 
@@ -206,6 +246,10 @@ export class AuthService {
           localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.data.refresh_token);
         }
         return res.data.access_token;
+      }),
+      catchError(err => {
+        this.clearAuthState();
+        return throwError(() => err);
       })
     );
   }
@@ -222,6 +266,12 @@ export class AuthService {
     return this.httpBackend.get<{message: string}>(`${this.API_URL}/verify?token=${token}`);
   }
 
+  deleteAccount(): Observable<void> {
+    return this.http.delete<void>(`${environment.apiUrl}/users/me`).pipe(
+      switchMap(() => this.logout())
+    );
+  }
+
   // --- Helpers ---
 
   getAccessToken(): string | null {
@@ -229,7 +279,7 @@ export class AuthService {
   }
 
   isLoggedIn(): boolean {
-    return !!this.userSubject.value;
+    return !!this.userSubject.value && !!this.accessToken;
   }
 
   hasRole(role: UserRole): boolean {
@@ -244,7 +294,6 @@ export class AuthService {
   private clearAuthState() {
     this.setAccessToken(null);
     this.userSubject.next(null);
-    this.readySubject.next(false); // Reset ready state on logout
     if (this.isBrowser) {
       localStorage.removeItem(this.KEYS.USER);
       localStorage.removeItem(this.KEYS.REFRESH_TOKEN);

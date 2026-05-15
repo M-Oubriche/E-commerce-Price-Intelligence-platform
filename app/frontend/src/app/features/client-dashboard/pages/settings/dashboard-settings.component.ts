@@ -5,6 +5,8 @@ import { trigger, transition, style, animate, query, stagger } from '@angular/an
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../../core/services/auth.service';
 import { PreferencesService, AlertPreferences } from '../../../../core/services/preferences.service';
+import { UserRole } from '../../../../core/models/user.model';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-dashboard-settings',
@@ -119,7 +121,7 @@ import { PreferencesService, AlertPreferences } from '../../../../core/services/
           <div class="account-row">
             <div class="account-label">Account Type</div>
             <div class="account-badge">Client</div>
-            <a class="switch-link">Switch to Reseller →</a>
+            <a class="switch-link" (click)="switchToReseller()">Switch to Reseller →</a>
           </div>
         </section>
 
@@ -131,7 +133,7 @@ import { PreferencesService, AlertPreferences } from '../../../../core/services/
               <div class="danger-label">Delete account</div>
               <div class="danger-desc">Once you delete your account, there is no going back. Please be certain.</div>
             </div>
-            <button class="danger-btn">Delete account</button>
+            <button class="danger-btn" (click)="deleteAccount()">Delete account</button>
           </div>
         </section>
       </div>
@@ -292,6 +294,7 @@ import { PreferencesService, AlertPreferences } from '../../../../core/services/
 export class DashboardSettingsComponent implements OnInit {
   authService = inject(AuthService);
   private prefsService = inject(PreferencesService);
+  private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
   colors = ['#4F8EF7', '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#333333'];
@@ -398,5 +401,33 @@ export class DashboardSettingsComponent implements OnInit {
           alert('Failed to update profile.');
         }
       });
+  }
+
+  switchToReseller() {
+    if (confirm('Are you sure you want to switch to a Reseller account? This will give you access to business analytics and competitor tracking.')) {
+      this.authService.updateUser({ role: UserRole.RESELLER }).subscribe({
+        next: () => {
+          alert('Account upgraded to Reseller!');
+          this.router.navigate(['/reseller']);
+        },
+        error: () => {
+          alert('Failed to switch account type.');
+        }
+      });
+    }
+  }
+
+  deleteAccount() {
+    if (confirm('CRITICAL: Are you absolutely sure you want to delete your account? This will permanently remove all your alerts, watchlist, and preferences. This action CANNOT be undone.')) {
+      this.authService.deleteAccount().subscribe({
+        next: () => {
+          alert('Your account has been permanently deleted. We are sorry to see you go.');
+          this.router.navigate(['/']);
+        },
+        error: () => {
+          alert('Failed to delete account. Please try again or contact support.');
+        }
+      });
+    }
   }
 }
