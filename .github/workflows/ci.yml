@@ -264,7 +264,7 @@ jobs:
 
       - name: Build images using Docker Bake with GHA Cache
         # Specifies exact targets to avoid building NiFi (which takes 5-8 mins)
-        uses: docker/bake-action@v4
+        uses: docker/bake-action@v5
         with:
           files: docker-compose.yml
           targets: scraper,airflow-init,backend,frontend,dbt
