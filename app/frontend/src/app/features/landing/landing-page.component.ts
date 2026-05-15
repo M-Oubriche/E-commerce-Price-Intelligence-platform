@@ -7,6 +7,7 @@ import { AuthService } from '../../core/services/auth.service';
 import { ScrollRevealDirective } from '../../shared/directives/scroll-reveal.directive';
 import { CountUpDirective } from '../../shared/directives/count-up.directive';
 import { PublicNavbarComponent } from '../../shared/components/public-navbar/public-navbar.component';
+import { PriceTickerComponent } from '../../shared/components/price-ticker/price-ticker.component';
 import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
 
 @Pipe({ name: 'safeHtml', standalone: true })
@@ -38,7 +39,7 @@ interface Testimonial { name: string; role: string; quote: string; savings?: str
 @Component({
   selector: 'app-landing-page',
   standalone: true,
-  imports: [CommonModule, RouterLink, FormsModule, ScrollRevealDirective, CountUpDirective, SafeHtmlPipe, PublicNavbarComponent],
+  imports: [CommonModule, RouterLink, FormsModule, ScrollRevealDirective, CountUpDirective, SafeHtmlPipe, PublicNavbarComponent, PriceTickerComponent],
   templateUrl: './landing-page.component.html',
   styleUrls: ['./landing-page.component.scss']
 })

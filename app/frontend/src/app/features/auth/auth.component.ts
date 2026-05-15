@@ -54,7 +54,7 @@ export class AuthComponent implements OnInit {
   signupStep: 1 | 2 = 1;
   accountType: UserRole | null = null;
   UserRole = UserRole;
-  pendingGoogleToken: string | null = null;
+  pendingGoogleToken = '';
   
   verificationStatus: 'loading' | 'success' | 'error' = 'loading';
   verificationMessage: string = '';
@@ -114,13 +114,14 @@ export class AuthComponent implements OnInit {
     }
 
     this.socialAuthService.authState.subscribe((user) => {
-      if (user && user.idToken) {
+      const idToken = user?.idToken;
+      if (idToken) {
         this.isGoogleLoading = true;
-        this.authService.googleAuth(user.idToken).subscribe({
+        this.authService.googleAuth(idToken).subscribe({
           next: (res) => {
             this.isGoogleLoading = false;
             if (res.is_new_user) {
-              this.pendingGoogleToken = user.idToken;
+              this.pendingGoogleToken = idToken;
               this.mode = 'google-role-select';
               this.toastService.show('Welcome! Please choose your account type.', 'info');
             } else if (res.user) {
