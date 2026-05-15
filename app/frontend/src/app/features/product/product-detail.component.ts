@@ -69,7 +69,6 @@ export class ProductDetailComponent implements OnInit {
 
   scoreFactors = [
     { label: 'Price vs history', score: 8.5, description: 'Currently 15% below the 90-day average price', color: '#10B981' },
-    { label: 'Platform reliability', score: 9.0, description: 'Amazon has a 98% accuracy rating on our platform', color: '#10B981' },
     { label: 'Availability', score: 7.5, description: 'In stock at 6 of 8 tracked platforms', color: '#F59E0B' }
   ];
 
@@ -110,8 +109,7 @@ export class ProductDetailComponent implements OnInit {
           priceChange: -45,
           specs: [
             { label: 'Category', value: libraryProduct.category },
-            { label: 'Quality', value: 'Certified' },
-            { label: 'Warranty', value: '1 Year' }
+            { label: 'Quality', value: 'Certified' }
           ],
           platforms: [
             { name: 'Amazon', shipping: 'Free shipping', inStock: true, price: libraryProduct.defaultPrice, vsLastWeek: -45, url: '#' },
