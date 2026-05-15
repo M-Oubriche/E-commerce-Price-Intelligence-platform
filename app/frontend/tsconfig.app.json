@@ -12,6 +12,28 @@
   ],
   "exclude": [
     "src/test.ts",
-    "src/**/*.spec.ts"
+    "src/**/*.spec.ts",
+    "src/app/core/models/analytics.model.ts",
+    "src/app/core/models/market-intelligence.model.ts",
+    "src/app/core/models/offer.model.ts",
+    "src/app/core/models/product.model.ts",
+    "src/app/core/services/market-analytics.service.ts",
+    "src/app/core/services/price-intelligence.service.ts",
+    "src/app/core/services/product.service.ts",
+    "src/app/layouts/auth-layout/auth-layout.component.ts",
+    "src/app/layouts/client-layout/buyer-layout.component.ts",
+    "src/app/layouts/reseller-layout/seller-layout.component.ts",
+    "src/app/shared/animations/fade-in.animation.ts",
+    "src/app/shared/components/card-outline/card-outline.component.ts",
+    "src/app/shared/components/data-table/data-table.component.ts",
+    "src/app/shared/components/donut-chart/donut-chart.component.ts",
+    "src/app/shared/components/navbar/navbar.component.ts",
+    "src/app/shared/components/notification-center/notification-center.component.ts",
+    "src/app/shared/components/price-ticker/price-ticker.component.ts",
+    "src/app/shared/components/radar-chart/radar-chart.component.ts",
+    "src/app/shared/components/skeleton/skeleton.component.ts",
+    "src/app/shared/components/sparkline/sparkline.component.ts",
+    "src/app/shared/components/status-pill/status-pill.component.ts",
+    "src/app/shared/components/tree-map/tree-map.component.ts"
   ]
 }
