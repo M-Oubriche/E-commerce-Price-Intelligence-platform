@@ -1,0 +1,331 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+# Cancels previously running jobs on the same branch if a new commit is pushed.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.11"
+  NODE_VERSION: "20"
+  # Non-sensitive variables can have CI defaults
+  BIGTABLE_PROJECT_ID: ${{ vars.BIGTABLE_PROJECT_ID || 'ci-bigtable-project' }}
+  BIGTABLE_INSTANCE_ID: ${{ vars.BIGTABLE_INSTANCE_ID || 'ci-bigtable-instance' }}
+  BIGQUERY_PROJECT_ID: ${{ vars.BIGQUERY_PROJECT_ID || 'ci-bq-project' }}
+  BIGQUERY_DATASET: ${{ vars.BIGQUERY_DATASET || 'ci_dataset' }}
+
+jobs:
+  lint:
+    name: Lint & Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Install Linting Tools
+        run: pip install flake8
+
+      - name: Flake8 Critical Errors
+        # Blocks CI on actual syntax errors or undefined variables
+        run: flake8 app/backend scrapers airflow tests --count --select=E9,F63,F7,F82 --show-source --statistics
+
+      - name: Flake8 Warnings
+        # Style warnings are reported but do not fail the CI
+        run: flake8 app/backend scrapers airflow tests --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
+
+  sast:
+    name: Static Application Security Testing
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Bandit Scan
+        # Checks for Python-specific security vulnerabilities
+        run: |
+          pip install bandit
+          bandit -r app/backend scrapers airflow -ll -ii -x "tests"
+
+      - name: Trivy Filesystem Scan
+        # Scans the entire repository config and dependencies
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          ignore-unfixed: true
+          format: 'table'
+          exit-code: '0'
+          severity: 'CRITICAL,HIGH'
+
+  secrets:
+    name: Secrets Scanning
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: TruffleHog Scan
+        # Prevents leaking sensitive keys in the commit history
+        uses: trufflesecurity/trufflehog@main
+        with:
+          path: ./
+          extra_args: --debug --only-verified
+
+  deps:
+    name: Dependency Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: Python Pip Audit
+        # Non-blocking check for known CVEs in Python packages
+        run: |
+          pip install pip-audit
+          pip-audit -r app/backend/requirements.txt -r scrapers/requirements.txt -r airflow/requirements.txt || true
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: NPM Security Audit
+        working-directory: app/frontend
+        run: npm audit --audit-level=high || true
+
+  frontend:
+    name: Frontend Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+          cache-dependency-path: app/frontend/package-lock.json
+
+      - name: Install NPM Dependencies
+        working-directory: app/frontend
+        run: npm ci
+
+      - name: Build Angular Application
+        working-directory: app/frontend
+        run: npm run build
+
+  logic-and-pipeline:
+    name: Logic & Data Pipeline Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Scraper Models Testing
+        # Tests data validation models independently
+        run: |
+          python -m venv venv_scraper
+          source venv_scraper/bin/activate
+          pip install pytest pydantic
+          pip install -r scrapers/requirements.txt
+          pytest tests/test_scraper_models.py -v
+          deactivate
+
+      - name: Validate Airflow DAGs
+        # Uses isolated venv to avoid conflicts with dbt-bigquery
+        run: |
+          python -m venv venv_airflow
+          source venv_airflow/bin/activate
+          pip install apache-airflow==2.9.3
+          pip install -r airflow/requirements.txt
+          python -c "
+          import sys
+          from airflow.models import DagBag
+          d = DagBag(dag_folder='airflow/dags', include_examples=False)
+          
+          if d.import_errors:
+              print('DAG import errors:', d.import_errors)
+              sys.exit(1)
+              
+          required_dags = {'health_check', 'ingest_ecommerce_prices', 'init_bigtable_schema'}
+          loaded_dags = set(d.dag_ids)
+          missing_dags = required_dags - loaded_dags
+          
+          if missing_dags:
+              print('CRITICAL: Missing explicitly required DAGs:', missing_dags)
+              sys.exit(1)
+              
+          print('All required DAGs loaded perfectly.')
+          "
+          deactivate
+
+      - name: Validate dbt Project
+        working-directory: dbt
+        # Crée l'environnement et teste dbt
+        run: |
+          # dbt/profiles.yml pointe vers /secrets/bigquery-service-account.json
+          # Comme GitHub Actions n'a pas ce fichier secret, on crée un faux fichier
+          # au bon endroit absolu pour tromper le validateur de dbt parse.
+          sudo mkdir -p /secrets
+          sudo chmod 777 /secrets
+          echo '{"type": "service_account", "project_id": "dummy"}' > /secrets/bigquery-service-account.json
+          
+          python -m venv venv_dbt
+          source venv_dbt/bin/activate
+          pip install dbt-bigquery==1.8.0
+          dbt deps
+          dbt parse
+          deactivate
+
+  docker-integration:
+    name: Docker Integration
+    needs: [lint, sast, secrets, deps, frontend, logic-and-pipeline]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    env:
+      # Inject GitHub secrets WITHOUT hardcoded default fallbacks for sensitive data
+      AIRFLOW_FERNET_KEY: ${{ secrets.AIRFLOW_FERNET_KEY }}
+      AIRFLOW_SECRET_KEY: ${{ secrets.AIRFLOW_SECRET_KEY }}
+      AIRFLOW_ADMIN_PASSWORD: ${{ secrets.AIRFLOW_ADMIN_PASSWORD }}
+      POSTGRES_USER: ${{ secrets.POSTGRES_USER || 'airflow' }}
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      POSTGRES_DB: ${{ secrets.POSTGRES_DB || 'airflow' }}
+      APP_POSTGRES_USER: ${{ secrets.APP_POSTGRES_USER || 'app' }}
+      APP_POSTGRES_PASSWORD: ${{ secrets.APP_POSTGRES_PASSWORD }}
+      APP_POSTGRES_DB: ${{ secrets.APP_POSTGRES_DB || 'appdb' }}
+      NIFI_USERNAME: ${{ secrets.NIFI_USERNAME || 'admin' }}
+      NIFI_PASSWORD: ${{ secrets.NIFI_PASSWORD }}
+      SECRET_KEY: ${{ secrets.SECRET_KEY }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Generate Compose Env File
+        run: |
+          cat <<EOF > .env
+          BIGTABLE_PROJECT_ID=$BIGTABLE_PROJECT_ID
+          BIGTABLE_INSTANCE_ID=$BIGTABLE_INSTANCE_ID
+          BIGQUERY_PROJECT_ID=$BIGQUERY_PROJECT_ID
+          BIGQUERY_DATASET=$BIGQUERY_DATASET
+          AIRFLOW_FERNET_KEY=$AIRFLOW_FERNET_KEY
+          AIRFLOW_SECRET_KEY=$AIRFLOW_SECRET_KEY
+          AIRFLOW_ADMIN_USER=admin
+          AIRFLOW_ADMIN_PASSWORD=$AIRFLOW_ADMIN_PASSWORD
+          POSTGRES_USER=$POSTGRES_USER
+          POSTGRES_PASSWORD=$POSTGRES_PASSWORD
+          POSTGRES_DB=$POSTGRES_DB
+          APP_POSTGRES_USER=$APP_POSTGRES_USER
+          APP_POSTGRES_PASSWORD=$APP_POSTGRES_PASSWORD
+          APP_POSTGRES_DB=$APP_POSTGRES_DB
+          NIFI_USERNAME=$NIFI_USERNAME
+          NIFI_PASSWORD=$NIFI_PASSWORD
+          SECRET_KEY=$SECRET_KEY
+          EOF
+
+      - name: Build images using Docker Bake with GHA Cache
+        # Specifies exact targets to avoid building NiFi (which takes 5-8 mins)
+        uses: docker/bake-action@v5
+        with:
+          files: docker-compose.yml
+          targets: scraper,airflow-init,backend,frontend,dbt
+          load: true
+          set: |
+            *.cache-from=type=gha
+            *.cache-to=type=gha,mode=max
+
+      - name: Verify Airflow Init (Optional Catch)
+        # Catch airflow-init failures early before webserver hides them
+        # --exit-code-from ensures GitHub Actions properly fails if the container crashes
+        run: docker compose up --exit-code-from airflow-init airflow-init
+
+      - name: Start Essential Services
+        # Explicitly excludes NiFi to prevent GitHub Runner OOM (Out Of Memory) kills
+        run: docker compose up -d postgres app_postgres redis bigtable-emulator airflow-webserver airflow-scheduler
+
+      - name: Verify Service Health
+        run: |
+          echo "Waiting for services to become healthy..."
+          SERVICES="postgres app_postgres redis bigtable-emulator airflow-webserver"
+          for SERVICE in $SERVICES; do
+            echo "Waiting for $SERVICE..."
+            TIMEOUT=180
+            while [ $TIMEOUT -gt 0 ]; do
+              STATUS=$(docker inspect --format='{{if .State.Health}}{{.State.Health.Status}}{{else}}no-healthcheck{{end}}' $(docker compose ps -q $SERVICE) 2>/dev/null || echo "not-found")
+              if [ "$STATUS" == "healthy" ] || [ "$STATUS" == "no-healthcheck" ]; then
+                echo "$SERVICE is $STATUS."
+                break
+              fi
+              sleep 10
+              TIMEOUT=$((TIMEOUT-10))
+            done
+            if [ $TIMEOUT -le 0 ]; then
+              echo "Timeout waiting for $SERVICE!"
+              docker compose logs $SERVICE
+              exit 1
+            fi
+          done
+
+      - name: Stop and cleanup Docker
+        if: always()
+        run: docker compose down -v
+
+  merge-gate:
+    name: Merge Gate Verdict
+    needs: [lint, sast, secrets, deps, frontend, logic-and-pipeline, docker-integration]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check Status
+        run: |
+          # Fails if any job explicitly failed or was cancelled
+          if [ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]; then
+            echo "One or more critical jobs failed."
+            exit 1
+          fi
+          
+          # Prevents false positive if docker-integration is skipped ON A PULL REQUEST
+          # On a PR, docker-integration MUST be 'success'
+          if [ "${{ github.event_name }}" == "pull_request" ] && [ "${{ needs.docker-integration.result }}" != "success" ]; then
+            echo "Docker integration MUST run and succeed on a Pull Request."
+            exit 1
+          fi
+          
+          echo "All pipeline checks passed successfully."

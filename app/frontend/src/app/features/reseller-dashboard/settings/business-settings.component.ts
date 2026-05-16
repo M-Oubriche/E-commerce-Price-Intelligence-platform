@@ -6,6 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
 import { PreferencesService, AlertPreferences, DisplayPreferences } from '../../../core/services/preferences.service';
 import { Router } from '@angular/router';
+import { UserRole } from '../../../core/models/user.model';
 
 @Component({
   selector: 'app-reseller-settings',
@@ -124,7 +125,7 @@ import { Router } from '@angular/router';
               <div class="danger-label">Pause Monitoring</div>
               <div class="danger-desc">This will immediately stop all background tracking and market syncs.</div>
             </div>
-            <button class="danger-btn">Deactivate Account</button>
+            <button class="danger-btn" (click)="deleteAccount()">Deactivate Account</button>
           </div>
         </section>
       </div>
@@ -382,6 +383,30 @@ export class ResellerSettingsComponent implements OnInit {
   }
 
   switchToClient() {
-    this.router.navigate(['/dashboard']);
+    if (confirm('Switch back to personal Shopper mode? Business features will be hidden.')) {
+      this.authService.updateUser({ role: UserRole.CLIENT }).subscribe({
+        next: () => {
+          alert('Switched to Client mode.');
+          this.router.navigate(['/dashboard']);
+        },
+        error: () => {
+          alert('Failed to switch account type.');
+        }
+      });
+    }
+  }
+
+  deleteAccount() {
+    if (confirm('CRITICAL: Are you absolutely sure you want to deactivate and delete your organization account? All catalog data and competitor tracking will be permanently removed. This action CANNOT be undone.')) {
+      this.authService.deleteAccount().subscribe({
+        next: () => {
+          alert('Your organization account has been permanently deleted.');
+          this.router.navigate(['/']);
+        },
+        error: () => {
+          alert('Failed to delete account. Please try again.');
+        }
+      });
+    }
   }
 }

@@ -118,7 +118,7 @@ interface CompetitorRank {
 
       <!-- 2. KPI HERO BANNER -->
       <section class="kpi-banner-wrap" [class.d-none]="activeTab !== 'market'">
-        <div class="kpi-grid-refined">
+        <div class="kpi-grid-refined market-grid">
           <div class="kpi-box-refined" *ngFor="let kpi of kpis">
              <div class="top-row">
                 <span class="label-heading">{{ kpi.label }}</span>
@@ -264,12 +264,7 @@ interface CompetitorRank {
                     <span class="score-cap">Competitiveness</span>
                  </div>
                  <div class="comp-stats-grid">
-                    <div class="m-stat">
-                       <span class="m-label">VISIBILITY</span>
-                       <span class="m-value">{{ r.visibilityScore }}%</span>
-                    </div>
-                    <div class="m-sep"></div>
-                    <div class="m-stat">
+                    <div class="m-stat" style="text-align: center; width: 100%;">
                        <span class="m-label">AVG PRICE</span>
                        <span class="m-value">{{ r.avgPrice | currency }}</span>
                     </div>
@@ -329,6 +324,19 @@ interface CompetitorRank {
         </div>
       </section>
 
+      <!-- 4.1.5 PRICE GAP CHART -->
+      <section class="panel-card full-span-card" [class.d-none]="activeTab !== 'market'" style="margin-top: 24px;">
+        <div class="panel-header">
+          <div class="stacked-title">
+            <h3>Price Gap Analysis Chart</h3>
+            <p class="subtitle-muted">Visualizing price disparity across competitors ($ difference)</p>
+          </div>
+        </div>
+        <div class="panel-body chart-height-fixed professional-chart-wrap" style="height: 400px;">
+          <canvas #priceGapCanvas></canvas>
+        </div>
+      </section>
+
       <!-- 4.2 CATEGORY-LEVEL T-TEST -->
       <section class="panel-card full-span-card" [class.d-none]="activeTab !== 'market'">
         <div class="panel-header">
@@ -371,61 +379,6 @@ interface CompetitorRank {
             </table>
           </div>
         </div>
-      </section>
-
-      <!-- 5. STATISTICAL CORRELATION -->
-      <section class="panel-card full-span-card" [class.d-none]="activeTab !== 'market'">
-         <div class="panel-header">
-            <h3>Diagnostic Correlation Matrix</h3>
-         </div>
-         <div class="panel-body">
-            <div class="correlation-view-split">
-               <!-- HEATMAP -->
-               <div class="heatmap-section">
-                  <div class="section-title-box">
-                     <h4>Metric Interdependence</h4>
-                     <p>Quantifying how metrics drive performance</p>
-                  </div>
-                  <div class="heatmap-grid-display">
-                     <div class="matrix-top-labels">
-                        <div class="corner-pad"></div>
-                        <span class="top-label" *ngFor="let label of productLabels">{{ label }}</span>
-                     </div>
-                     <div class="matrix-row-entry" *ngFor="let row of correlationData; let i = index">
-                        <span class="side-label">{{ productLabels[i] }}</span>
-                        <div class="cell-strip">
-                           <div class="matrix-heat-cell" *ngFor="let val of row" 
-                                [style.background-color]="getCorrelationColor(val)">
-                              {{ val }}
-                           </div>
-                        </div>
-                     </div>
-                  </div>
-                  <div class="heatmap-key-scale">
-                     <span class="key-txt">Negative</span>
-                     <div class="key-gradient"></div>
-                     <span class="key-txt">Positive</span>
-                  </div>
-               </div>
-
-               <!-- INSIGHTS -->
-               <div class="insights-summary-section">
-                  <div class="section-title-box">
-                     <h4>Strategic Implications</h4>
-                     <p>Extracted patterns for catalog optimization</p>
-                  </div>
-                  <div class="insights-list-vertical">
-                     <div class="insight-row-modern" *ngFor="let insight of correlationInsights">
-                        <div class="status-dot-lrg" [style.background-color]="insight.color"></div>
-                        <div class="insight-meta-stack">
-                           <span class="insight-heading-bold">{{ insight.label }}</span>
-                           <span class="insight-detail-txt">{{ insight.explanation }}</span>
-                        </div>
-                     </div>
-                  </div>
-               </div>
-            </div>
-         </div>
       </section>
 
       <!-- 6. MARKETPLACE TABLE -->
@@ -659,7 +612,6 @@ interface CompetitorRank {
     }
     .kpi-grid-refined.market-grid {
        grid-template-columns: repeat(3, 1fr);
-       max-width: 900px;
     }
     .kpi-box-refined { 
        background: var(--card-bg); 
@@ -997,7 +949,7 @@ interface CompetitorRank {
 export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDestroy {
   @ViewChild('groupedBarCanvas') groupedBarCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChild('scatterRegressionCanvas') scatterRegressionCanvas!: ElementRef<HTMLCanvasElement>;
-  
+  @ViewChild('priceGapCanvas') priceGapCanvas!: ElementRef<HTMLCanvasElement>;
   @ViewChildren('sparklineCanvas') sparklineCanvases!: QueryList<ElementRef<HTMLCanvasElement>>;
   @ViewChildren('tableTrendCanvas') tableTrendCanvases!: QueryList<ElementRef<HTMLCanvasElement>>;
   @ViewChildren('skuTrendCanvas') skuTrendCanvases!: QueryList<ElementRef<HTMLCanvasElement>>;
@@ -1015,11 +967,9 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
   dateRanges = ['7D', '30D', '90D', '12M', 'Custom'];
 
   kpis: KPI[] = [
-    { label: 'Market Visibility', value: '84.2%', delta: '+12.4%', isPositive: true, color: '#3B82F6', trend: [30, 45, 38, 52, 48, 65, 78] },
+    { label: 'Market Visibility', value: '2.4%', delta: '+0.1%', isPositive: true, color: '#3B82F6', trend: [1.8, 2.1, 1.9, 2.2, 2.3, 2.4, 2.4] },
     { label: 'Price Volatility', value: '12.4%', delta: '-1.8%', isPositive: false, color: '#F59E0B', trend: [40, 38, 39, 35, 36, 34, 34] },
-    { label: 'Total Products', value: '487', delta: '+23', isPositive: true, color: '#3B82F6', trend: [400, 410, 425, 430, 450, 470, 487] },
-    { label: 'Search Index', value: '742', delta: '+4.2%', isPositive: true, color: '#10B981', trend: [60, 62, 61, 65, 64, 67, 68] },
-    { label: 'Market Vol', value: '142', delta: 'High', isPositive: false, color: '#EF4444', trend: [110, 130, 95, 150, 140, 160, 142] }
+    { label: 'Total Products', value: '487', delta: '+23', isPositive: true, color: '#3B82F6', trend: [400, 410, 425, 430, 450, 470, 487] }
   ];
 
   categoryPricing = [
@@ -1070,10 +1020,10 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
   ];
 
   competitorRanks: CompetitorRank[] = [
-    { name: 'BestBuy Global', score: 942, visibilityScore: 74, avgPrice: 842, skus: 124, trend: 'up', color: '#fbbf24' },
-    { name: 'Amazon Warehouse', score: 885, visibilityScore: 42, avgPrice: 855, skus: 412, trend: 'stable', color: '#3b82f6' },
-    { name: 'Walmart Inc', score: 812, visibilityScore: 61, avgPrice: 838, skus: 288, trend: 'down', color: '#f59e0b' },
-    { name: 'ElectroHub Retail', score: 760, visibilityScore: 55, avgPrice: 799, skus: 95, trend: 'up', color: '#64748b' }
+    { name: 'BestBuy Global', score: 942, visibilityScore: 0, avgPrice: 842, skus: 124, trend: 'up', color: '#fbbf24' },
+    { name: 'Amazon Warehouse', score: 885, visibilityScore: 0, avgPrice: 855, skus: 412, trend: 'stable', color: '#3b82f6' },
+    { name: 'Walmart Inc', score: 812, visibilityScore: 0, avgPrice: 838, skus: 288, trend: 'down', color: '#f59e0b' },
+    { name: 'ElectroHub Retail', score: 760, visibilityScore: 0, avgPrice: 799, skus: 95, trend: 'up', color: '#64748b' }
   ];
 
   platformStats: PlatformStat[] = [
@@ -1132,6 +1082,7 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
 
     this.createGroupedBarChart(gridColor);
     this.createScatterRegressionChart(gridColor);
+    this.createPriceGapChart(gridColor);
     this.createKpiSparklines();
     this.createTableVisuals('#10B981');
     if (this.showStatsModal) this.createModalChart();
@@ -1290,6 +1241,54 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
     }));
   }
 
+  private createPriceGapChart(gridColor: string) {
+    if(!this.priceGapCanvas) return;
+    const ctx = this.priceGapCanvas.nativeElement.getContext('2d')!;
+    
+    const datasets = this.priceGapHeatmap.competitors.map((comp, i) => {
+      return {
+        label: comp,
+        data: this.priceGapHeatmap.categories.map(cat => cat.gaps[i]),
+        backgroundColor: this.getPlatformColor(comp),
+        borderRadius: 4,
+        barPercentage: 0.8,
+        categoryPercentage: 0.7
+      };
+    });
+
+    this.chartInstances.push(new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: this.priceGapHeatmap.categories.map(c => c.name),
+        datasets: datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: 'top', labels: { boxWidth: 12, padding: 20, font: { weight: 600 } } },
+          tooltip: {
+            callbacks: {
+              label: (context: any) => `${context.dataset.label}: ${context.raw > 0 ? '+' : ''}${context.raw}$`
+            }
+          }
+        },
+        scales: {
+          y: {
+            grid: { color: gridColor },
+            border: { display: false },
+            ticks: { callback: v => (Number(v) > 0 ? '+' : '') + v + '$', font: { weight: 600 } },
+            title: { display: true, text: 'Price Difference vs Vendor ($)', color: 'var(--text-muted)', font: { weight: 600 } }
+          },
+          x: { 
+            grid: { display: false },
+            ticks: { font: { weight: 600 } }
+          }
+        }
+      }
+    }));
+  }
+
   getStdDevColor(val: number) {
     if (val > 150) return 'var(--danger)';
     if (val > 50) return '#F59E0B'; // amber
@@ -1344,6 +1343,9 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
     if (n.includes('amazon')) return '#F97316';
     if (n.includes('bestbuy')) return '#2563EB';
     if (n.includes('walmart')) return '#FACC15';
+    if (n.includes('newegg')) return '#628DEC';
+    if (n.includes('jumia')) return '#60BC78';
+    if (n.includes('pc21')) return '#8B5CF6';
     return '#3B82F6';
   }
 

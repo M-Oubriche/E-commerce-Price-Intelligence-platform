@@ -6,11 +6,13 @@ from typing import List
 import hashlib
 
 from api import deps
-from models.users import User, UserSession
+from models.users import User, UserSession, UserRole
+from models.reseller import SellerProduct, TrackedCompetitor, PriceAlert
 from schemas.preferences import UserProfileUpdate, UserProfileOut, UserSessionOut
 from core.redis import redis_client
 from jose import jwt
 from core.config import settings
+from services.auth import AuthService
 
 router = APIRouter()
 
@@ -30,6 +32,8 @@ async def update_my_profile(
         current_user.full_name = user_in.full_name
     if user_in.initials is not None:
         current_user.initials = user_in.initials
+    if user_in.role is not None:
+        current_user.role = user_in.role
     if user_in.email is not None:
         # Check if email is already taken
         result = await db.execute(select(User).filter(User.email == user_in.email))
@@ -88,6 +92,37 @@ async def revoke_session(
     
     # 2. Delete from DB
     await db.delete(session)
+    await db.commit()
+    
+    return None
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_my_account(
+    db: AsyncSession = Depends(deps.get_db),
+    current_user: User = Depends(deps.get_current_user)
+):
+    """
+    Deletes the current user's account and all associated data.
+    Explicitly handles Reseller-specific data to ensure clean deletion.
+    """
+    # 1. Revoke all active sessions (Redis + DB)
+    await AuthService.revoke_all_user_sessions(db, current_user.id)
+    
+    # 2. Clear Redis Notifications queue
+    await redis_client.delete(f"notifications:{current_user.id}")
+
+    # 3. Explicitly delete complex reseller-specific data first if they are a reseller
+    # This prevents potential ORM cascade order issues (e.g. TrackedCompetitorProduct)
+    if current_user.role == UserRole.RESELLER:
+        # Delete Price Alerts first
+        await db.execute(delete(PriceAlert).where(PriceAlert.user_id == current_user.id))
+        # Delete Seller Products and Tracked Competitors
+        # Cascades will handle SellerProductPriceHistory and TrackedCompetitorProduct
+        await db.execute(delete(SellerProduct).where(SellerProduct.user_id == current_user.id))
+        await db.execute(delete(TrackedCompetitor).where(TrackedCompetitor.user_id == current_user.id))
+    
+    # 4. Delete the user (cascades handle remaining tables like preferences, watchlist, etc.)
+    await db.delete(current_user)
     await db.commit()
     
     return None
