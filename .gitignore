@@ -59,8 +59,17 @@ infrastructure/keys/
 **/bigquery-service-account.json
 
 # Terraform
-**/.terraform/
+**/.terraform/*
 *.tfstate
-*.tfstate.backup
+*.tfstate.*
+crash.log
+crash.*.log
 *.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
 !*.tfvars.example
