@@ -6,12 +6,12 @@ from core.database import Base
 import enum
 
 class UserRole(str, enum.Enum):
-    CLIENT = "client"
-    RESELLER = "reseller"
+    CLIENT = "CLIENT"
+    RESELLER = "RESELLER"
 
 class AuthProvider(str, enum.Enum):
-    LOCAL = "local"
-    GOOGLE = "google"
+    LOCAL = "LOCAL"
+    GOOGLE = "GOOGLE"
 
 class User(Base):
     __tablename__ = "users"
