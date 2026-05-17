@@ -1,0 +1,144 @@
+version: 2
+
+models:
+  # ----------------------------------------------------
+  # STAGING LAYER (BRONZE)
+  # ----------------------------------------------------
+  - name: stg_raw_prices
+    description: "Flattens raw JSON/STRUCT data from e-commerce scrapers into a normalized format."
+    columns:
+      - name: product_unified_id
+        description: "The primary grouping key. Uses model_number if available, falls back to external_id."
+        tests:
+          - not_null
+      - name: converted_price_usd
+        description: "The product price normalized to USD."
+        tests:
+          - not_null
+      - name: source
+        description: "The scraping source or marketplace platform."
+        tests:
+          - not_null
+
+  # ----------------------------------------------------
+  # INTERMEDIATE LAYER (SILVER)
+  # ----------------------------------------------------
+  - name: int_price_history
+    description: "Deduplicated daily time-series of product prices, finding the lowest price per day per seller."
+    columns:
+      - name: history_id
+        description: "A surrogate key identifying a unique product-seller-date combination."
+        tests:
+          - unique
+          - not_null
+      - name: price_date
+        description: "The date of the price snapshot."
+        tests:
+          - not_null
+
+  # ----------------------------------------------------
+  # AGGREGATED LAYER (GOLD / MARTS)
+  # ----------------------------------------------------
+  - name: mart_platform_performance
+    description: "Calculates visibility, market share, and competitiveness scores for the Market Leaderboard."
+    columns:
+      - name: platform
+        description: "The e-commerce platform name."
+        tests:
+          - unique
+          - not_null
+      - name: competitiveness_score
+        description: "A proprietary rank (1-1000) based on rating, stock, and market penetration."
+        tests:
+          - not_null
+
+  - name: mart_category_trends
+    description: "Provides descriptive statistics (mean, median, std_dev) per category."
+    columns:
+      - name: product_category
+        description: "The primary product category."
+        tests:
+          - unique
+          - not_null
+      - name: median_price
+        description: "The exact median price calculated via BigQuery's APPROX_QUANTILES."
+
+  - name: mart_market_kpis
+    description: "Global KPIs for the hero banner, including 30-day price volatility."
+    columns:
+      - name: price_volatility_pct
+        description: "Standard deviation of daily prices divided by mean (Coefficient of Variation)."
+      - name: total_market_items
+        description: "Total unique items in the market, used by the backend to calculate visibility."
+
+  - name: mart_deal_analysis
+    description: "Analyzes products to assign a Deal Score (0-10) and flags artificial price hikes."
+    columns:
+      - name: product_unified_id
+        tests:
+          - not_null
+      - name: deal_score
+        description: "A score from 0 to 10 evaluating the quality of the current deal against historical prices."
+        tests:
+          - not_null
+      - name: is_fake_deal
+        description: "Boolean flag true if the price was artificially spiked immediately before a drop."
+        tests:
+          - not_null
+
+  - name: mart_daily_price_drops
+    description: "Highlights products that have dropped in price over the last 2 days."
+    columns:
+      - name: product_unified_id
+        tests:
+          - not_null
+      - name: drop_percentage
+        description: "The percentage drop in price compared to the previous day."
+        tests:
+          - not_null
+
+  - name: mart_shopper_insights
+    description: "Generates NLP-ready text insights based on Week-over-Week category price changes."
+    columns:
+      - name: product_category
+        tests:
+          - unique
+          - not_null
+      - name: smart_insight_text
+        description: "The dynamically generated sentence intended for the Shopper Dashboard UI."
+        tests:
+          - not_null
+
+  - name: mart_cross_platform
+    description: "Cross-references seller prices against the market minimum to compute margin health."
+    columns:
+      - name: margin_health_status
+        description: "Categorical status: Excellent, Warning, or Critical based on margin thresholds."
+        tests:
+          - accepted_values:
+              values: ['Excellent', 'Warning', 'Critical']
+
+  - name: mart_platform_category_avg
+    description: "Calculates average prices broken down by Category AND Platform for the Price Gap Heatmap."
+    columns:
+      - name: platform
+        tests:
+          - not_null
+      - name: product_category
+        tests:
+          - not_null
+
+  - name: mart_product_correlation_data
+    description: "Flattened (Price, Rating, Review) data to be fed into Python's scipy.stats."
+    columns:
+      - name: price
+        tests:
+          - not_null
+
+  - name: mart_price_analytics
+    description: "Market-wide price analytics including platform counts and seller saturation."
+    columns:
+      - name: product_unified_id
+        tests:
+          - unique
+          - not_null
