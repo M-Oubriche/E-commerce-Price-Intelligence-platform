@@ -1,6 +1,6 @@
 export enum UserRole {
-  CLIENT = 'client',
-  RESELLER = 'reseller'
+  CLIENT = 'CLIENT',
+  RESELLER = 'RESELLER'
 }
 
 export interface IUser {
