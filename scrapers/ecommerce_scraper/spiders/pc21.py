@@ -146,33 +146,45 @@ class PC21Scraper(BaseScraper):
         reference_id = ""
         model_number = ""
 
-        # Using provided selectors for reference/model number
-        # PC21 often has "Référence : [REF]" or similar
-        ref_tag = item.find("span", class_="reference") or item.find("span", class_="references")
-        if ref_tag:
-            ref_text = ref_tag.get_text(strip=True)
-            # Try to extract just the part after colon if exists
-            if ":" in ref_text:
-                model_number = ref_text.split(":")[-1].strip()
+        # Extract SKU for external_id
+        sku_tag = item.find("span", {"itemprop": "sku"})
+        if sku_tag:
+            sku_text = sku_tag.get_text(strip=True)
+            if ":" in sku_text:
+                reference_id = sku_text.split(":")[-1].strip()
             else:
-                model_number = ref_text.strip()
+                reference_id = sku_text.strip()
+
+        # Extract MPN for model_number
+        mpn_tag = item.find("span", {"itemprop": "mpn"})
+        if mpn_tag:
+            mpn_text = mpn_tag.get_text(strip=True)
+            if ":" in mpn_text:
+                model_number = mpn_text.split(":")[-1].strip()
+            else:
+                model_number = mpn_text.strip()
         
         # Fallback to existing logic if needed
-        if not model_number:
+        if not model_number or not reference_id:
             for span in item.find_all("span"):
-                if span.get("class") and "references" in span.get("class"):
+                if not model_number and span.get("class") and ("reference" in span.get("class") or "references" in span.get("class")):
                     ref_text = span.get_text(strip=True)
-                    model_number = ref_text.split()[-1] if ref_text else ""
-                    if model_number: break
-                
+                    if "PC21" not in ref_text:
+                        model_number = ref_text.split(":")[-1].strip() if ":" in ref_text else ref_text.strip()
+                        
+                if not reference_id and span.get("class") and ("reference" in span.get("class") or "references" in span.get("class")):
+                    ref_text = span.get_text(strip=True)
+                    if "PC21" in ref_text:
+                        reference_id = ref_text.split(":")[-1].strip() if ":" in ref_text else ref_text.strip()
+
                 text = span.get_text(strip=True)
                 match = re.search(r"(?:R\xe9f\xe9rence|Ref|P/N|ID)[\s:]*([A-Za-z0-9\-]+)", text, re.I)
-                if match:
+                if match and not model_number:
                     model_number = match.group(1)
-                    break
 
-        # If we found model_number, we can use it as external_id too if reference_id is empty
-        reference_id = model_number
+        # If we still don't have reference_id, we can use model_number as external_id
+        if not reference_id and model_number:
+            reference_id = model_number
 
         # Quick Specs extraction from the row text
         specs = None
