@@ -158,7 +158,7 @@ class NeweggScraper(BaseScraper):
         # Often Newegg titles have it, or it's in the full_info
         model_number = None
         # Example: "Model #: [MODEL]"
-        model_match = re.search(r"Model\s*[:#]*\s*([A-Za-z0-9\-]+)", full_info, re.I)
+        model_match = re.search(r"Model\s*[:#]*\s*([A-Za-z0-9\-]+(?: [A-Za-z0-9\-]+){0,3})", full_info, re.I)
         if model_match:
             model_number = model_match.group(1)
 

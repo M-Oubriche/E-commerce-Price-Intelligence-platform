@@ -15,11 +15,11 @@ class PC21Scraper(BaseScraper):
     Scraper for PC21.ma holding hardware and peripherals.
     """
     
-    def __init__(self, conversion_rate_to_usd: float = 0.10):
+    def __init__(self):
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Safari/537.36"
         }
-        self.conversion_rate = conversion_rate_to_usd
+        self.conversion_rate = self.get_conversion_rate("EUR", "USD")
         
     def _parse_price(self, price_str: str) -> float:
         # PC21 usually formats price like "1 500,00 MAD" or "152,79 € HT"
@@ -82,33 +82,40 @@ class PC21Scraper(BaseScraper):
         # Use a space separator to ensure words aren't joined unnecessarily
         name = link_tag.get_text(" ", strip=True) if link_tag else "Unknown Product"
 
-        # The class 'prix_produit_ht' is preferred as per user instruction
-        # However, it may only appear in the dynamic version of the site
-        price_tag = item.find("span", class_="prix_produit_ht")
+        # The class 'prix_produit_ttc' is preferred to get the TTC price
+        price_tag = item.find("span", class_="prix_produit_ttc")
         
         if not price_tag:
             # Fallback for promo prices
-            price_tag = item.find("span", class_="prix_promo_ht")
+            price_tag = item.find("span", class_="prix_promo_ttc")
             
         if not price_tag:
             # Fallback: In the static HTML, prices are often in a right-aligned cell with red text
             td_price = item.find("td", align="right", class_="cellule_produit_recherche")
             if td_price:
-                # The first span in this cell usually contains the HT price
-                price_tag = td_price.find("span", style=re.compile(r"color:#FF0000", re.I)) or td_price.find("span")
+                # Find TTC span if possible
+                for span in td_price.find_all("span"):
+                    if "TTC" in span.get_text(strip=True):
+                        price_tag = span
+                        break
+                if not price_tag:
+                    price_tag = td_price.find("span", style=re.compile(r"color:#FF0000", re.I)) or td_price.find("span")
             
         raw_price = self._parse_price(price_tag.get_text(strip=True)) if price_tag else 0.0
         
         # Check for original/old price
-        old_price_tag = item.find("span", class_="prix_produit_ttc")
+        old_price_tag = item.find("span", class_="prix_barre_ttc")
+        if not old_price_tag:
+             old_price_tag = item.find("span", class_="prix_barre_ht")
+             
         if old_price_tag:
-            original_price_mad = self._parse_price(old_price_tag.get_text(strip=True))
+            original_price_eur = self._parse_price(old_price_tag.get_text(strip=True))
         else:
-            original_price_mad = raw_price
+            original_price_eur = raw_price
             
         discount_percent = 0.0
-        if original_price_mad > 0 and raw_price < original_price_mad:
-            discount_percent = round((original_price_mad - raw_price) / original_price_mad * 100, 2)
+        if original_price_eur > 0 and raw_price < original_price_eur:
+            discount_percent = round((original_price_eur - raw_price) / original_price_eur * 100, 2)
         
         td = item.find("td", class_="cellule_produit_recherche")
         img_tag = td.find("img") if td else None
@@ -140,7 +147,7 @@ class PC21Scraper(BaseScraper):
                 quantity = int(q_match.group(1))
 
         converted_price = raw_price * self.conversion_rate
-        original_price_usd = original_price_mad * self.conversion_rate
+        original_price_usd = original_price_eur * self.conversion_rate
 
         # Search for the products reference id
         reference_id = ""

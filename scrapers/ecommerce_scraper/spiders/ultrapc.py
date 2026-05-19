@@ -19,6 +19,7 @@ class UltraPCScraper(BaseScraper):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
         }
+        self.mad_to_usd = self.get_conversion_rate("MAD", "USD")
         
 
     def _parse_price(self, text: str) -> float:
@@ -135,10 +136,10 @@ class UltraPCScraper(BaseScraper):
             pricing=Pricing(
                 raw_price=raw_price,
                 raw_currency=Currency.MAD,
-                converted_price_usd=round(raw_price * 0.1, 2), # rough estimate 1 MAD = 0.1 USD
-                original_price_usd=round(original_price * 0.1, 2),
+                converted_price_usd=round(raw_price * self.mad_to_usd, 2),
+                original_price_usd=round(original_price * self.mad_to_usd, 2),
                 discount_percent=discount_percent,
-                conversion_rate_used=0.1
+                conversion_rate_used=self.mad_to_usd
             ),
             availability=Availability(
                 in_stock=in_stock,

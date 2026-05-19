@@ -29,8 +29,8 @@ class MaterielNetScraper(BaseScraper):
             ),
             "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
         })
-        # 1 EUR ≈ 1.08 USD (approximate, stable enough for price indexing)
-        self.eur_to_usd = 1.08
+        # Fetch dynamic conversion rate via API
+        self.eur_to_usd = self.get_conversion_rate("EUR", "USD")
 
     def _parse_price(self, text: str) -> float:
         # e.g. "3 299,00 €" → 3299.0 or "4 999€95" -> 4999.95
@@ -66,9 +66,18 @@ class MaterielNetScraper(BaseScraper):
                     # Extract price text from HTML snippet
                     soup_snippet = BeautifulSoup(mhtml, "html.parser")
                     price_text = soup_snippet.get_text(" ").strip()
-                    price_val = self._parse_price(price_text)
-                    if price_val > 0:
-                        price_mappings[mid] = price_val
+                    
+                    price_matches = re.findall(r"[\d\s\xa0]+[,\.€]\s*\d{2}(?:\s*€)?", price_text)
+                    if not price_matches:
+                        price_matches = re.findall(r"[\d\s\xa0]+€", price_text)
+
+                    prices = [self._parse_price(p) for p in price_matches if self._parse_price(p) > 0]
+                    
+                    if prices:
+                        price_mappings[mid] = {
+                            "raw_price": min(prices),
+                            "original_price": max(prices)
+                        }
 
                 soup = BeautifulSoup(response.text, "html.parser")
                 items = soup.select(".c-products-list__item")
@@ -139,7 +148,9 @@ class MaterielNetScraper(BaseScraper):
 
         # 1. Try memory mappings from scripts first (since raw HTML is often empty)
         if price_mappings and external_id in price_mappings:
-            raw_price = price_mappings[external_id]
+            mapping = price_mappings[external_id]
+            raw_price = mapping["raw_price"]
+            original_price = mapping["original_price"]
 
         # 2. Try raw HTML parsing if mapping failed
         if raw_price == 0.0:
