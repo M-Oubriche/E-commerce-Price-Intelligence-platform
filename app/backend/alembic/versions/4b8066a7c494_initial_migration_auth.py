@@ -25,7 +25,7 @@ def upgrade() -> None:
     sa.Column('email', sa.String(), nullable=False),
     sa.Column('password_hash', sa.Text(), nullable=True),
     sa.Column('full_name', sa.String(), nullable=False),
-    sa.Column('role', sa.Enum('CLIENT', 'ENTREPRENEUR', name='userrole'), nullable=False),
+    sa.Column('role', sa.Enum('CLIENT', 'RESELLER', name='userrole'), nullable=False),
     sa.Column('auth_provider', sa.Enum('LOCAL', 'GOOGLE', name='authprovider'), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('email_verified', sa.Boolean(), nullable=False),

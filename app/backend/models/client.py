@@ -6,21 +6,21 @@ from core.database import Base
 import enum
 
 class AlertCondition(str, enum.Enum):
-    BELOW_TARGET = "below_target"
-    ANY_CHANGE = "any_change"
-    DROP_10PCT = "drop_10pct"
-    DROP_20PCT = "drop_20pct"
+    BELOW_TARGET = "BELOW_TARGET"
+    ANY_CHANGE = "ANY_CHANGE"
+    DROP_10PCT = "DROP_10PCT"
+    DROP_20PCT = "DROP_20PCT"
 
 class DeliveryChannel(str, enum.Enum):
-    WEBSOCKET = "websocket"
-    EMAIL = "email"
-    PUSH = "push"
+    WEBSOCKET = "WEBSOCKET"
+    EMAIL = "EMAIL"
+    PUSH = "PUSH"
 
 class DeliveryStatus(str, enum.Enum):
-    PENDING = "pending"
-    SENT = "sent"
-    DELIVERED = "delivered"
-    FAILED = "failed"
+    PENDING = "PENDING"
+    SENT = "SENT"
+    DELIVERED = "DELIVERED"
+    FAILED = "FAILED"
 
 class WatchlistItem(Base):
     __tablename__ = "watchlist_items"

@@ -131,7 +131,7 @@ async def google_confirm(
         google_sub=google_sub,
         role=payload.role,
         email_verified=True,
-        auth_provider="google",
+        auth_provider="GOOGLE",
         password_hash=None
     )
     db.add(user)
