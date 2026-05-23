@@ -115,7 +115,7 @@ def ingest_to_bigtable(json_str):
         row = table.direct_row(row_key)
         
         row.set_cell("ingestion_cf", b"raw_id", record.get("raw_id", str(uuid.uuid4())).encode('utf-8'))
-        row.set_cell("ingestion_cf", b"ingestion_type", b"real_time")
+        row.set_cell("ingestion_cf", b"ingestion_type", record.get("ingestion_type", "streaming").encode('utf-8')) # FIX: Bug1
         row.set_cell("ingestion_cf", b"scraped_at", scraped_at.encode('utf-8'))
         row.set_cell("ingestion_cf", b"is_price_drop", str(is_drop).encode('utf-8'))
         row.set_cell("ingestion_cf", b"price_drop_percent", f"{price_drop_percent:.2f}".encode('utf-8'))
@@ -128,16 +128,19 @@ def ingest_to_bigtable(json_str):
         row.set_cell("metadata_cf", b"category", prod.get("category", "").encode('utf-8'))
         row.set_cell("metadata_cf", b"source", source.encode('utf-8'))
         row.set_cell("metadata_cf", b"source_url", record.get("source_url", "").encode('utf-8'))
+        row.set_cell("metadata_cf", b"external_id", prod.get("external_id", "Unknown").encode('utf-8')) # FIX: Bug 1
         
         if prod.get("model_number"):
             row.set_cell("metadata_cf", b"model_number", prod.get("model_number").encode('utf-8'))
+        if prod.get("description") is not None:
+            row.set_cell("metadata_cf", b"description", prod.get("description").encode('utf-8')) # FIX: Bug 3
         if prod.get("image_url"):
             row.set_cell("metadata_cf", b"image_url", prod.get("image_url").encode('utf-8'))
             
         pricing = record.get("pricing", {})
-        for p_field in ["raw_price", "converted_price_usd", "original_price_usd", "discount_percent", "conversion_rate"]:
+        for p_field in ["raw_price", "converted_price_usd", "original_price_usd", "discount_percent", "conversion_rate_used"]: # FIX: Bug 2
             if pricing.get(p_field) is not None:
-                row.set_cell("price_cf", p_field.encode('utf-8'), str(pricing.get(p_field)).encode('utf-8'))
+                row.set_cell("price_cf", p_field.encode('utf-8'), str(pricing.get(p_field)).encode('utf-8')) # FIX: Bug 2
         
         if pricing.get("raw_currency"):
             row.set_cell("price_cf", b"raw_currency", pricing.get("raw_currency").encode('utf-8'))
@@ -146,12 +149,18 @@ def ingest_to_bigtable(json_str):
         row.set_cell("availability_cf", b"in_stock", str(avail.get("in_stock", False)).encode('utf-8'))
         if avail.get("quantity") is not None:
              row.set_cell("availability_cf", b"quantity", str(avail.get("quantity")).encode('utf-8'))
+        if avail.get("shipping_available") is not None:
+            row.set_cell("availability_cf", b"shipping_available", str(avail.get("shipping_available")).encode('utf-8')) # FIX: Bug 4
         
         seller = record.get("seller", {})
         if seller.get("seller_name"):
             row.set_cell("seller_cf", b"seller_name", seller.get("seller_name").encode('utf-8'))
+        if seller.get("seller_type"):
+            row.set_cell("seller_cf", b"seller_type", seller.get("seller_type").encode('utf-8')) # FIX: Bug 5
         if seller.get("seller_rating") is not None:
             row.set_cell("seller_cf", b"seller_rating", str(seller.get("seller_rating")).encode('utf-8'))
+        if seller.get("seller_location"):
+            row.set_cell("seller_cf", b"seller_location", seller.get("seller_location").encode('utf-8')) # FIX: Bug 5
             
         ratings = record.get("ratings")
         if ratings and ratings.get("avg_rating") is not None:
@@ -161,7 +170,15 @@ def ingest_to_bigtable(json_str):
             
         specs = record.get("specs")
         if specs:
-            row.set_cell("specs_cf", b"json_blob", json.dumps(specs).encode('utf-8'))
+            valid_categories = {
+                "GPU", "CPU", "RAM", "SSD", "HDD", "Monitor", "Keyboard", 
+                "Mouse", "PSU", "Case", "Cooling", "Motherboard", "Laptop", 
+                "Desktop", "Mobile", "Peripheral", "Other"
+            }
+            if isinstance(specs, dict) and all(k in valid_categories and (v is None or isinstance(v, dict)) for k, v in specs.items()): # FIX: Bug2
+                row.set_cell("specs_cf", b"json_blob", json.dumps(specs).encode('utf-8')) # FIX: Bug2
+            else: # FIX: Bug2
+                print("WARNING: Flat or malformed specs structure detected. Skipping specs ingestion.", file=sys.stderr) # FIX: Bug2
 
         mutations.append(row)
         
