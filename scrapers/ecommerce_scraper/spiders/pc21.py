@@ -189,9 +189,25 @@ class PC21Scraper(BaseScraper):
                 if match and not model_number:
                     model_number = match.group(1)
 
-        # If we still don't have reference_id, we can use model_number as external_id
-        if not reference_id and model_number:
-            reference_id = model_number
+         # ---------------------------------------------------------------
+        # FIX: Both values landed in the same string e.g. "9S7-182462-827 MSI16701"
+        # because get_text() on a parent span concatenates all child text.
+        # The MPN (model_number) always comes FIRST in the HTML, the PC21
+        # internal SKU (reference_id) always comes LAST — so we split on
+        # whitespace and assign accordingly.
+        # ---------------------------------------------------------------
+        if model_number and len(model_number.split()) > 1:
+            parts = model_number.split()
+            model_number = parts[-1]       # e.g. "9S7-182462-827"
+            if not reference_id:
+                reference_id = parts[0]  # e.g. "MSI16701"
+
+        if reference_id and len(reference_id.split()) > 1:
+            parts = reference_id.split()
+            reference_id = parts[0]      # e.g. "MSI16701"
+            if not model_number:
+                model_number = parts[-1]   # e.g. "9S7-182462-827"
+
 
         # Quick Specs extraction from the row text
         specs = None
