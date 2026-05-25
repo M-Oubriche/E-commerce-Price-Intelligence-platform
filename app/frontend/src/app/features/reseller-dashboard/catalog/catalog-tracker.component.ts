@@ -4,8 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { Router, RouterModule } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, of, forkJoin } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, map, catchError } from 'rxjs/operators';
 import { ResellerService, SellerProduct } from '../../../core/services/reseller.service';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
+import { AnalyticsApiService } from '../../../core/services/analytics-api.service';
 
 interface CatalogItem {
   id: string; name: string; category: string; image: string;
@@ -42,11 +44,11 @@ interface CatalogItem {
             <circle cx="11" cy="11" r="8"></circle>
             <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
           </svg>
-          <input type="text" [(ngModel)]="searchQuery" (input)="showMainSearchDropdown = true" placeholder="Search by product name...">
+          <input type="text" [(ngModel)]="searchQuery" (input)="onMainSearchInput()" placeholder="Search by product name...">
           
           <!-- Main Search Autocomplete -->
           <div class="suggestion-dropdown" *ngIf="showMainSearchDropdown && mainSearchSuggestions.length > 0">
-            <div class="suggestion-item" *ngFor="let item of mainSearchSuggestions" (click)="searchQuery = item.name; showMainSearchDropdown = false">
+            <div class="suggestion-item" *ngFor="let item of mainSearchSuggestions" (click)="searchQuery = item.name; showMainSearchDropdown = false; onMainSearchInput()">
               <img [src]="item.image" class="s-img">
               <div class="s-info">
                 <span class="s-name">{{ item.name }}</span>
@@ -57,14 +59,11 @@ interface CatalogItem {
         </div>
         
         <div class="filter-group">
-          <select [(ngModel)]="categoryFilter" class="filter-select">
+          <select [(ngModel)]="categoryFilter" class="filter-select" (change)="onFilterChange()">
             <option value="all">All Categories</option>
-            <option value="Audio">Audio</option>
-            <option value="Phones">Phones</option>
-            <option value="Périphériques">Périphériques</option>
-            <option value="Laptops">Laptops</option>
+            <option *ngFor="let c of categories" [value]="c">{{ c }}</option>
           </select>
-          <select [(ngModel)]="statusFilter" class="filter-select">
+          <select [(ngModel)]="statusFilter" class="filter-select" (change)="onFilterChange()">
             <option value="all">All Statuses</option>
             <option value="healthy">Healthy Margin</option>
             <option value="risk">At Risk</option>
@@ -88,7 +87,7 @@ interface CatalogItem {
           </div>
 
           <!-- Body -->
-          <div class="tr-group" *ngFor="let item of filteredItems; trackBy: trackById">
+          <div class="tr-group" *ngFor="let item of pagedItems; trackBy: trackById">
             <!-- Main Row -->
             <div class="tr-main"
                  (click)="navigateToDetail(item.id)"
@@ -136,13 +135,12 @@ interface CatalogItem {
         </div>
 
         <!-- Pagination -->
-        <div class="pagination">
-          <span class="pag-info">Showing <span class="white">1-{{ filteredItems.length }}</span> of <span class="white">{{ filteredItems.length }}</span> products</span>
+        <div class="pagination" *ngIf="totalPages > 1">
+          <span class="pag-info">Showing <span class="white">{{ pagedItems.length }}</span> of <span class="white">{{ filteredItems.length }}</span> products</span>
           <div class="pag-controls">
             <button class="pag-btn" [disabled]="currentPage === 1" (click)="currentPage = currentPage - 1">← Previous</button>
-            <button class="pag-num" [class.active]="currentPage === 1" (click)="currentPage = 1">1</button>
-            <button class="pag-num" [class.active]="currentPage === 2" (click)="currentPage = 2">2</button>
-            <button class="pag-btn" [disabled]="currentPage === 2" (click)="currentPage = currentPage + 1">Next →</button>
+            <button class="pag-num" *ngFor="let p of [].constructor(totalPages); let i = index" [class.active]="currentPage === i + 1" (click)="currentPage = i + 1">{{ i + 1 }}</button>
+            <button class="pag-btn" [disabled]="currentPage === totalPages" (click)="currentPage = currentPage + 1">Next →</button>
           </div>
         </div>
       </div>
@@ -171,11 +169,11 @@ interface CatalogItem {
             <label class="section-label">Identity</label>
             <div class="field-wrap">
               <span class="field-icon">🏷️</span>
-              <input type="text" [(ngModel)]="newProduct.name" (input)="showDropdown = true" class="drawer-input" placeholder="Product Name (e.g. Sony Headphones)">
+              <input type="text" [(ngModel)]="newProduct.name" (input)="onDrawerSearchInput()" class="drawer-input" placeholder="Product Name (e.g. Sony Headphones)">
               
               <!-- Autocomplete Dropdown -->
-              <div class="suggestion-dropdown" *ngIf="showDropdown && dropdownItems.length > 0">
-                <div class="suggestion-item" *ngFor="let item of dropdownItems" (click)="selectSuggestion(item)">
+              <div class="suggestion-dropdown" *ngIf="showDropdown && drawerSuggestions.length > 0">
+                <div class="suggestion-item" *ngFor="let item of drawerSuggestions" (click)="selectSuggestion(item)">
                   <img [src]="item.image" class="s-img">
                   <div class="s-info">
                     <span class="s-name">{{ item.name }}</span>
@@ -444,12 +442,14 @@ interface CatalogItem {
 export class CatalogTrackerComponent implements OnInit {
   private router = inject(Router);
   private resellerService = inject(ResellerService);
+  private analyticsApi = inject(AnalyticsApiService);
   private destroyRef = inject(DestroyRef);
 
   searchQuery = '';
   categoryFilter = 'all';
   statusFilter = 'all';
   currentPage = 1;
+  pageSize = 10;
   isLoading = false;
 
   showAddModal = false;
@@ -462,28 +462,31 @@ export class CatalogTrackerComponent implements OnInit {
   editingProduct: any = null;
   newProduct: any = { name: '', yourPrice: null, image: '', category: '', platform: '' };
 
-  availableProducts = PLATFORM_PRODUCT_LIBRARY;
+  drawerSuggestions: { id: string; name: string; category: string; image: string; price: number | null }[] = [];
+  mainSearchSuggestions: { id: string; name: string; category: string; image: string }[] = [];
+  private drawerSearchSubject = new Subject<string>();
+  private mainSearchSubject = new Subject<string>();
 
-  get dropdownItems() {
-    if (!this.newProduct.name || this.newProduct.name.length < 1) return [];
-    return this.availableProducts.filter(p => 
-      p.name.toLowerCase().includes(this.newProduct.name.toLowerCase())
-    );
+  get categories(): string[] {
+    const cats = new Set(this.items.map(i => i.category).filter(Boolean));
+    return ['all', ...Array.from(cats).sort()];
   }
 
-  get mainSearchSuggestions() {
-    if (!this.searchQuery || this.searchQuery.length < 1) return [];
-    return this.availableProducts.filter(p => 
-      p.name.toLowerCase().includes(this.searchQuery.toLowerCase())
-    );
+  get totalPages(): number {
+    return Math.max(1, Math.ceil(this.filteredItems.length / this.pageSize));
+  }
+
+  get pagedItems(): CatalogItem[] {
+    const start = (this.currentPage - 1) * this.pageSize;
+    return this.filteredItems.slice(start, start + this.pageSize);
   }
 
   selectSuggestion(item: any) {
     this.newProduct.name = item.name;
-    this.newProduct.yourPrice = item.defaultPrice;
+    this.newProduct.yourPrice = item.price || null;
     this.newProduct.image = item.image;
     this.newProduct.category = item.category;
-    this.newProduct.platform = item.platform || 'Amazon';
+    this.newProduct.platform = 'Amazon';
     this.showDropdown = false;
   }
 
@@ -491,24 +494,102 @@ export class CatalogTrackerComponent implements OnInit {
 
   ngOnInit() {
     this.fetchProducts();
+
+    this.drawerSearchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(q => {
+        if (!q || q.length < 2) { this.drawerSuggestions = []; return of([]); }
+        return this.analyticsApi.searchProducts(q).pipe(catchError(() => of([])));
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(results => {
+      this.drawerSuggestions = results.map(r => ({
+        id: r.product_unified_id,
+        name: r.product_name,
+        category: r.product_category,
+        image: r.product_image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
+        price: r.current_price
+      })).slice(0, 5);
+      this.showDropdown = true;
+    });
+
+    this.mainSearchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(q => {
+        if (!q || q.length < 2) { this.mainSearchSuggestions = []; return of([]); }
+        return this.analyticsApi.searchProducts(q).pipe(catchError(() => of([])));
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(results => {
+      this.mainSearchSuggestions = results.map(r => ({
+        id: r.product_unified_id,
+        name: r.product_name,
+        category: r.product_category,
+        image: r.product_image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200'
+      })).slice(0, 5);
+      this.showMainSearchDropdown = true;
+    });
   }
 
   fetchProducts() {
     this.isLoading = true;
     this.resellerService.getProducts()
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        switchMap(prods => {
+          if (prods.length === 0) return of([]);
+          const searches = prods.map(p =>
+            this.analyticsApi.searchProducts(p.product_name).pipe(
+              catchError(() => of([])),
+              map((results: any[]) => {
+                const normalized = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+                const searchName = normalized(p.product_name);
+                const scored = results.map((r: any) => {
+                  const bqName = normalized(r.product_name || '');
+                  const words = searchName.split(/\s+/).filter((w: string) => w.length > 2);
+                  const matches = words.filter((w: string) => bqName.includes(w)).length;
+                  const score = words.length > 0 ? matches / words.length : (bqName === searchName ? 1 : 0);
+                  const exactBonus = bqName === searchName ? 10 : 0;
+                  return { result: r, score: score + exactBonus };
+                });
+                scored.sort((a: any, b: any) => b.score - a.score);
+                const best = scored[0];
+                if (!best || best.score < 0.3) {
+                  return { product: p, bqImage: null as string | null, bqLowestComp: null as number | null };
+                }
+                const bestId = best.result.product_unified_id;
+                const sameProduct = results.filter((r: any) => r.product_unified_id === bestId);
+                const bqLowestComp = Math.min(...sameProduct.map((r: any) => r.current_price).filter((p: number) => p > 0));
+                return {
+                  product: p,
+                  bqImage: best.result.product_image_url as string | null,
+                  bqLowestComp: isFinite(bqLowestComp) ? bqLowestComp : null
+                };
+              })
+            )
+          );
+          return forkJoin(searches);
+        }),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
-        next: (prods) => {
-          this.items = prods.map(p => ({
-            id: p.id,
-            name: p.product_name,
-            category: p.category || 'Other',
-            image: p.emoji_icon || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
-            yourPrice: p.my_price,
-            lowestComp: p.cached_lowest_comp_price || p.my_price * 0.95,
-            margin: p.cached_market_visibility_pct || 15,
-            status: this.deriveStatus(p)
-          }));
+        next: (enriched: { product: SellerProduct; bqImage: string | null; bqLowestComp: number | null }[]) => {
+          this.items = enriched.map(e => {
+            const lowestComp = e.bqLowestComp ?? e.product.cached_lowest_comp_price ?? e.product.my_price;
+            const diffPct = lowestComp < e.product.my_price ? ((e.product.my_price - lowestComp) / e.product.my_price) * 100 : 0;
+            const status: 'healthy' | 'risk' | 'critical' = diffPct > 10 ? 'critical' : diffPct > 0 ? 'risk' : 'healthy';
+            return {
+              id: e.product.id,
+              name: e.product.product_name,
+              category: e.product.category || 'Other',
+              image: e.bqImage || e.product.emoji_icon || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
+              yourPrice: e.product.my_price,
+              lowestComp,
+              margin: e.product.cached_market_visibility_pct || 50,
+              status
+            };
+          });
           this.isLoading = false;
         },
         error: () => {
@@ -518,12 +599,8 @@ export class CatalogTrackerComponent implements OnInit {
       });
   }
 
-  deriveStatus(p: SellerProduct): 'healthy' | 'risk' | 'critical' {
-    if (!p.cached_lowest_comp_price) return 'healthy';
-    const diff = ((p.my_price - p.cached_lowest_comp_price) / p.my_price) * 100;
-    if (diff > 10) return 'critical';
-    if (diff > 0) return 'risk';
-    return 'healthy';
+  onDrawerSearchInput() {
+    this.drawerSearchSubject.next(this.newProduct.name);
   }
 
   get filteredItems(): CatalogItem[] {
@@ -533,6 +610,15 @@ export class CatalogTrackerComponent implements OnInit {
       const matchStatus = this.statusFilter === 'all' || item.status === this.statusFilter;
       return matchSearch && matchCat && matchStatus;
     });
+  }
+
+  onMainSearchInput() {
+    this.currentPage = 1;
+    this.mainSearchSubject.next(this.searchQuery);
+  }
+
+  onFilterChange() {
+    this.currentPage = 1;
   }
 
   openAddModal(item: any = null) {
@@ -557,17 +643,21 @@ export class CatalogTrackerComponent implements OnInit {
   }
 
   saveProduct() {
-    if(!this.newProduct.name) {
+    if (!this.newProduct.name) {
       this.showToast('Name is required.');
       return;
     }
+    const price = Number(this.newProduct.yourPrice);
+    if (!price || price <= 0) {
+      this.showToast('Enter a valid listing price greater than $0.');
+      return;
+    }
 
-    const payload = {
+    const payload: any = {
       product_name: this.newProduct.name,
-      my_price: this.newProduct.yourPrice || 0,
-      category: this.newProduct.category,
-      platform: this.newProduct.platform,
-      emoji_icon: this.newProduct.image
+      my_price: price,
+      category: this.newProduct.category || undefined,
+      platform: this.newProduct.platform || undefined
     };
     
     if (this.editingProduct) {
@@ -576,9 +666,10 @@ export class CatalogTrackerComponent implements OnInit {
           next: () => {
             this.showToast('Product parameters updated.');
             this.fetchProducts();
+            this.resellerService.sidebarRefresh$.next();
             this.closeAddModal();
           },
-          error: () => this.showToast('Failed to update product.')
+          error: (err) => this.showToast(err.error?.detail || 'Failed to update product.')
         });
     } else {
       this.resellerService.createProduct(payload)
@@ -586,9 +677,10 @@ export class CatalogTrackerComponent implements OnInit {
           next: () => {
             this.showToast('Product added successfully!');
             this.fetchProducts();
+            this.resellerService.sidebarRefresh$.next();
             this.closeAddModal();
           },
-          error: () => this.showToast('Failed to add product.')
+          error: (err) => this.showToast(err.error?.detail || 'Failed to add product.')
         });
     }
   }
@@ -601,6 +693,7 @@ export class CatalogTrackerComponent implements OnInit {
     this.resellerService.deleteProduct(id).subscribe({
       next: () => {
         this.items = this.items.filter(item => item.id !== id);
+        this.resellerService.sidebarRefresh$.next();
         this.showToast('Product successfully removed from tracking.');
       },
       error: () => this.showToast('Failed to remove product.')

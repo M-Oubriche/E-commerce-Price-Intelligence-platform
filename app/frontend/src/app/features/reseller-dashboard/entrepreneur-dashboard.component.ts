@@ -1,11 +1,15 @@
-import { Component, OnInit, HostListener, inject } from '@angular/core';
+import { Component, OnInit, HostListener, inject, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet, ActivatedRoute, NavigationEnd } from '@angular/router';
 import { AuthService } from '../../core/services/auth.service';
-import { map, filter, startWith } from 'rxjs/operators';
+import { map, filter, startWith, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
+import { Subject, of, forkJoin } from 'rxjs';
 import { FormsModule } from '@angular/forms';
 import { ThemeToggleComponent } from '../../shared/components/theme-toggle/theme-toggle.component';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
+import { AnalyticsApiService } from '../../core/services/analytics-api.service';
+import { NotificationsService } from '../../core/services/notifications.service';
+import { ResellerService } from '../../core/services/reseller.service';
 
 @Component({
   selector: 'app-reseller-dashboard',
@@ -50,7 +54,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
                 <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path>
               </svg>
               <span>Catalog Tracker</span>
-              <span class="nav-badge">48</span>
+              <span class="nav-badge">{{ catalogCount }}</span>
             </a>
             <a routerLink="/reseller/competitors" routerLinkActive="active" class="nav-link">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
@@ -67,7 +71,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
                 <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
               </svg>
               <span>Pricing Alerts</span>
-              <span class="nav-badge risk">3</span>
+              <span class="nav-badge risk">{{ alertCount }}</span>
             </a>
           </div>
 
@@ -94,21 +98,6 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
             </a>
           </div>
         </nav>
-
-        <!-- Alert Banner -->
-        <div class="risk-banner">
-          <div class="rb-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
-              <line x1="12" y1="9" x2="12" y2="13"></line>
-              <line x1="12" y1="17" x2="12.01" y2="17"></line>
-            </svg>
-          </div>
-          <div class="rb-text">
-            <span class="rb-title">3 prices uncompetitive</span>
-            <a routerLink="/reseller/alerts" class="rb-action">Review now →</a>
-          </div>
-        </div>
 
         <!-- Footer -->
         <div class="sidebar-footer">
@@ -139,11 +128,11 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
 
           <div class="topbar-search">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-            <input type="text" [(ngModel)]="topbarSearch" (input)="showSuggestions = true" (keyup.enter)="onSearch()" placeholder="Search products, competitors..." autocomplete="off">
+            <input type="text" [(ngModel)]="topbarSearch" (input)="onSearchInput()" (keyup.enter)="onSearch()" placeholder="Search products, competitors..." autocomplete="off">
             
             <!-- Suggestions Dropdown -->
-            <div class="suggestions-dropdown" *ngIf="showSuggestions && filteredSuggestions.length > 0">
-              <div class="suggestion-item" *ngFor="let prod of filteredSuggestions" (click)="selectSuggestion(prod)">
+            <div class="suggestions-dropdown" *ngIf="showSuggestions && suggestions.length > 0">
+              <div class="suggestion-item" *ngFor="let prod of suggestions" (click)="selectSuggestion(prod)">
                 <img [src]="prod.image" class="s-img">
                 <div class="s-info">
                   <span class="s-name">{{ prod.name }}</span>
@@ -290,18 +279,6 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
       border-radius: 100px; font-size: 0.68rem; font-weight: 700;
       display: flex; align-items: center; justify-content: center;
       &.risk { background: rgba(239,68,68,0.2); color: #F87171; }
-    }
-
-    /* Risk Banner */
-    .risk-banner {
-      margin: auto 0.875rem 0.875rem; padding: 0.875rem;
-      background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(185,28,28,0.05));
-      border: 1px solid rgba(239,68,68,0.2); border-radius: 12px;
-      display: flex; align-items: center; gap: 0.75rem; flex-shrink: 0;
-      .rb-icon { display: flex; align-items: center; justify-content: center; svg { width: 22px; height: 22px; color: #F87171; } }
-      .rb-text { display: flex; flex-direction: column; }
-      .rb-title { font-size: 0.82rem; font-weight: 700; color: #FECACA; }
-      .rb-action { font-size: 0.72rem; font-weight: 600; color: #F87171; text-decoration: none; margin-top: 2px; &:hover { color: #EF4444; } }
     }
 
     .sidebar-footer {
@@ -471,33 +448,39 @@ export class ResellerDashboardComponent implements OnInit {
   authService = inject(AuthService);
   public router = inject(Router);
   private route = inject(ActivatedRoute);
+  private analyticsApi = inject(AnalyticsApiService);
+  private notifService = inject(NotificationsService);
+  private resellerService = inject(ResellerService);
+  private destroyRef = inject(DestroyRef);
   isUserMenuOpen = false;
   sidebarCollapsed = false;
   topbarSearch = '';
   showSuggestions = false;
   showNotifications = false;
+  suggestions: { id: string; name: string; category: string; image: string }[] = [];
+  private searchSubject = new Subject<string>();
 
-  notifications = [
-    { id: 1, type: 'price_drop', message: 'BestBuy dropped prices on 12 overlapping items.', time: '2 hours ago', read: false },
-    { id: 2, type: 'alert_close', message: 'Pricing risk detected for iPhone 15 Pro — currently #4 in market.', time: '3 hours ago', read: false },
-    { id: 3, type: 'price_drop', message: 'Amazon matched your catalog pricing for Sony XM5.', time: '5 hours ago', read: true },
-  ];
-
-  get unreadCount(): number {
-    return this.notifications.filter(n => !n.read).length;
-  }
+  notifications: { id: string; type: string; message: string; time: string; read: boolean }[] = [];
+  unreadCount = 0;
+  catalogCount = 0;
+  alertCount = 0;
 
   toggleNotifications() {
     this.showNotifications = !this.showNotifications;
   }
 
   markAllRead() {
-    this.notifications.forEach(n => n.read = true);
+    this.notifService.markAllRead().subscribe({
+      next: () => this.loadSidebarData(),
+      error: (err) => alert(err.error?.detail || 'Failed to mark all read')
+    });
   }
 
-  markRead(id: number) {
-    const notif = this.notifications.find(n => n.id === id);
-    if (notif) notif.read = true;
+  markRead(id: string) {
+    this.notifService.markAsRead(id).subscribe({
+      next: () => this.loadSidebarData(),
+      error: (err) => alert(err.error?.detail || 'Failed to mark notification read')
+    });
   }
 
   @HostListener('document:click', ['$event'])
@@ -509,12 +492,6 @@ export class ResellerDashboardComponent implements OnInit {
       this.showSuggestions = false;
     }
   }
-
-  // Mock user data for display
-  user = {
-    name: 'John Doe',
-    avatarColor: 'linear-gradient(135deg, #6EE7B7, #3B82F6)' // Example color
-  };
 
   pageTitle$ = this.router.events.pipe(
     filter(e => e instanceof NavigationEnd),
@@ -531,18 +508,49 @@ export class ResellerDashboardComponent implements OnInit {
     })
   );
 
-  ngOnInit() {}
+  ngOnInit() {
+    this.resellerService.sidebarRefresh$.pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => this.loadSidebarData());
+
+    this.loadSidebarData();
+    this.router.events.pipe(
+      filter(e => e instanceof NavigationEnd),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(() => this.loadSidebarData());
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(q => {
+        if (!q || q.length < 2) {
+          this.suggestions = [];
+          return of([]);
+        }
+        return this.analyticsApi.searchProducts(q).pipe(
+          catchError(() => of([]))
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(results => {
+      this.suggestions = results.map(r => ({
+        id: r.product_unified_id,
+        name: r.product_name,
+        category: r.product_category,
+        image: r.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200'
+      })).slice(0, 5);
+      this.showSuggestions = true;
+    });
+  }
+
+  onSearchInput() {
+    this.searchSubject.next(this.topbarSearch);
+  }
+
   onSearch() {
     if (this.topbarSearch.trim()) {
       this.showSuggestions = false;
       this.router.navigate(['/search'], { queryParams: { q: this.topbarSearch } });
     }
-  }
-
-  get filteredSuggestions() {
-    if (!this.topbarSearch || this.topbarSearch.length < 1) return [];
-    const q = this.topbarSearch.toLowerCase();
-    return PLATFORM_PRODUCT_LIBRARY.filter(p => p.name.toLowerCase().includes(q)).slice(0, 5);
   }
 
   selectSuggestion(prod: any) {
@@ -555,5 +563,40 @@ export class ResellerDashboardComponent implements OnInit {
     this.authService.logout().subscribe(() => {
       this.router.navigate(['/']);
     });
+  }
+
+  private loadSidebarData() {
+    this.notifService.getNotifications().subscribe(notes => {
+      this.notifications = notes.map(n => ({
+        id: n.id,
+        type: 'price_drop',
+        message: `${n.product_name} dropped ${n.drop_percent?.toFixed(1)}% to $${n.new_price} on ${n.platform}`,
+        time: this.formatDate(n.created_at),
+        read: n.is_read,
+      }));
+    });
+    this.notifService.getUnreadCount().subscribe(count => this.unreadCount = count);
+
+    forkJoin({
+      products: this.resellerService.getProducts().pipe(catchError(() => of([]))),
+      alerts: this.resellerService.getAlerts().pipe(catchError(() => of([]))),
+    }).subscribe({
+      next: ({ products, alerts }) => {
+        this.catalogCount = products.length;
+        const active = alerts.filter(a => a.is_active);
+        this.alertCount = active.length;
+      }
+    });
+  }
+
+  private formatDate(dateStr: string): string {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.round(diffMs / 60000);
+    if (diffMins < 60) return `${diffMins} mins ago`;
+    const diffHours = Math.round(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} hours ago`;
+    return date.toLocaleDateString();
   }
 }

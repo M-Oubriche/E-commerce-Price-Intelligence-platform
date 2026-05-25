@@ -1,11 +1,14 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { PublicNavbarComponent } from '../../shared/components/public-navbar/public-navbar.component';
 import { trigger, transition, style, animate, stagger, query } from '@angular/animations';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { AuthService } from '../../core/services/auth.service';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
+import { AnalyticsApiService } from '../../core/services/analytics-api.service';
 
 interface Product {
   id: string;
@@ -14,12 +17,11 @@ interface Product {
   image: string;
   bestPrice: number;
   bestPlatform: string;
-  highestPrice: number;
+  allTimeLow: number | null;
   platformCount: number;
   dealScore: number;
   isFakeDeal: boolean;
   priceTrend: 'up' | 'down' | 'stable';
-  priceHistory7d: number[];
 }
 
 @Component({
@@ -50,63 +52,102 @@ export class SearchResultsComponent implements OnInit {
   selectedCategory = 'All';
   selectedPlatforms: string[] = [];
   selectedScoreRange: string = 'Any';
-  inStockOnly = false;
-  freeShipping = false;
   sortBy = 'Best Match';
 
-  categories = ['All', 'Smartphones', 'Laptops', 'Monitors', 'Headphones', 'Périphériques', 'Gaming', 'Tablets', 'Components'];
-  platforms = ['Amazon', 'eBay', 'AliExpress', 'Jumia', 'Walmart', 'BestBuy', 'Newegg'];
+  categories: string[] = ['All'];
+  platforms: string[] = [];
   
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private authService = inject(AuthService);
+  private analyticsApi = inject(AnalyticsApiService);
+  private destroyRef = inject(DestroyRef);
 
-  allProducts: Product[] = [
-    { id: '1', name: 'iPhone 15 Pro', category: 'Smartphones', bestPrice: 949, bestPlatform: 'eBay', highestPrice: 1099, platformCount: 12, dealScore: 9.4, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [999, 980, 980, 970, 960, 950, 949], image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400' },
-    { id: '2', name: 'MacBook Pro 16"', category: 'Laptops', bestPrice: 2299, bestPlatform: 'Amazon', highestPrice: 2499, platformCount: 8, dealScore: 8.1, isFakeDeal: false, priceTrend: 'stable', priceHistory7d: [2299, 2299, 2299, 2299, 2299, 2299, 2299], image: 'https://images.unsplash.com/photo-1517336712461-4e1a7759533a?w=400' },
-    { id: '3', name: 'Sony WH-1000XM5', category: 'Headphones', bestPrice: 328, bestPlatform: 'BestBuy', highestPrice: 399, platformCount: 15, dealScore: 9.8, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [380, 370, 360, 350, 340, 330, 328], image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400' },
-    { id: '4', name: 'Samsung S95C OLED TV', category: 'Monitors', bestPrice: 1899, bestPlatform: 'Amazon', highestPrice: 2299, platformCount: 6, dealScore: 4.2, isFakeDeal: true, priceTrend: 'up', priceHistory7d: [1799, 1850, 1850, 1899, 1899, 1899, 1899], image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=400' },
-    { id: '5', name: 'PlayStation 5', category: 'Gaming', bestPrice: 449, bestPlatform: 'Walmart', highestPrice: 499, platformCount: 10, dealScore: 7.5, isFakeDeal: false, priceTrend: 'down', priceHistory7d: [499, 499, 480, 470, 460, 450, 449], image: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=400' },
-    ...PLATFORM_PRODUCT_LIBRARY.map(p => ({
-      id: p.id,
-      name: p.name,
-      category: p.category,
-      bestPrice: p.defaultPrice,
-      bestPlatform: 'Marketplace',
-      highestPrice: p.defaultPrice * 1.1,
-      platformCount: 1,
-      dealScore: 9.0,
-      isFakeDeal: false,
-      priceTrend: 'stable' as const,
-      priceHistory7d: [p.defaultPrice, p.defaultPrice, p.defaultPrice, p.defaultPrice, p.defaultPrice, p.defaultPrice, p.defaultPrice],
-      image: p.image
-    }))
-  ];
+  allProducts: Product[] = [];
+  isLoading = true;
+
+  private pendingCategory: string | null = null;
 
   ngOnInit() {
+    this.analyticsApi.getCategoryTrends().pipe(
+      catchError(() => of([])),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(rows => {
+      if (rows && rows.length > 0) {
+        this.categories = ['All', ...rows.map(r => r.product_category)];
+      }
+      // Re-apply category from URL after categories load (race condition fix)
+      if (this.pendingCategory) {
+        const found = this.categories.find(c => c.toLowerCase().replace(/ /g, '-') === this.pendingCategory);
+        if (found) this.selectedCategory = found;
+        this.pendingCategory = null;
+        this.applyFilters();
+      }
+    });
+
+    this.analyticsApi.getPlatformPerformance().pipe(
+      catchError(() => of([])),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(rows => {
+      if (rows && rows.length > 0) {
+        this.platforms = rows.map(r => r.platform);
+      }
+    });
+
     this.route.queryParams.subscribe(params => {
       this.query = params['q'] || '';
       this.sortBy = params['sort'] || 'Best Match';
+      this.selectedScoreRange = params['score'] || 'Any';
       const catParam = params['category'];
       if (catParam) {
-        this.selectedCategory = this.categories.find(c => c.toLowerCase().replace(/ /g, '-') === catParam) || 'All';
+        const found = this.categories.find(c => c.toLowerCase().replace(/ /g, '-') === catParam);
+        if (found) {
+          this.selectedCategory = found;
+        } else {
+          // Categories might not be loaded yet — save for retry after they arrive
+          this.pendingCategory = catParam;
+        }
       } else {
         this.selectedCategory = 'All';
       }
-      this.applyFilters();
+      this.fetchSearchResults();
+    });
+  }
+
+  fetchSearchResults() {
+    this.isLoading = true;
+    this.analyticsApi.searchProducts(this.query).subscribe({
+      next: (rows) => {
+        this.allProducts = rows.map(r => ({
+          id: r.product_unified_id,
+          name: r.product_name,
+          category: r.product_category,
+          image: r.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400',
+          bestPrice: r.current_price || 0,
+          bestPlatform: r.source,
+          allTimeLow: r.all_time_low_price,
+          platformCount: r.total_platforms_tracked || 1,
+          dealScore: r.deal_score,
+          isFakeDeal: r.is_fake_deal,
+          priceTrend: r.discount_percent && r.discount_percent > 0 ? 'down' : 'stable'
+        }));
+        this.applyFilters();
+        this.isLoading = false;
+      },
+      error: () => {
+        this.isLoading = false;
+      }
     });
   }
 
   applyFilters() {
     this.filteredResults = this.allProducts.filter(p => {
-      const matchesQuery = p.name.toLowerCase().includes(this.query.toLowerCase()) || 
-                           p.category.toLowerCase().includes(this.query.toLowerCase());
       const matchesCategory = this.selectedCategory === 'All' || p.category === this.selectedCategory;
       const matchesPrice = p.bestPrice >= this.minPrice && p.bestPrice <= this.maxPrice;
       const matchesScore = this.checkScoreMatch(p.dealScore);
       const matchesPlatform = this.selectedPlatforms.length === 0 || this.selectedPlatforms.includes(p.bestPlatform);
       
-      return matchesQuery && matchesCategory && matchesPrice && matchesScore && matchesPlatform;
+      return matchesCategory && matchesPrice && matchesScore && matchesPlatform;
     });
     this.sortResults();
   }
@@ -133,16 +174,28 @@ export class SearchResultsComponent implements OnInit {
     this.router.navigate([], { queryParams: updates, queryParamsHandling: 'merge' });
   }
 
+  productUrl(id: string): string {
+    return '/product/' + encodeURIComponent(id);
+  }
+
   clearFilters() {
+    this.minPrice = 0;
+    this.maxPrice = 5000;
+    this.selectedCategory = 'All';
+    this.selectedPlatforms = [];
+    this.selectedScoreRange = 'Any';
+    this.sortBy = 'Best Match';
     this.router.navigate([], { queryParams: { q: this.query } });
   }
 
   setCategory(cat: string) {
+    this.selectedCategory = cat;
     const catUrl = cat === 'All' ? null : cat.toLowerCase().replace(/ /g, '-');
     this.updateQueryParams({ category: catUrl });
   }
 
   setSort(sort: string) {
+    this.sortBy = sort;
     this.updateQueryParams({ sort: sort === 'Best Match' ? null : sort });
   }
 
@@ -163,6 +216,7 @@ export class SearchResultsComponent implements OnInit {
 
   setScoreRange(range: string) {
     this.selectedScoreRange = range;
+    this.updateQueryParams({ score: range === 'Any' ? null : range });
     this.applyFilters();
   }
 }

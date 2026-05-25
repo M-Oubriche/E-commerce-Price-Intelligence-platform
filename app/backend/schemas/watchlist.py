@@ -10,8 +10,12 @@ class WatchlistItemBase(BaseModel):
     product_name: str
     emoji_icon: Optional[str] = None
     platform: Optional[str] = None
+    image_url: Optional[str] = None
+    category: Optional[str] = None
     target_price: Decimal
     original_price: Optional[Decimal] = None
+    current_price: Optional[Decimal] = None
+    deal_score: Optional[float] = None
     alert_condition: AlertCondition = AlertCondition.BELOW_TARGET
 
 class WatchlistItemCreate(WatchlistItemBase):
