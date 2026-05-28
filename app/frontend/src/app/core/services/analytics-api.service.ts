@@ -79,7 +79,15 @@ export class AnalyticsApiService {
     return this.http.get<DealAnalysisRow[]>(`${this.BASE}/product-by-id/similar?product_id=${encodeURIComponent(id)}`);
   }
 
-  searchProducts(q: string): Observable<DealAnalysisRow[]> {
-    return this.http.get<DealAnalysisRow[]>(`${this.BASE}/search?q=${encodeURIComponent(q)}`);
+  searchProducts(q: string, category?: string): Observable<DealAnalysisRow[]> {
+    let url = `${this.BASE}/search?q=${encodeURIComponent(q)}`;
+    if (category) {
+      url += `&category=${encodeURIComponent(category)}`;
+    }
+    return this.http.get<DealAnalysisRow[]>(url);
+  }
+
+  getAdvancedStats(): Observable<any> {
+    return this.http.get<any>(`${this.BASE}/advanced-stats`);
   }
 }

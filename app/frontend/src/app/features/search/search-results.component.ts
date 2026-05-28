@@ -66,7 +66,7 @@ export class SearchResultsComponent implements OnInit {
   allProducts: Product[] = [];
   isLoading = true;
 
-  private pendingCategory: string | null = null;
+
 
   ngOnInit() {
     this.analyticsApi.getCategoryTrends().pipe(
@@ -75,13 +75,11 @@ export class SearchResultsComponent implements OnInit {
     ).subscribe(rows => {
       if (rows && rows.length > 0) {
         this.categories = ['All', ...rows.map(r => r.product_category)];
-      }
-      // Re-apply category from URL after categories load (race condition fix)
-      if (this.pendingCategory) {
-        const found = this.categories.find(c => c.toLowerCase().replace(/ /g, '-') === this.pendingCategory);
-        if (found) this.selectedCategory = found;
-        this.pendingCategory = null;
-        this.applyFilters();
+        // Fix casing of selected category if it was set from URL
+        if (this.selectedCategory && this.selectedCategory !== 'All') {
+          const found = this.categories.find(c => c.toLowerCase().replace(/ /g, '-') === this.selectedCategory.toLowerCase().replace(/ /g, '-'));
+          if (found) this.selectedCategory = found;
+        }
       }
     });
 
@@ -101,12 +99,7 @@ export class SearchResultsComponent implements OnInit {
       const catParam = params['category'];
       if (catParam) {
         const found = this.categories.find(c => c.toLowerCase().replace(/ /g, '-') === catParam);
-        if (found) {
-          this.selectedCategory = found;
-        } else {
-          // Categories might not be loaded yet — save for retry after they arrive
-          this.pendingCategory = catParam;
-        }
+        this.selectedCategory = found || catParam;
       } else {
         this.selectedCategory = 'All';
       }
@@ -116,7 +109,7 @@ export class SearchResultsComponent implements OnInit {
 
   fetchSearchResults() {
     this.isLoading = true;
-    this.analyticsApi.searchProducts(this.query).subscribe({
+    this.analyticsApi.searchProducts(this.query, this.selectedCategory).subscribe({
       next: (rows) => {
         this.allProducts = rows.map(r => ({
           id: r.product_unified_id,
