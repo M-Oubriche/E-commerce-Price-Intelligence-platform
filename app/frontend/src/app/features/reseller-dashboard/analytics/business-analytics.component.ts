@@ -17,6 +17,7 @@ interface KPI {
   label: string;
   value: string;
   delta: string;
+  subtext: string;
   isPositive: boolean;
   color: string;
   trend: number[];
@@ -149,8 +150,8 @@ interface TTestResult {
                 <h2 class="tabular-nums">{{ kpi.value }}</h2>
              </div>
              <div class="footer-row">
-                <span class="comparison-text" [style.color]="kpi.isPositive ? 'var(--success)' : 'var(--danger)'">
-                  {{ kpi.delta }} vs last period
+                <span class="comparison-text" [style.color]="'var(--text-muted)'">
+                  {{ kpi.subtext }}
                 </span>
                 <div class="mini-spark-container">
                    <canvas #sparklineCanvas></canvas>
@@ -223,7 +224,7 @@ interface TTestResult {
              <canvas #scatterRegressionCanvas></canvas>
              <div class="r2-annotation">
                <strong>R² annotation on chart:</strong>
-               <span>Rating explains 18% of price variation</span>
+               <span>Rating explains {{ rSquared }}% of price variation</span>
              </div>
           </div>
         </div>
@@ -261,7 +262,7 @@ interface TTestResult {
         <div class="panel-header space-between-center">
            <div class="stacked-title">
               <h3>Market Leaderboard</h3>
-              <p class="subtitle-muted">Competitor strength scoring based on win-rate and pricing.</p>
+               <p class="subtitle-muted">Competitiveness (1-1000) scored on catalog size, stock availability, and ratings.</p>
            </div>
            <span class="time-label">LATEST 7D</span>
         </div>
@@ -419,9 +420,9 @@ interface TTestResult {
                      <th class="l-align">Channel</th>
                      <th>Catalog</th>
                      <th>Avg Unit Price</th>
-                     <th>Visibility</th>
+                     <th>In-Stock Rate</th>
                      <th>Market Share</th>
-                     <th>Volatility</th>
+                     <th>Performance Index</th>
                   </tr>
                </thead>
                <tbody>
@@ -475,9 +476,6 @@ interface TTestResult {
                      <span class="stats-time-label-muted">{{ insight.timeAgo }}</span>
                   </div>
                   <p class="stats-detail-txt-muted">{{ insight.message }}</p>
-                  <div class="stats-action-footer">
-                     <button class="btn-action-outline" (click)="showStatsDetail(insight)">View Detailed Stats</button>
-                  </div>
                </div>
             </div>
          </div>
@@ -999,6 +997,12 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
   prodCorrelationLabels = ['Price', 'Rating', 'Reviews'];
   prodCorrelationData: number[][] = [];
   
+  rawScatterPoints: {x: number, y: number}[] = [];
+  regressionBandBottom: {x: number, y: number}[] = [];
+  regressionBandTop: {x: number, y: number}[] = [];
+  regressionLine: {x: number, y: number}[] = [];
+  rSquared: number = 0;
+  
   groupedBarLabels: string[] = [];
   groupedBarDatasets: { label: string; data: (number | null)[]; backgroundColor: string; borderRadius: number; barPercentage: number; categoryPercentage: number }[] = [];
 
@@ -1029,21 +1033,21 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
       this.analyticsApi.getCategoryTrends(db).pipe(catchError(() => of([]))),
       this.analyticsApi.getPlatformCategoryAvg(db).pipe(catchError(() => of([]))),
       this.analyticsApi.getProductCorrelation(db).pipe(catchError(() => of([]))),
-      this.analyticsApi.getDealAnalysis(db).pipe(catchError(() => of([])))
+      this.analyticsApi.getDealAnalysis(db).pipe(catchError(() => of([]))),
+      this.analyticsApi.getAdvancedStats().pipe(catchError(() => of(null)))
     ]).subscribe({
-      next: ([kpis, platforms, trends, platformAvg, correlations, deals]: any[]) => {
+      next: ([kpis, platforms, trends, platformAvg, correlations, deals, advancedStats]: any[]) => {
         // Map KPIs
         if (kpis && kpis.length > 0) {
           const k = kpis[0];
+          const visibility = k.my_market_visibility_pct ?? 0;
           const totalProducts = k.total_market_items ?? 0;
           const volatility = k.price_volatility_pct ?? 0;
-          const avgVisibility = platforms && platforms.length > 0
-            ? Math.round(platforms.reduce((sum: number, p: any) => sum + (p.visibility_score || 0), 0) / platforms.length * 10) / 10
-            : 0;
+          
           this.kpis = [
-            { label: 'Market Visibility', value: `${avgVisibility.toFixed(1)}%`, delta: `${avgVisibility > 0 ? '+' : ''}${avgVisibility.toFixed(1)}%`, isPositive: avgVisibility >= 50, color: '#3B82F6', trend: [avgVisibility * 0.7, avgVisibility * 0.8, avgVisibility * 0.75, avgVisibility * 0.85, avgVisibility * 0.9, avgVisibility * 0.95, avgVisibility] },
-            { label: 'Price Volatility', value: `${volatility.toFixed(1)}%`, delta: `${volatility > 30 ? '-' : '+'}${(Math.abs(volatility) * 0.05).toFixed(1)}%`, isPositive: volatility <= 30, color: '#F59E0B', trend: [volatility * 1.2, volatility * 1.1, volatility * 1.05, volatility, volatility * 0.95, volatility * 0.9, volatility * 0.85] },
-            { label: 'Total Products', value: totalProducts.toLocaleString(), delta: `+${Math.round(totalProducts * 0.05)}`, isPositive: true, color: '#3B82F6', trend: [Math.round(totalProducts * 0.7), Math.round(totalProducts * 0.78), Math.round(totalProducts * 0.82), Math.round(totalProducts * 0.88), Math.round(totalProducts * 0.92), Math.round(totalProducts * 0.97), totalProducts] }
+            { label: 'Market Visibility', value: `${visibility.toFixed(2)}%`, delta: 'REAL-TIME', subtext: 'Active market presence', isPositive: visibility >= 10, color: '#3B82F6', trend: [visibility] },
+            { label: 'Price Volatility', value: `${volatility.toFixed(1)}%`, delta: '30-DAY', subtext: 'Rolling average volatility', isPositive: volatility <= 30, color: '#F59E0B', trend: [volatility] },
+            { label: 'Total Products', value: totalProducts.toLocaleString(), delta: 'GLOBAL', subtext: 'Total tracked market index', isPositive: true, color: '#3B82F6', trend: [totalProducts] }
           ];
         }
 
@@ -1056,7 +1060,12 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
             avgPrice: p.avg_price,
             visibilityScore: p.visibility_score,
             marketShare: p.market_share_pct,
-            trend: [65, 68, 70, 72, 74, 73, p.visibility_score]
+            // Real multi-metric sparkline: market share %, in-stock %, scaled competitiveness (all live values)
+            trend: [
+              p.market_share_pct ?? 0,
+              p.visibility_score ?? 0,
+              (p.competitiveness_score ?? 0) / 10
+            ]
           }));
 
           this.competitorRanks = platforms.map((p: any) => {
@@ -1117,51 +1126,14 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
             })
           };
 
-          // Derive T-Test Results — compare each platform vs market avg
-          const raw: TTestResult[] = [];
-          for (const cat of labels) {
-            const marketStat = trends?.find((t: any) => t.product_category === cat);
-            const marketPrice = marketStat?.mean_price || 0;
-            for (const p of platformNames) {
-              const pp = platformAvg.find((a: any) => a.platform === p && a.product_category === cat);
-              if (!pp || !marketPrice) continue;
-              const gap = Math.round((pp.avg_price_usd || 0) - marketPrice);
-              const pctDiff = marketPrice ? Math.abs(gap / marketPrice) : 0;
-              const pValue = +(pctDiff * 0.5 + 0.01 * Math.random()).toFixed(2);
-              raw.push({
-                category: cat,
-                myPrice: Math.round(pp.avg_price_usd || 0),
-                marketPrice: Math.round(marketPrice),
-                gap,
-                pValue: Math.min(pValue, 1),
-                verdict: pValue < 0.05 ? (gap > 0 ? 'Sig. more expensive' : 'Sig. cheaper') : 'Not significant',
-                significant: pValue < 0.05,
-                expensive: gap > 0
-              });
-            }
-          }
-          this.ttestResults = raw.slice(0, 20);
+        // T-Test results will be mapped from advancedStats instead
         }
 
-        // Map Correlations — compute pairwise Pearson r from raw product data
-        if (correlations && correlations.length > 1) {
-          const pr = (xs: number[], ys: number[]) => {
-            const n = Math.min(xs.length, ys.length);
-            if (n < 3) return 0;
-            const sx = xs.slice(0, n).reduce((a, b) => a + b, 0), sy = ys.slice(0, n).reduce((a, b) => a + b, 0);
-            const sxx = xs.slice(0, n).reduce((a, b) => a + b * b, 0), syy = ys.slice(0, n).reduce((a, b) => a + b * b, 0);
-            const sxy = xs.slice(0, n).reduce((a, b, i) => a + b * ys[i], 0);
-            const d = Math.sqrt((n * sxx - sx * sx) * (n * syy - sy * sy));
-            return d ? +( (n * sxy - sx * sy) / d ).toFixed(2) : 0;
-          };
-          const prices = correlations.map((c: any) => c.price ?? 0);
-          const ratings = correlations.map((c: any) => c.rating ?? 0);
-          const reviews = correlations.map((c: any) => c.reviews ?? 0);
-          this.prodCorrelationData = [
-            [1.00, pr(prices, ratings), pr(prices, reviews)],
-            [pr(ratings, prices), 1.00, pr(ratings, reviews)],
-            [pr(reviews, prices), pr(reviews, ratings), 1.00]
-          ];
+        // We now map correlation matrix from advancedStats, but we can extract raw scatter points here
+        if (correlations && correlations.length > 0) {
+          this.rawScatterPoints = correlations
+            .filter((c: any) => c.rating != null && c.price != null)
+            .map((c: any) => ({ x: c.rating, y: c.price }));
         }
 
         // Map Top Products from deal analysis
@@ -1179,20 +1151,42 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
         if (kpis && kpis.length > 0) {
           const k = kpis[0];
           const totalProducts = k.total_market_items ?? 0;
-          const volatility = k.price_volatility_pct ?? 0;
-          const platformsTracked = platforms?.length ?? 0;
-          this.insights = [
-            {
-              type: 'win', title: 'Market Stability Index',
-              message: `Current price volatility at ${volatility.toFixed(1)}% is within 95% confidence intervals, indicating statistically significant stability across major categories.`,
-              timeAgo: 'LATEST'
-            },
-            {
-              type: 'risk', title: 'Sample Size Variance',
-              message: `${totalProducts} products tracked across ${platformsTracked} platforms. Some categories may have insufficient sample sizes for reliable trend analysis.`,
-              timeAgo: 'LATEST'
-            }
-          ];
+          // Removed hardcoded fake insights here. Only Python-generated insights will be used.
+        }
+
+        // Map Advanced Stats (T-Test, Correlation, Regression, Insights)
+        if (advancedStats) {
+          if (advancedStats.ttest_results) {
+            this.ttestResults = advancedStats.ttest_results.map((t: any) => ({
+              category: t.category,
+              myPrice: t.my_price,
+              marketPrice: t.market_avg,
+              gap: t.gap,
+              pValue: t.p_value,
+              verdict: t.significant ? (t.gap > 0 ? 'Sig. more expensive' : 'Sig. cheaper') : 'Not significant',
+              significant: t.significant,
+              expensive: t.gap > 0
+            }));
+          }
+          
+          if (advancedStats.correlation_matrix) {
+            this.prodCorrelationData = advancedStats.correlation_matrix;
+          }
+          
+          if (advancedStats.reliability_insights) {
+            this.insights = [...this.insights, ...advancedStats.reliability_insights];
+          }
+          
+          if (advancedStats.regression_stats) {
+            const stats = advancedStats.regression_stats;
+            this.rSquared = Math.round(stats.r_squared * 100);
+
+            // Use pre-computed points from Python (IQR-cleaned, mathematically correct)
+            this.rawScatterPoints  = stats.scatter_points  || [];
+            this.regressionLine    = stats.regression_line || [];
+            this.regressionBandBottom = stats.band_lower   || [];
+            this.regressionBandTop    = stats.band_upper   || [];
+          }
         }
 
         this.cdr.detectChanges();
@@ -1294,20 +1288,21 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
     if(!this.scatterRegressionCanvas) return;
     const ctx = this.scatterRegressionCanvas.nativeElement.getContext('2d')!;
     
-    // Exact fidelity points mimicking the professional image
-    const scatterData = [
-      {x: 1.0, y: 95}, {x: 1.05, y: 98}, {x: 1.15, y: 118}, {x: 1.2, y: 131}, {x: 1.3, y: 127}, 
-      {x: 1.6, y: 88}, {x: 1.85, y: 78}, {x: 1.9, y: 90}, {x: 1.95, y: 115}, {x: 1.95, y: 128}, 
-      {x: 2.15, y: 79}, {x: 2.25, y: 122}, {x: 2.35, y: 105}, {x: 2.4, y: 104}, {x: 2.75, y: 119}, 
-      {x: 2.75, y: 104}, {x: 2.85, y: 107}, {x: 2.9, y: 78}, {x: 3.3, y: 67}, {x: 3.32, y: 65}, 
-      {x: 3.4, y: 88}, {x: 3.42, y: 94}, {x: 3.8, y: 83}, {x: 3.9, y: 100}, {x: 4.1, y: 59}, 
-      {x: 4.1, y: 74}, {x: 4.2, y: 63}, {x: 4.3, y: 80}, {x: 4.3, y: 65}, {x: 4.6, y: 75}, 
-      {x: 4.8, y: 104}, {x: 4.9, y: 74}
-    ];
+    const scatterData = this.rawScatterPoints.length > 0 
+      ? this.rawScatterPoints 
+      : [{x: 0, y: 0}]; // Fallback empty point
 
-    const bandBottom = [ {x: 1.0, y: 85}, {x: 5.0, y: 55} ];
-    const bandTop = [ {x: 1.0, y: 135}, {x: 5.0, y: 105} ];
-    const regressionLine = [ {x: 1.0, y: 110}, {x: 5.0, y: 80} ];
+    const bandBottom = this.regressionBandBottom.length > 0 
+      ? this.regressionBandBottom 
+      : [ {x: 1.0, y: 85}, {x: 5.0, y: 55} ];
+    
+    const bandTop = this.regressionBandTop.length > 0 
+      ? this.regressionBandTop 
+      : [ {x: 1.0, y: 135}, {x: 5.0, y: 105} ];
+      
+    const regressionLine = this.regressionLine.length > 0 
+      ? this.regressionLine 
+      : [ {x: 1.0, y: 110}, {x: 5.0, y: 80} ];
 
     this.chartInstances.push(new Chart(ctx, {
       type: 'scatter',
@@ -1366,9 +1361,8 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
             ticks: { stepSize: 1, font: { weight: 600 }, padding: 10 }
           },
           y: { 
-            min: 40, max: 160,
             grid: { color: gridColor }, border: { display: false },
-            ticks: { stepSize: 20, font: { weight: 600 }, padding: 10 },
+            ticks: { font: { weight: 600 }, padding: 10 },
             title: { display: true, text: '↑ Price (USD)', color: 'var(--text-muted)', font: { weight: 600 }, padding: 12 }
           }
         }
@@ -1387,7 +1381,8 @@ export class ResellerAnalyticsComponent implements OnInit, AfterViewInit, OnDest
         backgroundColor: this.getPlatformColor(comp),
         borderRadius: 4,
         barPercentage: 0.8,
-        categoryPercentage: 0.7
+        categoryPercentage: 0.7,
+        minBarLength: 8
       };
     });
 

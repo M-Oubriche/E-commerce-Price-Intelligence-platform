@@ -79,7 +79,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
                 <span>Catalog Item</span>
                 <span>Your Price</span>
                 <span>Lowest Comp.</span>
-                <span>Visibility</span>
+                <span>Competitiveness</span>
                 <span>Status</span>
               </div>
               <div class="product-row" *ngFor="let s of products"
@@ -98,7 +98,7 @@ interface TopOpp { name: string; category: string; image: string; opportunity: n
                   <div class="margin-bar-track">
                     <div class="margin-bar-fill" [ngClass]="s.status" [style.width.%]="s.margin"></div>
                   </div>
-                  <span class="margin-label">{{ s.margin }}% Share</span>
+                  <span class="margin-label">{{ s.margin }}%</span>
                 </div>
                 <span class="status-badge" [ngClass]="s.status">
                   {{ s.status === 'healthy' ? '✓ Healthy' : s.status === 'risk' ? '⚠ At Risk' : '✗ Critical' }}
@@ -667,7 +667,7 @@ export class ResellerOverviewComponent implements OnInit {
               image: bqImage || 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200',
               yourPrice: p.my_price,
               lowestComp,
-              margin: p.cached_market_visibility_pct || 50,
+              margin: Math.round(Math.max(0, 100 - (diffPct * 5))),
               status,
               platform: p.platform || 'Unknown'
             };

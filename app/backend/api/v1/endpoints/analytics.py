@@ -1,6 +1,24 @@
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, BackgroundTasks, Depends
 from core.bigquery import cached_bq_query
 from core.config import settings
+from core.redis import redis_get, redis_set
+import asyncio
+import json
+import logging
+from concurrent.futures import ThreadPoolExecutor
+
+from api import deps
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from models.users import User
+from models.reseller import SellerProduct
+import scipy.stats
+import numpy as np
+
+from services.advanced_stats import run_advanced_statistics
+
+logger = logging.getLogger(__name__)
+_stats_executor = ThreadPoolExecutor(max_workers=2)
 
 router = APIRouter()
 
@@ -11,9 +29,40 @@ BQ_DATASET = settings.BIGQUERY_DATASET
 
 
 @router.get("/kpis", summary="Get Market KPIs")
-async def get_market_kpis(days_back: int = Query(30, ge=1, le=365)):
+async def get_market_kpis(
+    days_back: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    from sqlalchemy import func
+    from models.reseller import SellerStatus
+    
+    # 1. Get raw KPI data from BigQuery
     query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_market_kpis` LIMIT 1"
-    return await cached_bq_query("kpis", query, CACHE_TTL, days_back)
+    bq_result = await cached_bq_query("kpis", query, CACHE_TTL, days_back)
+    
+    if not bq_result or len(bq_result) == 0:
+        return []
+        
+    kpi_data = dict(bq_result[0])
+    
+    # 2. Get User's Active Products from Postgres
+    my_items_count = await db.scalar(
+        select(func.count()).where(
+            SellerProduct.user_id == current_user.id, 
+            SellerProduct.status == SellerStatus.ACTIVE
+        )
+    )
+    my_items_count = my_items_count or 0
+    
+    # 3. Calculate accurate Market Visibility
+    total_market = kpi_data.get('total_market_items', 1)
+    if total_market == 0: total_market = 1
+    
+    kpi_data['my_market_visibility_pct'] = round((my_items_count / total_market) * 100, 2)
+    kpi_data['my_active_items'] = my_items_count
+    
+    return [kpi_data]
 
 
 @router.get("/trends", summary="Get Category Trends")
@@ -109,7 +158,7 @@ ORDER BY trending_score DESC LIMIT 12"""
 
 @router.get("/platform-performance", summary="Get Platform Performance")
 async def get_platform_performance(days_back: int = Query(30, ge=1, le=365)):
-    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_platform_performance` ORDER BY catalog_size DESC"
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_platform_performance` ORDER BY competitiveness_score DESC"
     return await cached_bq_query("platform-performance", query, CACHE_TTL, days_back)
 
 
@@ -267,17 +316,116 @@ async def get_similar_products(product_id: str):
 
 
 @router.get("/search", summary="Search Products")
-async def search_products(q: str = ""):
+async def search_products(q: str = "", category: str = ""):
     # Normalize spaces: replace non-breaking spaces (\xa0) and zero-width chars with regular space
     normalized = q.replace('\u00a0', ' ').replace('\u200b', '').strip()
     search_term = normalized.lower()
     # Also normalize non-breaking spaces in stored BigQuery product names
     nb_sp = '\u00a0'
+    
+    where_clauses = []
+    if search_term:
+        where_clauses.append(f"(LOWER(REPLACE(product_name, '{nb_sp}', ' ')) LIKE '%{search_term}%' OR LOWER(product_category) LIKE '%{search_term}%')")
+    if category and category.lower() != 'all':
+        cat = category.replace("'", "''").lower()
+        where_clauses.append(f"LOWER(product_category) = '{cat}'")
+        
+    where_sql = ""
+    if where_clauses:
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+
     query = f"""
         SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis`
-        WHERE LOWER(REPLACE(product_name, '{nb_sp}', ' ')) LIKE '%{search_term}%'
-           OR LOWER(product_category) LIKE '%{search_term}%'
+        {where_sql}
         ORDER BY deal_score DESC
-        LIMIT 50
+        LIMIT 500
     """
-    return await cached_bq_query(f"search:{search_term}", query, CACHE_TTL)
+    return await cached_bq_query(f"search:{search_term}:{category}", query, CACHE_TTL)
+
+
+@router.get("/advanced-stats", summary="Get Advanced Statistical Analysis (T-Tests, Regression, Correlation)")
+async def get_advanced_stats(
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    cache_key = "analytics:advanced-stats"
+    result = None
+    
+    # 1. Try to fetch from Redis first
+    try:
+        cached = await asyncio.wait_for(redis_get(cache_key), timeout=5.0)
+        if cached is not None:
+            logger.info("Advanced stats served from Redis cache.")
+            result = json.loads(cached)
+    except Exception as e:
+        logger.warning(f"Failed to read advanced stats from Redis: {e}")
+
+    # 2. If not in cache, run the heavy Python math in a background thread
+    if result is None:
+        logger.info("Cache miss for advanced stats. Running pandas math...")
+        loop = asyncio.get_running_loop()
+        try:
+            # run_advanced_statistics takes 1-3 seconds, so we run it in an executor to avoid blocking FastAPI
+            result = await loop.run_in_executor(_stats_executor, run_advanced_statistics)
+            
+            # 3. Save the calculated result back to Redis for 1 hour (3600 seconds)
+            try:
+                await asyncio.wait_for(redis_set(cache_key, json.dumps(result), 3600), timeout=5.0)
+            except Exception as e:
+                logger.warning(f"Failed to save advanced stats to Redis: {e}")
+        except Exception as e:
+            logger.error(f"Failed to compute advanced stats: {e}")
+            return {"error": "Failed to compute advanced statistics."}
+
+    # 4. Calculate User-Specific T-Test (Postgres My Prices vs BQ Market Avg)
+    try:
+        stmt = select(SellerProduct).where(SellerProduct.user_id == current_user.id)
+        db_result = await db.execute(stmt)
+        user_products = db_result.scalars().all()
+        
+        user_category_prices = {}
+        for p in user_products:
+            if p.category:
+                if p.category not in user_category_prices:
+                    user_category_prices[p.category] = []
+                user_category_prices[p.category].append(float(p.my_price))
+                
+        # Get market averages
+        market_trends_query = f"SELECT product_category, mean_price FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_category_trends`"
+        market_trends = await cached_bq_query("trends_for_ttest", market_trends_query, CACHE_TTL)
+        market_avg_map = {row['product_category']: float(row['mean_price']) for row in market_trends}
+        
+        custom_ttest = []
+        for cat, prices in user_category_prices.items():
+            market_avg = market_avg_map.get(cat)
+            if market_avg is None:
+                continue
+                
+            my_avg = sum(prices) / len(prices)
+            gap = my_avg - market_avg
+            
+            # 1-sample t-test (user prices vs market mean)
+            if len(prices) > 1:
+                try:
+                    t_stat, p_val = scipy.stats.ttest_1samp(prices, market_avg)
+                    p_val = float(p_val) if not np.isnan(p_val) else 0.5
+                except:
+                    p_val = 0.5
+            else:
+                p_val = 0.05 if abs(gap) > (market_avg * 0.1) else 0.5
+                
+            custom_ttest.append({
+                "category": cat,
+                "platform": "My Store",
+                "my_price": round(my_avg, 2),
+                "market_avg": round(market_avg, 2),
+                "gap": round(gap, 2),
+                "p_value": round(p_val, 3),
+                "significant": p_val < 0.05
+            })
+            
+        result["ttest_results"] = custom_ttest
+    except Exception as e:
+        logger.error(f"Failed to compute user-specific T-Test: {e}")
+        
+    return result

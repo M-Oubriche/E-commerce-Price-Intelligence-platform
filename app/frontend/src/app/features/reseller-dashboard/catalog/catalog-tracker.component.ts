@@ -81,7 +81,7 @@ interface CatalogItem {
             <div class="th-cell">Category</div>
             <div class="th-cell num">Your Price</div>
             <div class="th-cell num">Lowest Comp.</div>
-            <div class="th-cell">Margin Health</div>
+            <div class="th-cell">Competitiveness</div>
             <div class="th-cell center">Status</div>
             <div class="th-cell act-cell">Actions</div>
           </div>
@@ -586,7 +586,7 @@ export class CatalogTrackerComponent implements OnInit {
               image: e.bqImage || e.product.emoji_icon || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=200',
               yourPrice: e.product.my_price,
               lowestComp,
-              margin: e.product.cached_market_visibility_pct || 50,
+              margin: Math.round(Math.max(0, 100 - (diffPct * 5))),
               status
             };
           });

@@ -131,7 +131,11 @@ export class AuthService {
     formData.append('username', email);
     formData.append('password', password);
 
-    return this.httpBackend.post<ApiResponse<TokenResponse>>(`${this.API_URL}/login`, formData).pipe(
+    return this.httpBackend.post<ApiResponse<TokenResponse>>(
+      `${this.API_URL}/login`, 
+      formData,
+      { withCredentials: true }
+    ).pipe(
       switchMap(res => {
         this.setAccessToken(res.data.access_token);
         return this.getUserProfile().pipe(
@@ -148,7 +152,8 @@ export class AuthService {
   googleAuth(idToken: string): Observable<GoogleAuthResponse> {
     return this.httpBackend.post<GoogleAuthResponse>(
       `${this.API_URL}/google`,
-      { token: idToken }
+      { token: idToken },
+      { withCredentials: true }
     ).pipe(
       tap(res => {
         if (!res.is_new_user && res.access_token && res.user) {
@@ -163,7 +168,8 @@ export class AuthService {
   confirmGoogleSignup(idToken: string, role: UserRole): Observable<User> {
     return this.httpBackend.post<GoogleAuthResponse>(
       `${this.API_URL}/google/confirm`,
-      { token: idToken, role }
+      { token: idToken, role },
+      { withCredentials: true }
     ).pipe(
       tap(res => {
         if (res.access_token && res.user) {
