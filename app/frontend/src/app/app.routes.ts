@@ -1,4 +1,4 @@
-import { Routes } from '@angular/router';
+import { Routes, UrlSegment } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { LandingPageComponent } from './features/landing/landing-page.component';
 import { SearchResultsComponent } from './features/search/search-results.component';
@@ -30,7 +30,16 @@ import { NotFoundComponent } from './features/not-found/not-found.component';
 export const routes: Routes = [
   { path: '', component: LandingPageComponent },
   { path: 'search', component: SearchResultsComponent },
-  { path: 'product/:id', component: ProductDetailComponent },
+  {
+    matcher: (segments: UrlSegment[]) => {
+      if (segments.length >= 1 && segments[0].path === 'product') {
+        const id = segments.slice(1).map(s => s.path).join('/');
+        return id ? { consumed: segments, posParams: { id: new UrlSegment(id, {}) } } : null;
+      }
+      return null;
+    },
+    component: ProductDetailComponent
+  },
   { path: 'deals', component: DealFeedComponent },
   { path: 'auth', component: AuthComponent },
   { path: 'auth/verify-email', component: AuthComponent },

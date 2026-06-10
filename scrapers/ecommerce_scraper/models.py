@@ -46,6 +46,7 @@ class SellerType(str, Enum):
 
 class Product(BaseModel):
     external_id: str
+    model_number: Optional[str] = None
     name: str
     brand: str
     category: Category

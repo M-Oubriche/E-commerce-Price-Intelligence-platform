@@ -83,6 +83,7 @@ class EbayScraper(BaseScraper):
             source_url=item.get("itemWebUrl", ""),
             product=Product(
                 external_id=str(item.get("itemId")),
+                model_number=None,
                 name=item.get("title", ""),
                 brand=brand,
                 category=category,

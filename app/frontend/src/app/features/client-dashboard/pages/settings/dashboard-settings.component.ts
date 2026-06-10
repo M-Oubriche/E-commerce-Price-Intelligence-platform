@@ -55,19 +55,6 @@ import { Router } from '@angular/router';
           </div>
         </section>
 
-        <!-- Interests Section -->
-        <section class="settings-section animate-in">
-          <h2 class="section-title">Your Interests</h2>
-          <div class="category-grid">
-            <div class="cat-card" *ngFor="let cat of categories" 
-                 [class.selected]="cat.selected"
-                 (click)="cat.selected = !cat.selected">
-              <div class="cat-icon">{{ cat.icon }}</div>
-              <div class="cat-name">{{ cat.name }}</div>
-            </div>
-          </div>
-        </section>
-
         <!-- Notifications Section -->
         <section class="settings-section animate-in">
           <h2 class="section-title">Notifications</h2>
@@ -230,16 +217,6 @@ import { Router } from '@angular/router';
     .category-grid {
       display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
     }
-    .cat-card {
-      padding: 16px 12px; border-radius: 14px; border: 1px solid var(--border);
-      background: var(--bg-secondary); text-align: center; cursor: pointer; transition: all 0.2s;
-    }
-    .cat-icon { font-size: 24px; margin-bottom: 8px; }
-    .cat-name { font-size: 12px; font-weight: 700; color: var(--text-secondary); }
-    .cat-card.selected { background: rgba(59, 130, 246, 0.1); border-color: #3B82F6; }
-    .cat-card.selected .cat-name { color: #3B82F6; }
-    .cat-card:hover:not(.selected) { border-color: var(--border-mid); background: var(--bg-hover); }
-
     .loading-state { text-align: center; padding: 20px 0; }
     .spinner {
       width: 24px; height: 24px; border: 2px solid var(--border);
@@ -273,7 +250,6 @@ import { Router } from '@angular/router';
 
     @media (max-width: 600px) {
       .profile-layout { flex-direction: column; align-items: center; }
-      .category-grid { grid-template-columns: 1fr 1fr; }
       .danger-box { flex-direction: column; align-items: flex-start; }
     }
   `]
@@ -308,17 +284,6 @@ export class DashboardSettingsComponent implements OnInit {
   alertPrefs: AlertPreferences | null = null;
   isLoadingPrefs = true;
   isSavingProfile = false;
-
-  categories = [
-    { name: 'Smartphones', icon: '📱', selected: true },
-    { name: 'Laptops', icon: '💻', selected: true },
-    { name: 'Monitors', icon: '🖥️', selected: false },
-    { name: 'Headphones', icon: '🎧', selected: true },
-    { name: 'Périphériques', icon: '📷', selected: false },
-    { name: 'Gaming', icon: '🎮', selected: true },
-    { name: 'Tablets', icon: '📟', selected: false },
-    { name: 'Components', icon: '🔌', selected: false }
-  ];
 
   ngOnInit() {
     this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {

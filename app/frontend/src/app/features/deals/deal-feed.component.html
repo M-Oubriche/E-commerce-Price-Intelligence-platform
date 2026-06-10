@@ -12,8 +12,8 @@
             <span class="live-dot"></span>
             <span class="live-text">Live</span>
           </span>
-          <span class="muted-stat">247 deals today</span>
-          <span class="muted-stat">Last updated 2 min ago</span>
+          <span class="muted-stat">{{ dealsCount }} deals today</span>
+          <span class="muted-stat">Last updated {{ lastUpdated }}</span>
         </div>
       </div>
       <div class="header-right">
@@ -67,7 +67,7 @@
           <div class="featured-price-block">
             <span class="current-price">{{ featuredDeal.currentPrice | currency }}</span>
             <span class="was-price">{{ featuredDeal.originalPrice | currency }}</span>
-            <span class="savings-pill">Save {{ featuredDeal.savingsAmount | currency }} ({{ featuredDeal.savingsPercent }}%)</span>
+            <span class="savings-pill" *ngIf="featuredDeal.savingsAmount > 0">Save {{ featuredDeal.savingsAmount | currency }} ({{ featuredDeal.savingsPercent }}%)</span>
           </div>
 
           <div class="stock-row">
@@ -117,7 +117,7 @@
             <div class="price-block" *ngIf="deal.type !== 'fake_deal_exposed'">
               <span class="price-current">{{ deal.currentPrice | currency }}</span>
               <span class="price-was">{{ deal.originalPrice | currency }}</span>
-              <span class="savings-tag">Save {{ deal.savingsAmount | currency }}</span>
+              <span class="savings-tag" *ngIf="deal.savingsAmount > 0">Save {{ deal.savingsAmount | currency }}</span>
             </div>
 
             <!-- Fake Deal Warning -->
@@ -152,6 +152,12 @@
             </div>
           </div>
         </div>
+      </div>
+
+      <!-- ERROR STATE -->
+      <div class="error-state" *ngIf="loadError">
+        <p>Failed to load deals. The backend might be starting up.</p>
+        <button class="btn-load-more" (click)="retryLoad()">Retry</button>
       </div>
 
       <!-- LOAD MORE -->

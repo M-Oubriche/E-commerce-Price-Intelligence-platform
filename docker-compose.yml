@@ -336,13 +336,16 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      # Mount the code for live development
+      - ./app/backend:/app
+      # Mount the DevOps GCP key for BigQuery
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     environment:
       - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY}
-    volumes:
-      # Mount the code for live development
-      - ./app/backend:/app
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
     ports:
       - "8000:8000"
     networks: 

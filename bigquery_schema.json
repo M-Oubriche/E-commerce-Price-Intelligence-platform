@@ -1,0 +1,217 @@
+[
+  {"name": "raw_id",         "type": "STRING",    "mode": "NULLABLE"},
+  {"name": "ingestion_type", "type": "STRING",    "mode": "NULLABLE"},
+  {"name": "source",         "type": "STRING",    "mode": "NULLABLE"},
+  {"name": "source_url",     "type": "STRING",    "mode": "NULLABLE"},
+  {"name": "scraped_at",     "type": "TIMESTAMP", "mode": "NULLABLE"},
+  {
+    "name": "product", "type": "RECORD", "mode": "NULLABLE",
+    "fields": [
+      {"name": "external_id",  "type": "STRING", "mode": "NULLABLE"},
+      {"name": "model_number", "type": "STRING", "mode": "NULLABLE"},
+      {"name": "name",         "type": "STRING", "mode": "NULLABLE"},
+      {"name": "brand",        "type": "STRING", "mode": "NULLABLE"},
+      {"name": "category",     "type": "STRING", "mode": "NULLABLE"},
+      {"name": "description",  "type": "STRING", "mode": "NULLABLE"},
+      {"name": "image_url",    "type": "STRING", "mode": "NULLABLE"}
+    ]
+  },
+  {
+    "name": "pricing", "type": "RECORD", "mode": "NULLABLE",
+    "fields": [
+      {"name": "raw_price",            "type": "FLOAT",  "mode": "NULLABLE"},
+      {"name": "raw_currency",         "type": "STRING", "mode": "NULLABLE"},
+      {"name": "converted_price_usd",  "type": "FLOAT",  "mode": "NULLABLE"},
+      {"name": "original_price_usd",   "type": "FLOAT",  "mode": "NULLABLE"},
+      {"name": "discount_percent",     "type": "FLOAT",  "mode": "NULLABLE"},
+      {"name": "conversion_rate_used", "type": "FLOAT",  "mode": "NULLABLE"}
+    ]
+  },
+  {
+    "name": "availability", "type": "RECORD", "mode": "NULLABLE",
+    "fields": [
+      {"name": "in_stock",           "type": "BOOLEAN", "mode": "NULLABLE"},
+      {"name": "quantity",           "type": "INTEGER", "mode": "NULLABLE"},
+      {"name": "shipping_available", "type": "BOOLEAN", "mode": "NULLABLE"}
+    ]
+  },
+  {
+    "name": "seller", "type": "RECORD", "mode": "NULLABLE",
+    "fields": [
+      {"name": "seller_name",     "type": "STRING", "mode": "NULLABLE"},
+      {"name": "seller_type",     "type": "STRING", "mode": "NULLABLE"},
+      {"name": "seller_rating",   "type": "FLOAT",  "mode": "NULLABLE"},
+      {"name": "seller_location", "type": "STRING", "mode": "NULLABLE"}
+    ]
+  },
+  {
+    "name": "ratings", "type": "RECORD", "mode": "NULLABLE",
+    "fields": [
+      {"name": "avg_rating",   "type": "FLOAT",   "mode": "NULLABLE"},
+      {"name": "review_count", "type": "INTEGER", "mode": "NULLABLE"}
+    ]
+  },
+  {
+    "name": "specs", "type": "RECORD", "mode": "NULLABLE",
+    "fields": [
+      {
+        "name": "GPU", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "vram_gb",        "type": "FLOAT",   "mode": "NULLABLE"},
+          {"name": "tdp_watts",      "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "base_clock_mhz", "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "boost_clock_mhz","type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "memory_type",    "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "interface",      "type": "STRING",  "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "CPU", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "cores",           "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "threads",         "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "base_clock_ghz",  "type": "FLOAT",   "mode": "NULLABLE"},
+          {"name": "boost_clock_ghz", "type": "FLOAT",   "mode": "NULLABLE"},
+          {"name": "socket",          "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "tdp_watts",       "type": "INTEGER", "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "RAM", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "capacity_gb", "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "speed_mhz",   "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "type",        "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "latency",     "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "kit",         "type": "STRING",  "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "SSD", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "capacity_gb",      "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "interface",        "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "read_speed_mbps",  "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "write_speed_mbps", "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "form_factor",      "type": "STRING",  "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "HDD", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "capacity_gb", "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "rpm",         "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "interface",   "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "cache_mb",    "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "form_factor", "type": "STRING",  "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Monitor", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "resolution",       "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "refresh_rate_hz",  "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "panel_type",       "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "size_inches",      "type": "FLOAT",   "mode": "NULLABLE"},
+          {"name": "response_time_ms", "type": "FLOAT",   "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Keyboard", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "switch_type",  "type": "STRING", "mode": "NULLABLE"},
+          {"name": "layout",       "type": "STRING", "mode": "NULLABLE"},
+          {"name": "connectivity", "type": "STRING", "mode": "NULLABLE"},
+          {"name": "backlight",    "type": "STRING", "mode": "NULLABLE"},
+          {"name": "form_factor",  "type": "STRING", "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Mouse", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "dpi_max",      "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "buttons",      "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "connectivity", "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "sensor_type",  "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "weight_g",     "type": "FLOAT",   "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "PSU", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "wattage",           "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "efficiency_rating", "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "modular",           "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "form_factor",       "type": "STRING",  "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Case", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "form_factor",        "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "material",           "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "max_gpu_length_mm",  "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "drive_bays",         "type": "INTEGER", "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Cooling", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "type",              "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "tdp_support_watts", "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "fan_size_mm",       "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "socket_support",    "type": "STRING",  "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Motherboard", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "socket",      "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "chipset",     "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "form_factor", "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "ram_slots",   "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "max_ram_gb",  "type": "INTEGER", "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Laptop", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "cpu_model",          "type": "STRING", "mode": "NULLABLE"},
+          {"name": "ram_gb",             "type": "FLOAT",  "mode": "NULLABLE"},
+          {"name": "storage_gb",         "type": "FLOAT",  "mode": "NULLABLE"},
+          {"name": "screen_size_inches", "type": "FLOAT",  "mode": "NULLABLE"},
+          {"name": "gpu_model",          "type": "STRING", "mode": "NULLABLE"},
+          {"name": "battery_wh",         "type": "FLOAT",  "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Desktop", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "cpu_model",   "type": "STRING", "mode": "NULLABLE"},
+          {"name": "ram_gb",      "type": "FLOAT",  "mode": "NULLABLE"},
+          {"name": "storage_gb",  "type": "FLOAT",  "mode": "NULLABLE"},
+          {"name": "gpu_model",   "type": "STRING", "mode": "NULLABLE"},
+          {"name": "form_factor", "type": "STRING", "mode": "NULLABLE"},
+          {"name": "os",          "type": "STRING", "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Mobile", "type": "RECORD", "mode": "NULLABLE",
+        "fields": [
+          {"name": "soc_model",          "type": "STRING",  "mode": "NULLABLE"},
+          {"name": "ram_gb",             "type": "FLOAT",   "mode": "NULLABLE"},
+          {"name": "storage_gb",         "type": "FLOAT",   "mode": "NULLABLE"},
+          {"name": "screen_size_inches", "type": "FLOAT",   "mode": "NULLABLE"},
+          {"name": "battery_mah",        "type": "INTEGER", "mode": "NULLABLE"},
+          {"name": "camera_mp",          "type": "INTEGER", "mode": "NULLABLE"}
+        ]
+      },
+      {
+        "name": "Peripheral", "type": "JSON", "mode": "NULLABLE"
+      },
+      {
+        "name": "Other", "type": "JSON", "mode": "NULLABLE"
+      }
+    ]
+  }
+]

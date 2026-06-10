@@ -44,27 +44,37 @@ def export_to_jsonl(records, filename_prefix="scraper_output"):
 
 def export_to_nifi(records):
     """
-    Streams records directly to Apache NiFi ListenHTTP endpoint.
+    Streams records directly to Apache NiFi ListenHTTP endpoint in batches.
     """
     nifi_url = os.environ.get("NIFI_INGEST_URL", "http://price_nifi:9090/contentListener")
     success_count = 0
     import requests
+    import time
     
-    for record in records:
-        try:
-            # Convert Pydantic model strictly to JSON-serializable dict (handles UUID properly)
-            payload = record.model_dump(mode='json')
-            resp = requests.post(nifi_url, json=payload, timeout=5)
+    if not records:
+        return
+        
+    try:
+        # Convert all records to dicts and send as a single JSON array payload
+        payload = [r.model_dump(mode='json') for r in records]
+        
+        # Retry logic for 503 (NiFi startup/throttling)
+        for attempt in range(5):
+            resp = requests.post(nifi_url, json=payload, timeout=10)
             if resp.status_code == 200:
-                success_count += 1
+                success_count = len(records)
+                break
+            elif resp.status_code == 503:
+                logger.warning(f"NiFi returned 503 (attempt {attempt+1}/5). Waiting to retry...")
+                time.sleep(3)
             else:
                 logger.error(f"NiFi returned status {resp.status_code}: {resp.text}")
-        except Exception as e:
-            logger.error(f"Failed to post to NiFi: {e}")
-            break
+                break
+    except Exception as e:
+        logger.error(f"Failed to post to NiFi: {e}")
             
     if success_count > 0:
-        logger.info(f"Successfully streamed {success_count} records to NiFi.")
+        logger.info(f"Successfully streamed {success_count} records to NiFi in a single batch.")
 
 def run_scrapers():
     """

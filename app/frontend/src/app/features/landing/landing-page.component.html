@@ -50,15 +50,14 @@
                     <span class="suggestion-name">{{ item.name }}</span>
                     <span class="suggestion-category">{{ item.category }}</span>
                   </div>
-                  <span class="suggestion-price">from {{ item.bestPrice | currency }}</span>
+                  <span class="suggestion-price">on {{ item.store }}</span>
                 </div>
               </div>
               <div class="suggestions-group" *ngIf="categorySuggestions.length > 0">
                 <div class="group-label">Categories</div>
-                <div class="suggestion-item category-item" *ngFor="let cat of categorySuggestions" (mousedown)="selectCategory(cat)">
+                  <div class="suggestion-item category-item" *ngFor="let cat of categorySuggestions" (mousedown)="selectCategory(cat)">
                   <div class="sug-cat-icon">{{ cat.name[0] }}</div>
                   <span class="suggestion-name">{{ cat.name }}</span>
-                  <span class="suggestion-count">{{ cat.count }}+ products</span>
                 </div>
               </div>
               <div class="suggestions-footer" (mousedown)="onSearchSubmit()">
@@ -75,30 +74,28 @@
       </div>
 
       <!-- Hero Deal Banner Grid: 1 big + 4 mini -->
-      <div class="hero-deals-grid">
+      <div class="hero-deals-grid" *ngIf="featuredDeal">
 
         <!-- Left: Big featured deal -->
         <div class="featured-deal-card">
           <div class="featured-tag-pill">Deal of the Day</div>
-          <div class="featured-lowest-ribbon">Lowest Ever Price</div>
+          <div class="featured-lowest-ribbon" *ngIf="featuredDeal.isLowestEver">Lowest Ever Price</div>
           <img
-            src="https://images.pexels.com/photos/2047905/pexels-photo-2047905.jpeg"
-            alt="MacBook Pro"
+            [src]="featuredDeal.image"
+            [alt]="featuredDeal.name"
             class="featured-img"
             loading="eager"
-            onerror="this.onerror=null; this.src='https://images.pexels.com/photos/18105/pexels-photo.jpg';"
+            onerror="this.onerror=null; this.src='https://images.pexels.com/photos/2047905/pexels-photo-2047905.jpeg';"
           >
           <div class="featured-overlay">
-            <div class="featured-category-tag">Laptops</div>
-            <h2 class="featured-name">MacBook Pro 14" M3 Pro</h2>
-            <p class="featured-specs">18GB RAM · 512GB SSD · Space Black</p>
+            <div class="featured-category-tag">{{ featuredDeal.category }}</div>
+            <h2 class="featured-name">{{ featuredDeal.name }}</h2>
             <div class="featured-pricing">
-              <span class="feat-price">$1,749</span>
-              <span class="feat-old">$1,999</span>
-              <span class="feat-pct">-12%</span>
+              <span class="feat-price">{{ featuredDeal.currentPrice | currency }}</span>
+              <span class="feat-old">{{ featuredDeal.oldPrice | currency }}</span>
+              <span class="feat-pct" *ngIf="featuredDeal.discount > 0">-{{ featuredDeal.discount }}%</span>
             </div>
-            <div class="featured-store-line">Best at: <strong>Amazon</strong> · eBay $1,810 · BestBuy $1,849</div>
-            <a routerLink="/search" [queryParams]="{q: 'MacBook Pro 14 M3'}" class="btn-featured">View Best Price →</a>
+            <a [routerLink]="['/product', featuredDeal.id]" class="btn-featured">View Best Price →</a>
           </div>
         </div>
 
@@ -106,7 +103,7 @@
         <div class="side-deals-grid">
           <div class="side-deal-card" *ngFor="let deal of heroSideDeals" [routerLink]="['/search']" [queryParams]="{q: deal.name}">
             <div class="side-img-wrap">
-              <div class="side-pct-badge">-{{ deal.discount }}%</div>
+              <div class="side-pct-badge" *ngIf="deal.discount > 0">-{{ deal.discount }}%</div>
               <div class="side-lowest-tag" *ngIf="deal.isLowestEver">Low</div>
               <img [src]="deal.image || 'https://images.pexels.com/photos/279906/pexels-photo-279906.jpeg?auto=compress&cs=tinysrgb&w=400'" [alt]="deal.name" loading="lazy" onerror="this.src='https://images.pexels.com/photos/279906/pexels-photo-279906.jpeg?auto=compress&cs=tinysrgb&w=400'">
             </div>
@@ -182,25 +179,6 @@
             <p class="flash-subtitle">Limited time — biggest drops of the day</p>
           </div>
         </div>
-        <div class="flash-countdown">
-          <span class="cd-label">Ends in</span>
-          <div class="cd-blocks">
-            <div class="cd-block">
-              <span class="cd-num">{{ countdown.hours }}</span>
-              <span class="cd-unit">HRS</span>
-            </div>
-            <span class="cd-colon">:</span>
-            <div class="cd-block">
-              <span class="cd-num">{{ countdown.minutes }}</span>
-              <span class="cd-unit">MIN</span>
-            </div>
-            <span class="cd-colon">:</span>
-            <div class="cd-block">
-              <span class="cd-num">{{ countdown.seconds }}</span>
-              <span class="cd-unit">SEC</span>
-            </div>
-          </div>
-        </div>
         <a routerLink="/deals" class="view-all-link">View all →</a>
       </div>
 
@@ -208,7 +186,7 @@
         <div class="flash-cards-row">
           <div class="flash-card" *ngFor="let deal of flashDeals">
             <div class="flash-img-wrap">
-              <div class="flash-pct">-{{ deal.discount }}%</div>
+              <div class="flash-pct" *ngIf="deal.discount > 0">-{{ deal.discount }}%</div>
               <div class="flash-lowest" *ngIf="deal.isLowestEver">Lowest Price</div>
               <img [src]="deal.image" [alt]="deal.name" loading="lazy" onerror="this.style.display='none'">
             </div>
@@ -244,14 +222,14 @@
       <div class="section-header-flex">
         <div>
           <h2 class="section-title">Trending Deals</h2>
-          <p class="section-sub">Best prices found across all 214 stores — updated every 6 hours</p>
+          <p class="section-sub">Best prices found across all stores — updated every 6 hours</p>
         </div>
         <a routerLink="/deals" class="view-all-link">View all deals →</a>
       </div>
       <div class="products-grid">
         <div class="product-card" *ngFor="let p of products">
           <div class="pcard-img-wrap">
-            <div class="pcard-discount">-{{ p.discount }}%</div>
+            <div class="pcard-discount" *ngIf="p.discount > 0">-{{ p.discount }}%</div>
             <div class="pcard-lowest" *ngIf="p.isLowestEver">Low</div>
             <img [src]="p.image" [alt]="p.name" loading="lazy" onerror="this.style.display='none'">
           </div>
@@ -307,26 +285,26 @@
       </div>
 
       <!-- Right: SVG Price History Chart -->
-      <div class="callout-chart-wrap">
+      <div class="callout-chart-wrap" *ngIf="historyExample">
         <div class="chart-product-header">
           <div>
-            <div class="chart-product-name">MacBook Air M3 15"</div>
-            <div class="chart-product-sub">30-day price history · 3 stores</div>
+            <div class="chart-product-name">{{ historyExample.name }}</div>
+            <div class="chart-product-sub">30-day price history · All stores</div>
           </div>
           <div class="chart-header-badges">
-            <span class="chart-badge-low">↓ Lowest Ever</span>
-            <span class="chart-badge-store">Best: Amazon</span>
+            <span class="chart-badge-low" *ngIf="historyExample.isLowestEver">↓ Lowest Ever</span>
+            <span class="chart-badge-store">Best at: {{ historyExample.store }}</span>
           </div>
         </div>
 
         <div class="chart-svg-wrap">
           <!-- Y-axis labels -->
           <div class="chart-y-axis">
-            <span>$1,249</span>
-            <span>$1,199</span>
-            <span>$1,149</span>
-            <span>$1,099</span>
-            <span>$1,049</span>
+            <span>{{ historyExample.oldPrice * 1.05 | currency:'USD':'symbol':'1.0-0' }}</span>
+            <span>{{ historyExample.oldPrice | currency:'USD':'symbol':'1.0-0' }}</span>
+            <span>{{ (historyExample.oldPrice + historyExample.currentPrice) / 2 | currency:'USD':'symbol':'1.0-0' }}</span>
+            <span>{{ historyExample.currentPrice | currency:'USD':'symbol':'1.0-0' }}</span>
+            <span>{{ historyExample.currentPrice * 0.95 | currency:'USD':'symbol':'1.0-0' }}</span>
           </div>
 
           <!-- Chart area -->
@@ -356,11 +334,13 @@
               <path d="M 0,47 C 30,47 55,43 80,45 C 105,47 130,43 160,45 C 175,46 190,18 210,10 C 225,4 240,10 255,28 C 268,42 280,47 295,54 C 315,65 335,84 360,100 C 385,116 420,120 450,130 L 480,140" fill="none" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
 
               <!-- Fake-spike vertical marker -->
-              <line x1="210" y1="0" x2="210" y2="155" stroke="rgba(239,68,68,0.35)" stroke-width="1.5" stroke-dasharray="5,4"/>
+              <line x1="210" y1="0" x2="210" y2="155" stroke="rgba(239,68,68,0.35)" stroke-width="1.5" stroke-dasharray="5,4" *ngIf="historyExample.isFake"/>
 
               <!-- Spike peak dot -->
-              <circle cx="210" cy="10" r="4" fill="#EF4444"/>
-              <circle cx="210" cy="10" r="8" fill="rgba(239,68,68,0.15)"/>
+              <ng-container *ngIf="historyExample.isFake">
+                <circle cx="210" cy="10" r="4" fill="#EF4444"/>
+                <circle cx="210" cy="10" r="8" fill="rgba(239,68,68,0.15)"/>
+              </ng-container>
 
               <!-- Current price dot (lowest) -->
               <circle cx="480" cy="140" r="5" fill="#10B981"/>
@@ -368,14 +348,14 @@
             </svg>
 
             <!-- Spike annotation -->
-            <div class="chart-spike-ann">
-              <span class="spike-label">Fake "sale" +$50</span>
+            <div class="chart-spike-ann" *ngIf="historyExample.isFake">
+              <span class="spike-label">Fake "sale" spotted</span>
             </div>
 
             <!-- Current price annotation -->
             <div class="chart-current-ann">
-              <span class="current-price-val">$1,049</span>
-              <span class="current-price-sub">Today · Lowest Ever</span>
+              <span class="current-price-val">{{ historyExample.currentPrice | currency }}</span>
+              <span class="current-price-sub">Today · {{ historyExample.isLowestEver ? 'Lowest Ever' : 'Live' }}</span>
             </div>
           </div>
         </div>

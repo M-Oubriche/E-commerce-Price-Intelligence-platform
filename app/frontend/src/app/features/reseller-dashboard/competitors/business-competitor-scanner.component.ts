@@ -3,48 +3,10 @@ import { CommonModule, CurrencyPipe, DatePipe, DecimalPipe } from '@angular/comm
 import { FormsModule } from '@angular/forms';
 import { RouterModule, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { ResellerService, TrackedCompetitor } from '../../../core/services/reseller.service';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
-
-interface Competitor {
-  id: string;
-  name: string;
-  logo: string;
-  logoUrl?: string;
-  logoGrad: string;
-  competitiveness: number;
-  competitivenessTrend: number;
-  aggressiveness: 'High' | 'Medium' | 'Low';
-  aggressionDescription: string;
-  sparkColor: string;
-  history: number[];
-  lastUpdated: string;
-  domain: string;
-}
-
-interface Matchup {
-  name: string;
-  image: string;
-  yourPrice: number;
-  compPrices: { [compId: string]: number | null };
-  risk: 'High' | 'Medium' | 'Low';
-  change7d: number[];
-  avgMarketDiff: number;
-}
-
-interface Activity {
-  id: string;
-  compName: string;
-  compLogo: string;
-  compLogoUrl?: string;
-  action: 'dropped' | 'raised' | 'matched';
-  value: number;
-  timeLabel: string;
-  timestamp: string;
-  fullDate: string;
-  impactScore: 'High' | 'Med' | 'Low';
-  priceHistory7d: number[];
-}
+import { forkJoin, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
+import { ResellerService } from '../../../core/services/reseller.service';
+import { AnalyticsApiService } from '../../../core/services/analytics-api.service';
 
 @Component({
   selector: 'app-reseller-competitor-scanner',
@@ -60,14 +22,14 @@ interface Activity {
         </div>
         <div class="header-right">
           <div class="sync-info">
-            <span class="sync-time">{{ isSyncing ? 'Syncing...' : 'Last synced 2 mins ago' }}</span>
+            <span class="sync-time">{{ isSyncing ? 'Refreshing...' : (lastSyncTime ? 'Last updated ' + lastSyncTime : '') }}</span>
             <div class="sync-dot" [class.syncing]="isSyncing"></div>
           </div>
           <button class="sync-btn" (click)="refreshData()" [disabled]="isSyncing">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" [class.spin]="isSyncing">
               <path d="M21 2v6h-6M21.34 15.57a10 10 0 1 1-.59-10.45l5.25 2.88"/>
             </svg>
-            {{ isSyncing ? 'Syncing...' : 'Sync Market Data' }}
+            {{ isSyncing ? 'Refreshing...' : 'Refresh Data' }}
           </button>
         </div>
       </div>
@@ -76,9 +38,9 @@ interface Activity {
         <div class="competitor-card" *ngFor="let competitor of competitors" [class]="'aggression-' + competitor.aggression.toLowerCase()">
           <div class="card-top">
             <div class="competitor-identity">
-              <div class="competitor-logo">{{ competitor.name.charAt(0) }}</div>
-              <div class="competitor-info">
-                <span class="competitor-name">{{ competitor.name }}</span>
+               <div class="competitor-logo">{{ competitor.seller_name.charAt(0) }}</div>
+               <div class="competitor-info">
+                 <span class="competitor-name">{{ competitor.seller_name }}</span>
                 <span class="aggression-badge" [class]="'badge-' + competitor.aggression.toLowerCase()">
                   {{ competitor.aggression }} AGGRESSION
                 </span>
@@ -108,12 +70,20 @@ interface Activity {
           </div>
 
           <div class="card-chart">
-            <span class="chart-label">30D PRICING VOLATILITY</span>
-            <svg class="sparkline" viewBox="0 0 200 40" preserveAspectRatio="none">
-              <path [attr.d]="competitor.sparklinePath" fill="none"
-                    [attr.stroke]="competitor.sparklineColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
+            <span class="chart-label">PRICING TREND</span>
+            <span class="trend-arrow" [class.trend-up]="competitor.trendDir === 'up'"
+                                       [class.trend-down]="competitor.trendDir === 'down'"
+                                       [class.trend-flat]="competitor.trendDir === 'flat'">
+              <svg *ngIf="competitor.trendDir === 'up'" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>
+              </svg>
+              <svg *ngIf="competitor.trendDir === 'down'" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>
+              </svg>
+              <svg *ngIf="competitor.trendDir === 'flat'" viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </span>
           </div>
         </div>
         
@@ -135,15 +105,14 @@ interface Activity {
               <input type="text" placeholder="Filter by product name..." [(ngModel)]="productFilter" (input)="showFilterDropdown = true" (ngModelChange)="updateDerivedData()">
               
               <!-- Autocomplete Dropdown -->
-              <div class="suggestion-dropdown" *ngIf="showFilterDropdown && filterSuggestions.length > 0">
-                <div class="suggestion-item" *ngFor="let item of filterSuggestions" (click)="productFilter = item.name; showFilterDropdown = false; updateDerivedData()">
-                  <div class="s-logo">{{ item.name.charAt(0) }}</div>
-                  <div class="s-info">
-                    <span class="s-name">{{ item.name }}</span>
-                    <span class="s-cat">{{ item.category }}</span>
-                  </div>
-                </div>
-              </div>
+               <div class="suggestion-dropdown" *ngIf="showFilterDropdown && filterSuggestions.length > 0">
+                 <div class="suggestion-item" *ngFor="let item of filterSuggestions" (click)="productFilter = item.name; showFilterDropdown = false; updateDerivedData()">
+                   <div class="s-logo">{{ item.name.charAt(0) }}</div>
+                   <div class="s-info">
+                     <span class="s-name">{{ item.name }}</span>
+                   </div>
+                 </div>
+               </div>
             </div>
           </div>
 
@@ -153,10 +122,10 @@ interface Activity {
                 <tr>
                   <th class="col-product">CATALOG ITEM</th>
                   <th class="col-price your-price">YOUR PRICE</th>
-                  <th class="col-price" *ngFor="let comp of competitors">
+                  <th class="col-price" *ngFor="let src of matrixSources">
                     <div class="th-competitor">
-                      <div class="th-logo">{{ comp.name.charAt(0) }}</div>
-                      {{ comp.name.toUpperCase() }}
+                   <div class="th-logo">{{ src.charAt(0) }}</div>
+                     {{ src.toUpperCase() }}
                     </div>
                   </th>
                 </tr>
@@ -174,21 +143,21 @@ interface Activity {
                   <td class="col-price your-price">
                     <span class="your-price-val">{{ item.yourPrice | currency }}</span>
                   </td>
-                  <td class="col-price" *ngFor="let comp of competitors"
-                      [class.cheaper]="item.competitorPrices[comp.id] != null && item.competitorPrices[comp.id]! < item.yourPrice"
-                      [class.expensive]="item.competitorPrices[comp.id] != null && item.competitorPrices[comp.id]! > item.yourPrice"
-                      [class.match]="item.competitorPrices[comp.id] === item.yourPrice">
+                  <td class="col-price" *ngFor="let src of matrixSources"
+                      [class.cheaper]="item.competitorPrices[src] != null && item.competitorPrices[src]! < item.yourPrice"
+                      [class.expensive]="item.competitorPrices[src] != null && item.competitorPrices[src]! > item.yourPrice"
+                      [class.match]="item.competitorPrices[src] === item.yourPrice">
                     <div class="price-cell">
-                      <span class="comp-price">{{ item.competitorPrices[comp.id] | currency }}</span>
-                      <ng-container *ngIf="item.competitorPrices[comp.id] != null">
+                      <span class="comp-price">{{ item.competitorPrices[src] | currency }}</span>
+                      <ng-container *ngIf="item.competitorPrices[src] != null">
                         <span class="price-delta"
-                          *ngIf="(item.competitorPrices[comp.id]! - item.yourPrice) !== 0"
-                          [class.delta-down]="(item.competitorPrices[comp.id]! - item.yourPrice) < 0"
-                          [class.delta-up]="(item.competitorPrices[comp.id]! - item.yourPrice) > 0">
-                          {{ (item.competitorPrices[comp.id]! - item.yourPrice) > 0 ? '+' : '' }}{{ (item.competitorPrices[comp.id]! - item.yourPrice) | currency }}
+                          *ngIf="(item.competitorPrices[src]! - item.yourPrice) !== 0"
+                          [class.delta-down]="(item.competitorPrices[src]! - item.yourPrice) < 0"
+                          [class.delta-up]="(item.competitorPrices[src]! - item.yourPrice) > 0">
+                          {{ (item.competitorPrices[src]! - item.yourPrice) > 0 ? '+' : '' }}{{ (item.competitorPrices[src]! - item.yourPrice) | currency }}
                         </span>
                       </ng-container>
-                      <span class="match-badge" *ngIf="item.competitorPrices[comp.id] === item.yourPrice">MATCH</span>
+                      <span class="match-badge" *ngIf="item.competitorPrices[src] === item.yourPrice">MATCH</span>
                     </div>
                   </td>
                 </tr>
@@ -208,14 +177,17 @@ interface Activity {
           <div class="activity-feed">
             <div class="activity-item" *ngFor="let event of marketActivity"
                  [class.event-drop]="event.action === 'dropped'"
-                 [class.event-raise]="event.action === 'raised'">
-              <div class="activity-logo">{{ event.compName.charAt(0) }}</div>
+                 [class.event-raise]="event.action === 'raised'"
+                 [class.tracked-rival]="event.isTracked">
+              <div class="activity-logo">{{ event.compLogo }}</div>
               <div class="activity-body">
                 <div class="activity-top">
                   <span class="activity-competitor">{{ event.compName }}</span>
+                  <span class="activity-badge" *ngIf="event.isTracked">tracked</span>
                   <span class="activity-time">{{ event.timestamp }}</span>
                 </div>
                 <div class="activity-message">
+                  <span class="activity-product">{{ event.productName }}</span>
                   <span class="activity-action">{{ event.action === 'dropped' ? 'dropped price by' : 'raised price by' }}</span>
                   <span class="activity-amount" [class.amount-drop]="event.action === 'dropped'" [class.amount-raise]="event.action === 'raised'">
                     {{ event.value | currency }}
@@ -741,11 +713,15 @@ interface Activity {
       display: block;
       margin-bottom: 6px;
     }
-    .card-chart .sparkline {
-      width: 100%;
+    .card-chart .trend-arrow {
+      display: flex;
+      align-items: center;
+      justify-content: center;
       height: 40px;
-      display: block;
     }
+    .card-chart .trend-arrow.trend-up { color: var(--success, #22c55e); }
+    .card-chart .trend-arrow.trend-down { color: var(--danger, #ef4444); }
+    .card-chart .trend-arrow.trend-flat { color: var(--text-muted, #9ca3af); }
 
     .add-rival-card {
       background: transparent;
@@ -1094,9 +1070,8 @@ interface Activity {
 
     .activity-top {
       display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      gap: 8px;
+      align-items: center;
+      gap: 6px;
     }
 
     .activity-competitor {
@@ -1106,11 +1081,25 @@ interface Activity {
       white-space: nowrap;
     }
 
+    .activity-badge {
+      font-size: 9px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: var(--accent-blue, #3b82f6);
+      color: #fff;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
     .activity-time {
       font-size: 10px;
       color: var(--text-muted);
       white-space: nowrap;
       flex-shrink: 0;
+      margin-left: auto;
     }
 
     .activity-message {
@@ -1118,6 +1107,21 @@ interface Activity {
       align-items: center;
       gap: 4px;
       flex-wrap: wrap;
+    }
+
+    .activity-product {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 120px;
+    }
+    .activity-product::after {
+      content: '—';
+      margin-left: 4px;
+      color: var(--text-muted);
     }
 
     .activity-action {
@@ -1260,6 +1264,7 @@ interface Activity {
 })
 export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
   private resellerService = inject(ResellerService);
+  private analyticsApi = inject(AnalyticsApiService);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
 
@@ -1269,69 +1274,193 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
   selectedRival: any = null;
   activeMenuId: string | null = null;
   showFilterDropdown = false;
-
-  availableProducts = PLATFORM_PRODUCT_LIBRARY;
+  lastSyncTime = '';
 
   get filterSuggestions() {
     if (!this.productFilter || this.productFilter.length < 1) return [];
-    return this.availableProducts.filter(p => 
+    return this.items.filter(p => 
       p.name.toLowerCase().includes(this.productFilter.toLowerCase())
     );
   }
-  trackedWebsites = [
-    { name: 'Amazon', domain: 'amazon.com' },
-    { name: 'Walmart', domain: 'walmart.com' },
-    { name: 'Best Buy', domain: 'bestbuy.com' },
-    { name: 'Target', domain: 'target.com' },
-    { name: 'eBay', domain: 'ebay.com' },
-    { name: 'Newegg', domain: 'newegg.com' },
-    { name: 'B&H Photo', domain: 'bhphotovideo.com' }
-  ];
+  trackedWebsites: { name: string; domain: string }[] = [];
 
   competitors: any[] = [];
+  items: { id: string; name: string; yourPrice: number; image: string; competitorPrices: Record<string, number | null> }[] = [];
   filteredItems: any[] = [];
   marketActivity: any[] = [];
+  matrixSources: string[] = [];
 
   ngOnInit() {
-    this.fetchCompetitors();
+    this.loadAllData();
   }
 
   ngOnDestroy() { }
 
-  fetchCompetitors() {
-    this.resellerService.getCompetitors()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (comps) => {
-          this.competitors = comps.map(c => ({
-            ...c,
-            aggression: c.aggressiveness,
-            sparklineColor: c.spark_color,
-            sparklinePath: this.getSparklinePath([50, 48, 49, 45, 42, 40, 38, 44, 46, 42, 38, 35]) // Placeholder
-          }));
-          this.updateDerivedData();
-        }
+  loadAllData() {
+    this.isSyncing = true;
+    forkJoin({
+      comps: this.resellerService.getCompetitors().pipe(catchError(() => of([]))),
+      prods: this.resellerService.getProducts().pipe(catchError(() => of([]))),
+      drops: this.analyticsApi.getPriceDrops().pipe(catchError(() => of([]))),
+      platforms: this.analyticsApi.getPlatformPerformance().pipe(catchError(() => of([])))
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(({ comps, prods, drops, platforms }) => {
+      this.competitors = comps.map(c => {
+        const trend = c.competitiveness_trend || 0;
+        return {
+          ...c,
+          seller_name: c.seller_name,
+          name: c.seller_name,
+          aggression: c.aggressiveness,
+          competitiveness: c.competitiveness || 50,
+          trendDir: trend >= 0.3 ? 'up' : trend <= -0.3 ? 'down' : 'flat'
+        };
       });
+      // Build tracked websites from real system data
+      const sourceSet = new Set<string>();
+      // 1. Platforms tracked by the analytics system
+      for (const p of platforms) {
+        if (p.platform) sourceSet.add(p.platform.trim());
+      }
+      // 2. Sources from price drops
+      for (const d of drops) {
+        if (d.source) sourceSet.add(d.source.trim());
+      }
+      // 3. Already-tracked competitors
+      for (const c of comps) {
+        if (c.seller_name) sourceSet.add(c.seller_name.trim());
+      }
+      this.trackedWebsites = Array.from(sourceSet).sort().map(s => ({
+        name: s,
+        domain: s.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com'
+      }));
+
+      this.items = prods.map(p => ({
+        id: p.id,
+        name: p.product_name,
+        yourPrice: p.my_price,
+        image: '',
+        competitorPrices: {}
+      }));
+
+      const now = new Date();
+      const hours = now.getHours().toString().padStart(2, '0');
+      const mins = now.getMinutes().toString().padStart(2, '0');
+      this.lastSyncTime = `${hours}:${mins}`;
+
+      this.enrichProductImages(prods, drops);
+    });
   }
 
-  updateDerivedData() {
-    this.filteredItems = []; // Needs inventory join
-    this.marketActivity = []; // Needs history worker
-  }
-  getSparklinePath(history: number[]): string {
-    if (!history || history.length < 2) return '';
-    const min = Math.min(...history);
-    const max = Math.max(...history);
-    const range = max - min || 1;
-    const width = 200;
-    const height = 40;
-    const stepX = width / (history.length - 1);
+  updateDerivedData(drops: any[] = []) {
+    const query = this.productFilter.toLowerCase();
 
-    return history.map((val, i) => {
-      const x = i * stepX;
-      const y = height - ((val - min) / range) * height;
-      return (i === 0 ? 'M' : 'L') + x.toFixed(2) + ',' + y.toFixed(2);
-    }).join(' ');
+    this.filteredItems = this.items
+      .filter(p => !query || p.name.toLowerCase().includes(query))
+      .map(p => ({
+        name: p.name,
+        image: p.image,
+        yourPrice: p.yourPrice,
+        competitorPrices: p.competitorPrices
+      }));
+
+    const compNames = new Set(this.competitors.map(c => c.seller_name.toLowerCase()));
+
+    this.marketActivity = drops.slice(0, 20).map(d => {
+      const src = d.source || '';
+      const isTracked = compNames.has(src.toLowerCase());
+      return {
+        compName: src,
+        compLogo: src.charAt(0),
+        productName: d.product_name,
+        action: 'dropped',
+        value: d.absolute_drop_usd || 0,
+        timestamp: d.latest_date ? this.relativeTime(d.latest_date) : 'recent',
+        timeLabel: d.latest_date || '',
+        fullDate: d.latest_date || '',
+        impactScore: d.drop_percentage > 20 ? 'High' : d.drop_percentage > 10 ? 'Med' : 'Low' as 'High' | 'Med' | 'Low',
+        priceHistory7d: [d.previous_price, d.latest_price],
+        isTracked
+      };
+    });
+    this.marketActivity.sort((a, b) => new Date(b.fullDate).getTime() - new Date(a.fullDate).getTime());
+  }
+
+  private enrichProductImages(prods: any[], drops: any[]) {
+    const normalized = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+    const findBestMatch = (productName: string, results: any[]) => {
+      const searchName = normalized(productName);
+      const scored = results.map((r: any) => {
+        const bqName = normalized(r.product_name || '');
+        const words = searchName.split(/\s+/).filter((w: string) => w.length > 2);
+        const matches = words.filter((w: string) => bqName.includes(w)).length;
+        const score = words.length > 0 ? matches / words.length : (bqName === searchName ? 1 : 0);
+        const exactBonus = bqName === searchName ? 10 : 0;
+        return { result: r, score: score + exactBonus };
+      });
+      scored.sort((a: any, b: any) => b.score - a.score);
+      return scored[0]?.score >= 0.3 ? scored[0].result : null;
+    };
+
+    const searches = prods.map(p =>
+      this.analyticsApi.searchProducts(p.product_name).pipe(
+        catchError(() => of([])),
+        map((results: any[]) => {
+          const best = findBestMatch(p.product_name, results);
+          if (!best) return { id: p.id, image: null, sources: [] as { source: string; price: number | null }[] };
+          const bestId = best.product_unified_id;
+          const sameProduct = results.filter((r: any) => r.product_unified_id === bestId);
+          return {
+            id: p.id,
+            image: best.product_image_url || null,
+            sources: sameProduct.map(r => ({ source: r.source, price: r.current_price }))
+          };
+        })
+      )
+    );
+
+    if (searches.length === 0) {
+      this.isSyncing = false;
+      this.updateDerivedData(drops);
+      return;
+    }
+
+    forkJoin(searches).pipe(takeUntilDestroyed(this.destroyRef)).subscribe(enriched => {
+      const allSources = new Set<string>();
+      for (const e of enriched) {
+        for (const s of e.sources) {
+          if (s.source) allSources.add(s.source.trim());
+        }
+      }
+      this.matrixSources = Array.from(allSources).sort();
+
+      const enrichedMap = new Map(enriched.map(e => [e.id, e]));
+      for (const item of this.items) {
+        const e = enrichedMap.get(item.id);
+        if (e) {
+          if (e.image) item.image = e.image;
+          for (const s of e.sources) {
+            if (s.source && s.price != null) {
+              item.competitorPrices[s.source.trim()] = s.price;
+            }
+          }
+        }
+      }
+      this.isSyncing = false;
+      this.updateDerivedData(drops);
+    });
+  }
+
+  private relativeTime(dateStr: string): string {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const diffMs = now.getTime() - d.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays}d ago`;
   }
 
   isAlreadyTracked(name: string): boolean {
@@ -1340,11 +1469,7 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
 
   refreshData() {
     if (this.isSyncing) return;
-    this.isSyncing = true;
-    this.fetchCompetitors();
-    setTimeout(() => {
-      this.isSyncing = false;
-    }, 2000);
+    this.loadAllData();
   }
 
   toggleCardMenu(event: MouseEvent, id: string) {
@@ -1371,7 +1496,8 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
   removeRival(id: string) {
     if (confirm('Are you sure you want to stop monitoring this competitor?')) {
       this.resellerService.deleteCompetitor(id).subscribe(() => {
-        this.fetchCompetitors();
+        this.loadAllData();
+        this.resellerService.sidebarRefresh$.next();
       });
     }
   }
@@ -1405,17 +1531,13 @@ export class ResellerCompetitorScannerComponent implements OnInit, OnDestroy {
     };
 
     this.resellerService.createCompetitor(payload).subscribe(() => {
-      this.fetchCompetitors();
+      this.loadAllData();
+      this.resellerService.sidebarRefresh$.next();
       this.closeAddRivalModal();
-      this.refreshData();
     });
   }
 
-  openCardMenu(competitor: any) {
-    alert(`Menu for ${competitor.seller_name}: This feature is coming soon to our premium plan.`);
-  }
-
   viewAllActivity() {
-    this.router.navigate([ '/reseller/analytics']);
+    this.router.navigate(['/reseller/analytics'], { queryParams: { tab: 'activity' } });
   }
 }

@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Subject, Observable } from 'rxjs';
+import { environment } from '../../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
@@ -13,6 +14,10 @@ export class WebSocketService {
 
   messages$ = this.messageSubject.asObservable();
 
+  private get baseWsUrl(): string {
+    return environment.apiUrl.replace(/^http/, 'ws');
+  }
+
   connect(userId: string, token: string): void {
     if (this.socket && this.socket.readyState === WebSocket.OPEN) {
       return;
@@ -21,8 +26,7 @@ export class WebSocketService {
     this.userId = userId;
     this.token = token;
 
-    // Connect to ws://localhost:8000/api/v1/ws/{user_id}?token={access_token}
-    const wsUrl = `ws://localhost:8000/api/v1/ws/${userId}?token=${token}`;
+    const wsUrl = `${this.baseWsUrl}/ws/${userId}?token=${token}`;
     
     this.socket = new WebSocket(wsUrl);
 
