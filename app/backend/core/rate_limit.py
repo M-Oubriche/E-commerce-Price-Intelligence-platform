@@ -67,7 +67,7 @@ async def rate_limit_register(request: Request):
     await sliding_window_rate_limit(
         request,
         key=f"ratelimit:register:{ip}",
-        max_requests=3,
+        max_requests=20,
         window_seconds=3600  # 1 hour
     )
 

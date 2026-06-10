@@ -55,12 +55,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
           <span class="nav-label">Deal Feed</span>
         </a>
 
-        <div class="savings-widget">
-          <div class="savings-label">TOTAL SAVED</div>
-          <div class="savings-amount">$340.00</div>
-          <div class="savings-sub">since you joined</div>
-        </div>
-
         <hr class="nav-divider">
         
         <a routerLink="/dashboard/settings" routerLinkActive="active" class="nav-item">
