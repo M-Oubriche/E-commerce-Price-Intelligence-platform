@@ -4,7 +4,7 @@ models:
   # ----------------------------------------------------
   # STAGING LAYER (BRONZE)
   # ----------------------------------------------------
-  - name: stg_raw_prices
+  - name: int_clean_prices
     description: "Flattens raw JSON/STRUCT data from e-commerce scrapers into a normalized format."
     columns:
       - name: product_unified_id
@@ -114,10 +114,9 @@ models:
     columns:
       - name: margin_health_status
         description: "Categorical status: Excellent, Warning, or Critical based on margin thresholds."
-        tests:
+        data_tests:
           - accepted_values:
-              arguments:
-                values: ['Excellent', 'Warning', 'Critical']
+              values: ['Excellent', 'Warning', 'Critical']
 
   - name: mart_platform_category_avg
     description: "Calculates average prices broken down by Category AND Platform for the Price Gap Heatmap."

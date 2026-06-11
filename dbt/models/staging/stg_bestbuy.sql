@@ -8,6 +8,7 @@ select
     source_url,
     scraped_at,
     product_external_id,
+    product_model_number,
     product_name,
     product_brand,
     product_category,

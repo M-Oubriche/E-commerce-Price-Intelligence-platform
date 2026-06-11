@@ -162,6 +162,7 @@ def export_bigtable_to_bigquery(**context):
             "source_url":          _cell(row, "metadata_cf", "source_url"),
             "scraped_at":          scraped_at_str,
             "product_external_id": product_id_key,
+            "product_model_number": _cell(row, "metadata_cf", "model_number"),
             "product_name":        _cell(row, "metadata_cf", "name"),
             "product_brand":       _cell(row, "metadata_cf", "brand", brand_key),
             "product_category":    _cell(row, "metadata_cf", "category", category_key),
@@ -198,6 +199,7 @@ def export_bigtable_to_bigquery(**context):
         bigquery.SchemaField("source_url",          "STRING",    mode="NULLABLE"),
         bigquery.SchemaField("scraped_at",          "TIMESTAMP", mode="NULLABLE"),
         bigquery.SchemaField("product_external_id", "STRING",    mode="NULLABLE"),
+        bigquery.SchemaField("product_model_number", "STRING",    mode="NULLABLE"),
         bigquery.SchemaField("product_name",        "STRING",    mode="NULLABLE"),
         bigquery.SchemaField("product_brand",       "STRING",    mode="NULLABLE"),
         bigquery.SchemaField("product_category",    "STRING",    mode="NULLABLE"),
@@ -220,6 +222,7 @@ def export_bigtable_to_bigquery(**context):
     job_config = bigquery.LoadJobConfig(
         schema=schema,
         write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+        schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
     )
 
     log.info("Loading %d rows into %s…", len(new_records), table_id)

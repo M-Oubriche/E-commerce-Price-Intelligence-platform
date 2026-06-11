@@ -11,7 +11,7 @@ WITH daily_market_avg AS (
 
 global_catalog AS (
     SELECT COUNT(DISTINCT product_unified_id) AS total_market_items
-    FROM {{ ref('stg_raw_prices') }}
+    FROM {{ ref('int_clean_prices') }}
 )
 
 SELECT

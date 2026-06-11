@@ -16,7 +16,7 @@ WITH latest_prices AS (
             PARTITION BY product_unified_id, source, seller_name 
             ORDER BY scraped_at DESC
         ) as rn
-    FROM {{ ref('stg_raw_prices') }}
+    FROM {{ ref('int_clean_prices') }}
 ),
 
 current_market AS (

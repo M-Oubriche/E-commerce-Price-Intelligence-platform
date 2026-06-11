@@ -12,7 +12,7 @@ WITH latest_prices AS (
             PARTITION BY product_unified_id 
             ORDER BY scraped_at DESC
         ) as rn
-    FROM {{ ref('stg_raw_prices') }}
+    FROM {{ ref('int_clean_prices') }}
     WHERE avg_rating IS NOT NULL
 )
 
