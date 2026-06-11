@@ -141,13 +141,23 @@ def export_bigtable_to_bigquery(**context):
             except Exception:
                 pass
 
+        # Compute is_price_drop from current vs original price (no historical lookup)
+        _conv_price = _safe_float(_cell(row, "price_cf", "converted_price_usd"))
+        _orig_price = _safe_float(_cell(row, "price_cf", "original_price_usd"))
+        if _conv_price is not None and _orig_price is not None and _orig_price > 0 and _conv_price < _orig_price:
+            _is_drop = True
+            _drop_pct = round((_orig_price - _conv_price) / _orig_price * 100, 2)
+        else:
+            _is_drop = None
+            _drop_pct = None
+
         # Combine all column families into one flat dict
         record = {
             "row_key":             row_key_str,
             "raw_id":              _cell(row, "ingestion_cf", "raw_id"),
             "ingestion_type":      _cell(row, "ingestion_cf", "ingestion_type", "unknown"),
-            "is_price_drop":       _safe_bool(_cell(row, "ingestion_cf", "is_price_drop")),
-            "price_drop_percent":  _safe_float(_cell(row, "ingestion_cf", "price_drop_percent")),
+            "is_price_drop":       _is_drop,
+            "price_drop_percent":  _drop_pct,
             "source":              _cell(row, "metadata_cf", "source", source_key),
             "source_url":          _cell(row, "metadata_cf", "source_url"),
             "scraped_at":          scraped_at_str,
@@ -161,7 +171,7 @@ def export_bigtable_to_bigquery(**context):
             "converted_price_usd": _safe_float(_cell(row, "price_cf", "converted_price_usd")),
             "original_price_usd":  _safe_float(_cell(row, "price_cf", "original_price_usd")),
             "discount_percent":    _safe_float(_cell(row, "price_cf", "discount_percent")),
-            "conversion_rate":     _safe_float(_cell(row, "price_cf", "conversion_rate")),
+            "conversion_rate":     _safe_float(_cell(row, "price_cf", "conversion_rate_used")),
             "in_stock":            _safe_bool(_cell(row, "availability_cf", "in_stock")),
             "quantity":            _safe_int(_cell(row, "availability_cf", "quantity")),
             "seller_name":         _cell(row, "seller_cf", "seller_name"),

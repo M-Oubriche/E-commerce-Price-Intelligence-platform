@@ -66,12 +66,12 @@ def pick_best_match(search_name: str, candidates: list[dict], threshold: float =
 async def search_bq_product(product_name: str) -> dict | None:
     nb_sp = '\u00a0'
     search_term = product_name.replace('\u00a0', ' ').replace('\u200b', '').strip().lower()
-    # Use '!' as escape character to avoid backslash escaping issues in BigQuery literals
-    safe_term = search_term.replace("'", "''").replace('!', '!!').replace('%', '!%').replace('_', '!_')
+    # BigQuery CONTAINS_SUBSTR is safer for general substring matching than LIKE
+    safe_term = search_term.replace("'", "''")
     query = f"""
         SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis`
-        WHERE LOWER(REPLACE(product_name, '{nb_sp}', ' ')) LIKE '%{safe_term}%' ESCAPE '!'
-           OR LOWER(product_category) LIKE '%{safe_term}%' ESCAPE '!'
+        WHERE CONTAINS_SUBSTR(REPLACE(product_name, '{nb_sp}', ' '), '{safe_term}')
+           OR CONTAINS_SUBSTR(product_category, '{safe_term}')
         ORDER BY deal_score DESC
         LIMIT 50
     """
