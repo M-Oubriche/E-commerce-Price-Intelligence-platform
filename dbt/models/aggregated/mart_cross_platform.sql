@@ -55,9 +55,10 @@ SELECT
     
     -- Status assignment based on the UI rules
     CASE
-        WHEN m.my_price <= cp.lowest_competitor_price THEN 'healthy'
-        WHEN m.my_price <= (cp.lowest_competitor_price * 1.05) THEN 'risk'
-        ELSE 'critical'
+        WHEN m.my_price IS NULL OR cp.lowest_competitor_price IS NULL THEN NULL
+        WHEN m.my_price <= cp.lowest_competitor_price THEN 'Excellent'
+        WHEN m.my_price <= (cp.lowest_competitor_price * 1.05) THEN 'Warning'
+        ELSE 'Critical'
     END AS margin_health_status
 
 FROM current_source_prices c

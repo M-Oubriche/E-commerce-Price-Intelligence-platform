@@ -5,14 +5,15 @@ WITH raw_prices AS (
 ),
 
 -- Deduplicate identical prices on the same day for the same product and seller
+-- Grain: one row per (product_unified_id, source, seller, price_date)
 daily_prices AS (
     SELECT
         product_unified_id,
-        product_name,
-        product_category,
-        product_image_url,
+        MAX(product_name) AS product_name,
+        MAX(product_category) AS product_category,
+        MAX(product_image_url) AS product_image_url,
         source,
-        seller_name,
+        COALESCE(seller_name, 'Unknown') AS seller_name,
         -- Truncate timestamp to day for a clean daily history
         DATE(scraped_at) AS price_date,
         
@@ -24,11 +25,8 @@ daily_prices AS (
     FROM raw_prices
     GROUP BY 
         product_unified_id,
-        product_name,
-        product_category,
-        product_image_url,
         source,
-        seller_name,
+        COALESCE(seller_name, 'Unknown'),
         DATE(scraped_at)
 )
 

@@ -108,6 +108,19 @@ def export_bigtable_to_bigquery(**context):
     if not all_rows:
         return
 
+    # ---- 1b. Deduplicate by row_key (keep the first occurrence) ----
+    seen_keys: set = set()
+    deduped_rows = []
+    for row in all_rows:
+        rk = row.row_key
+        if rk not in seen_keys:
+            seen_keys.add(rk)
+            deduped_rows.append(row)
+    dups = len(all_rows) - len(deduped_rows)
+    if dups:
+        log.warning("Removed %d duplicate row_keys from Bigtable scan.", dups)
+    all_rows = deduped_rows
+
     # ---- 2. Fetch existing row_keys from BigQuery to avoid duplicates ----
     bq_client = bigquery.Client(project=bq_project)
     existing_keys: set = set()
@@ -121,10 +134,14 @@ def export_bigtable_to_bigquery(**context):
 
     # ---- 3. Parse & filter ----
     new_records = []
+    seen_in_batch: set = set()
     for row in all_rows:
         row_key_str = row.row_key.decode("utf-8")
         if row_key_str in existing_keys:
             continue  # already exported
+        if row_key_str in seen_in_batch:
+            continue  # safeguard against duplicates within this batch
+        seen_in_batch.add(row_key_str)
 
         parts = row_key_str.split("#")
         category_key  = parts[0] if len(parts) > 0 else None
@@ -229,6 +246,23 @@ def export_bigtable_to_bigquery(**context):
     load_job = bq_client.load_table_from_json(new_records, table_id, job_config=job_config)
     load_job.result()  # blocks until done
     log.info("BigQuery load completed. rows_inserted=%d", len(new_records))
+
+    # ---- 5. Deduplicate the BigQuery table by row_key ----
+    # Keeps the latest scraped_at row per row_key.
+    log.info("Deduplicating BigQuery table by row_key…")
+    dedup_query = f"""
+    CREATE OR REPLACE TABLE `{table_id}` AS
+    SELECT * EXCEPT(rn) FROM (
+        SELECT *, ROW_NUMBER() OVER (
+            PARTITION BY row_key
+            ORDER BY IFNULL(CAST(scraped_at AS TIMESTAMP), TIMESTAMP('1970-01-01')) DESC
+        ) AS rn
+        FROM `{table_id}`
+    )
+    WHERE rn = 1
+    """
+    bq_client.query(dedup_query).result()
+    log.info("BigQuery deduplication complete.")
 
     # Push metrics to XCom for downstream visibility
     context["ti"].xcom_push(key="rows_exported", value=len(new_records))
