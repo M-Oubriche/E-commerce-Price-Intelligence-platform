@@ -383,8 +383,12 @@ services:
     environment:
       - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
+      - BIGQUERY_PROJECT_ID=${BIGQUERY_PROJECT_ID}
+      - BIGQUERY_DATASET=${BIGQUERY_DATASET}
     volumes:
       - ./app/backend:/app
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
     networks:
       - platform_net
     command: python worker/main.py
