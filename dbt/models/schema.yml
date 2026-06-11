@@ -116,7 +116,8 @@ models:
         description: "Categorical status: Excellent, Warning, or Critical based on margin thresholds."
         tests:
           - accepted_values:
-              values: ['Excellent', 'Warning', 'Critical']
+              arguments:
+                values: ['Excellent', 'Warning', 'Critical']
 
   - name: mart_platform_category_avg
     description: "Calculates average prices broken down by Category AND Platform for the Price Gap Heatmap."
