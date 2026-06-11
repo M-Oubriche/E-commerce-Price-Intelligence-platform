@@ -57,6 +57,11 @@ docker-compose.override.yml
 infrastructure/keys/
 **/service-account*.json
 **/bigquery-service-account.json
+**/terraform-admin-key.json
+
+# Root-level key files (canonical copies live in infrastructure/keys/)
+bigquery-service-account.json
+terraform-admin-key.json
 
 # Terraform
 **/.terraform/*

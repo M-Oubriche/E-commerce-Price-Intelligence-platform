@@ -21,8 +21,13 @@ def create_table_and_families():
     Connects to Bigtable (real or emulator based on BIGTABLE_EMULATOR_HOST)
     and ensures the target table and its column families exist.
     """
-    project_id = os.environ.get("BIGTABLE_PROJECT_ID", "ecommerce-platform-dev")
-    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID", "price-intelligence-db")
+    project_id  = os.environ.get("BIGTABLE_PROJECT_ID")
+    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID")
+    if not project_id or not instance_id:
+        raise EnvironmentError(
+            "BIGTABLE_PROJECT_ID and BIGTABLE_INSTANCE_ID must be set. "
+            "Check your .env file and docker-compose.yml."
+        )
     table_id = "ecommerce_prices"
 
     # Bigtable client initialization.

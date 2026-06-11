@@ -37,11 +37,19 @@ def send_alert_to_postgres(record, prev_price, drop_percent):
 
 def ingest_to_bigtable(json_str):
     # Initialize Bigtable Client
-    project_id = os.environ.get("BIGTABLE_PROJECT_ID", "ecommerce-platform-dev")
-    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID", "price-intelligence-db")
+    project_id  = os.environ.get("BIGTABLE_PROJECT_ID")
+    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID")
+    if not project_id or not instance_id:
+        print(
+            "ERROR: BIGTABLE_PROJECT_ID and BIGTABLE_INSTANCE_ID must be set. "
+            "Check your .env file and docker-compose.yml.",
+            file=sys.stderr
+        )
+        sys.exit(1)
     table_id = "ecommerce_prices"
     
-    # We assume 'BIGTABLE_EMULATOR_HOST' is set by NiFi/Docker environment
+    # When BIGTABLE_EMULATOR_HOST is NOT set (production), the client connects
+    # to real Google Cloud Bigtable using GOOGLE_APPLICATION_CREDENTIALS.
     client = bigtable.Client(project=project_id, admin=True)
     instance = client.instance(instance_id)
     table = instance.table(table_id)

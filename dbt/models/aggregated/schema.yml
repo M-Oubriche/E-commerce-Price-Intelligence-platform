@@ -1,0 +1,57 @@
+version: 2
+
+models:
+  - name: mart_price_analytics
+    description: "Aggregated pricing statistics per product per source. Primary mart consumed by the Backend API."
+    columns:
+      - name: product_external_id
+        description: "Source-specific product identifier"
+        tests:
+          - not_null
+      - name: source
+        description: "Platform the product was scraped from"
+        tests:
+          - not_null
+      - name: avg_price_usd
+        description: "Mean USD price across all scrapes for this product/source"
+        tests:
+          - not_null
+      - name: min_price_usd
+        description: "All-time lowest scraped price in USD"
+      - name: max_price_usd
+        description: "All-time highest scraped price in USD"
+      - name: total_scrapes
+        description: "How many times this product was scraped"
+
+  - name: mart_cross_platform
+    description: "Latest price per product per platform, with cross-platform price spread metrics."
+    columns:
+      - name: product_external_id
+        tests:
+          - not_null
+      - name: source
+        tests:
+          - not_null
+      - name: converted_price_usd
+        tests:
+          - not_null
+
+  - name: mart_category_trends
+    description: "Weekly aggregated price trends per product category."
+    columns:
+      - name: scrape_week
+        tests:
+          - not_null
+      - name: product_category
+        tests:
+          - not_null
+
+  - name: mart_brand_comparison
+    description: "Price and rating aggregates per brand per category."
+    columns:
+      - name: product_category
+        tests:
+          - not_null
+      - name: product_brand
+        tests:
+          - not_null
