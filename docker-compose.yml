@@ -71,7 +71,6 @@ services:
       - ./scrapers:/app/scrapers
       # bind mount — host path ./data/raw maps to /data/raw in container
       - ./data/raw:/data/raw
-      - ./data/archive:/data/archive
     env_file:
       - .env
     working_dir: /app/scrapers
@@ -123,7 +122,7 @@ services:
       - airflow_logs:/opt/airflow/logs
       # Same bind mount as the scraper — Airflow can read what the scraper writes
       - ./data/raw:/data/raw
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
     networks:
       - platform_net
     # Two commands run sequentially:
@@ -155,7 +154,7 @@ services:
       - ./airflow/plugins:/opt/airflow/plugins
       - airflow_logs:/opt/airflow/logs
       - ./data/raw:/data/raw
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
     ports:
       - "8081:8080"
     networks:
@@ -192,7 +191,7 @@ services:
       - ./data/archive:/data/archive
       # Allow Airflow to trigger docker containers
       - /var/run/docker.sock:/var/run/docker.sock
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
     networks:
       - platform_net
     command: scheduler
@@ -256,8 +255,7 @@ services:
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
       - ./scrapers:/app/scrapers
       - ./data/raw:/data/raw
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
 
     ports:
       - "8090:8090" # NiFi UI: http://localhost:8090/nifi
@@ -352,7 +350,7 @@ services:
       # Mount the code for live development
       - ./app/backend:/app
       # Mount the DevOps GCP key for BigQuery
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
     environment:
       - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
@@ -360,8 +358,6 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
       - BIGQUERY_PROJECT_ID=${BIGQUERY_PROJECT_ID}
       - BIGQUERY_DATASET=${BIGQUERY_DATASET}
-      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     ports:
       - "8000:8000"
     networks: 
@@ -428,7 +424,7 @@ services:
     volumes:
       - ./dbt:/dbt
       - ./dbt/profiles.yml:/root/.dbt/profiles.yml:ro
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
     working_dir: /dbt
     networks:
       - platform_net
@@ -449,7 +445,7 @@ services:
     volumes:
       - ./dbt:/dbt
       - ./dbt/profiles.yml:/root/.dbt/profiles.yml:ro
-      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
     working_dir: /dbt
     ports:
       - "8085:8085"
