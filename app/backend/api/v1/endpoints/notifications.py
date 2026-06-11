@@ -80,9 +80,9 @@ async def mark_as_read(
     )
     result = await db.execute(query)
     if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Notification non trouvée.")
+        raise HTTPException(status_code=404, detail="Notification not found.")
     await db.commit()
-    return {"data": {"message": "Notification marquée comme lue"}}
+    return {"data": {"message": "Notification marked as read"}}
 
 @router.patch("/{id}/dismiss")
 async def dismiss_notification(
@@ -99,9 +99,9 @@ async def dismiss_notification(
     )
     result = await db.execute(query)
     if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Notification non trouvée.")
+        raise HTTPException(status_code=404, detail="Notification not found.")
     await db.commit()
-    return {"data": {"message": "Notification supprimée"}}
+    return {"data": {"message": "Notification dismissed"}}
 
 @router.post("/mark-all-read")
 async def mark_all_read(
@@ -115,7 +115,7 @@ async def mark_all_read(
     )
     await db.execute(query)
     await db.commit()
-    return {"data": {"message": "Toutes les notifications marquées comme lues"}}
+    return {"data": {"message": "All notifications marked as read"}}
 
 @router.post("/dismiss-all")
 async def dismiss_all(
@@ -128,4 +128,4 @@ async def dismiss_all(
     )
     await db.execute(query)
     await db.commit()
-    return {"data": {"message": "Toutes les notifications ont été supprimées"}}
+    return {"data": {"message": "All notifications dismissed"}}

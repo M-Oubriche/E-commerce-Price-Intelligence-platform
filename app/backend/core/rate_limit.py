@@ -54,7 +54,7 @@ async def rate_limit_login(request: Request):
     await sliding_window_rate_limit(
         request,
         key=f"ratelimit:login:{ip}",
-        max_requests=5,
+        max_requests=20,
         window_seconds=900  # 15 min
     )
 

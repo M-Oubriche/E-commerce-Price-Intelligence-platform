@@ -190,7 +190,7 @@ async def update_watchlist_item(
     item = result.scalars().first()
     
     if not item:
-        raise HTTPException(status_code=404, detail="Item non trouvé ou accès refusé.")
+        raise HTTPException(status_code=404, detail="Item not found or access denied.")
 
     update_data = item_in.model_dump(exclude_unset=True)
     for field, value in update_data.items():
@@ -236,7 +236,7 @@ async def delete_watchlist_item(
     item = result.scalars().first()
     
     if not item:
-        raise HTTPException(status_code=404, detail="Item non trouvé ou accès refusé.")
+        raise HTTPException(status_code=404, detail="Item not found or access denied.")
 
     await db.delete(item)
     await db.commit()

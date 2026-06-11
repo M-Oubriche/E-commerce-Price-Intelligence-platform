@@ -76,7 +76,7 @@ async def get_single_shopper_alert(
     )
     alert = result.scalars().first()
     if not alert:
-        raise HTTPException(status_code=404, detail="Alerte non trouvée.")
+        raise HTTPException(status_code=404, detail="Alert not found.")
     return {"data": alert}
 
 @router.patch("/{alert_id}/pause", response_model=SingleShopperAlertResponse)
@@ -93,7 +93,7 @@ async def pause_alert(
     )
     alert = result.scalars().first()
     if not alert:
-        raise HTTPException(status_code=404, detail="Alerte non trouvée.")
+        raise HTTPException(status_code=404, detail="Alert not found.")
     
     alert.status = "paused"
     await db.commit()
@@ -114,7 +114,7 @@ async def resume_alert(
     )
     alert = result.scalars().first()
     if not alert:
-        raise HTTPException(status_code=404, detail="Alerte non trouvée.")
+        raise HTTPException(status_code=404, detail="Alert not found.")
     
     alert.status = "active"
     await db.commit()
@@ -132,7 +132,7 @@ async def delete_shopper_alert(
     )
     alert = result.scalars().first()
     if not alert:
-        raise HTTPException(status_code=404, detail="Alerte non trouvée.")
+        raise HTTPException(status_code=404, detail="Alert not found.")
     await db.delete(alert)
     await db.commit()
     return None

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Query, BackgroundTasks, Depends
+from fastapi import APIRouter, Query, BackgroundTasks, Depends, HTTPException, status
 from core.bigquery import cached_bq_query
 from core.config import settings
 from core.redis import redis_get, redis_set
@@ -217,7 +217,10 @@ LEFT JOIN product_meta pm ON d.product_unified_id = pm.product_unified_id
 LEFT JOIN source_info si ON d.product_unified_id = si.product_unified_id AND d.source = si.source AND si.rn = 1
 WHERE d.product_unified_id = '{product_id}'
 ORDER BY d.current_price ASC"""
-    return await cached_bq_query(f"product:{product_id}", query, CACHE_TTL)
+    result = await cached_bq_query(f"product:{product_id}", query, CACHE_TTL)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+    return result
 
 
 @router.get("/product-by-id/history", summary="Get Product Price History by ID (query param)")
@@ -283,7 +286,10 @@ LEFT JOIN product_meta pm ON d.product_unified_id = pm.product_unified_id
 LEFT JOIN source_info si ON d.product_unified_id = si.product_unified_id AND d.source = si.source AND si.rn = 1
 WHERE d.product_unified_id = '{product_id}'
 ORDER BY d.current_price ASC"""
-    return await cached_bq_query(f"product:{product_id}", query, CACHE_TTL)
+    result = await cached_bq_query(f"product:{product_id}", query, CACHE_TTL)
+    if not result:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found.")
+    return result
 
 
 @router.get("/product/{product_id}/history", summary="Get Product Price History")
@@ -322,6 +328,12 @@ async def search_products(q: str = "", category: str = ""):
     # Normalize spaces: replace non-breaking spaces (\xa0) and zero-width chars with regular space
     normalized = q.replace('\u00a0', ' ').replace('\u200b', '').strip()
     search_term = normalized.lower()
+    
+    if not search_term and not category:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please provide a search term or category."
+        )
     # Also normalize non-breaking spaces in stored BigQuery product names
     nb_sp = '\u00a0'
     
