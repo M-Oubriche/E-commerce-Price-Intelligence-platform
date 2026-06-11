@@ -245,7 +245,6 @@ services:
       APP_POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD}
       APP_POSTGRES_DB: ${APP_POSTGRES_DB}
       # BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
-      GOOGLE_APPLICATION_CREDENTIALS: "/secrets/bigquery-service-account.json"
 
     volumes:
       # nifi_conf: the entire flow lives here
