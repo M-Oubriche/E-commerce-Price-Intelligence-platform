@@ -92,7 +92,7 @@ async def get_deal_analysis(days_back: int = Query(30, ge=1, le=365)):
     FROM (
         SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
             ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.int_clean_prices`
     )
     WHERE rn = 1
     GROUP BY product_unified_id
@@ -121,7 +121,7 @@ LEFT JOIN (
     FROM (
         SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
             ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.int_clean_prices`
     )
     WHERE rn = 1
     GROUP BY product_unified_id
@@ -143,7 +143,7 @@ async def get_trending_deals():
     FROM (
         SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
             ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.int_clean_prices`
     )
     WHERE rn = 1
     GROUP BY product_unified_id
@@ -195,7 +195,7 @@ async def get_product_detail_by_id(product_id: str):
     FROM (
         SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
             ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.int_clean_prices`
         WHERE product_unified_id = '{product_id}'
     )
     WHERE rn = 1
@@ -204,7 +204,7 @@ async def get_product_detail_by_id(product_id: str):
 source_info AS (
     SELECT product_unified_id, source, source_url, in_stock,
         ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
-    FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+    FROM `{BQ_PROJECT}.{BQ_DATASET}.int_clean_prices`
     WHERE product_unified_id = '{product_id}'
 )
 SELECT d.*,
@@ -261,7 +261,7 @@ async def get_product_detail(product_id: str):
     FROM (
         SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
             ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.int_clean_prices`
         WHERE product_unified_id = '{product_id}'
     )
     WHERE rn = 1
@@ -270,7 +270,7 @@ async def get_product_detail(product_id: str):
 source_info AS (
     SELECT product_unified_id, source, source_url, in_stock,
         ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
-    FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+    FROM `{BQ_PROJECT}.{BQ_DATASET}.int_clean_prices`
     WHERE product_unified_id = '{product_id}'
 )
 SELECT d.*,

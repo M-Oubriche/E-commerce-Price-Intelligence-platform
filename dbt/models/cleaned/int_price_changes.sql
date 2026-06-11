@@ -6,20 +6,20 @@ with price_history as (
         raw_id,
         source,
         scraped_at,
-        product_external_id,
+        product_unified_id,
         product_name,
         product_brand,
         product_category,
         converted_price_usd,
         lag(converted_price_usd) over (
-            partition by product_external_id, source
+            partition by product_unified_id, source
             order by scraped_at asc
         ) as prev_price_usd,
         lag(scraped_at) over (
-            partition by product_external_id, source
+            partition by product_unified_id, source
             order by scraped_at asc
         ) as prev_scraped_at
-    from {{ ref('int_price_history') }}
+    from {{ ref('int_clean_prices') }}
 )
 
 select

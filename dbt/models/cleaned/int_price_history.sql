@@ -1,7 +1,7 @@
 {{ config(materialized='view') }}
 
 WITH raw_prices AS (
-    SELECT * FROM {{ ref('stg_raw_prices') }}
+    SELECT * FROM {{ ref('int_clean_prices') }}
 ),
 
 -- Deduplicate identical prices on the same day for the same product and seller
