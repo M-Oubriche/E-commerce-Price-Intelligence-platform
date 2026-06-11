@@ -5,8 +5,9 @@ import { FormsModule } from '@angular/forms';
 import { AuthService, User } from '../../../core/services/auth.service';
 import { UserRole } from '../../../core/models/user.model';
 import { ThemeToggleComponent } from '../theme-toggle/theme-toggle.component';
-import { Observable } from 'rxjs';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-library';
+import { Observable, Subject, of } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
+import { AnalyticsApiService } from '../../../core/services/analytics-api.service';
 
 @Component({
   selector: 'app-public-navbar',
@@ -30,7 +31,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
             id="navbar-search"
             type="text"
             [(ngModel)]="searchQuery"
-            (input)="showSuggestions = true"
+            (input)="onSearchInput()"
             (keyup.enter)="onSearch()"
             placeholder="Search any product..."
             autocomplete="off"
@@ -38,8 +39,8 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
           <span class="search-hint">Enter ↵</span>
 
           <!-- Suggestions Dropdown -->
-          <div class="suggestions-dropdown" *ngIf="showSuggestions && filteredSuggestions.length > 0">
-             <div class="suggestion-item" *ngFor="let prod of filteredSuggestions" (click)="selectSuggestion(prod)">
+          <div class="suggestions-dropdown" *ngIf="showSuggestions && suggestions.length > 0">
+             <div class="suggestion-item" *ngFor="let prod of suggestions" (click)="selectSuggestion(prod)">
                 <img [src]="prod.image" class="s-img">
                 <div class="s-info">
                    <span class="s-name">{{ prod.name }}</span>
@@ -47,6 +48,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
                 </div>
              </div>
           </div>
+
         </div>
 
         <!-- RIGHT: Actions -->
@@ -126,8 +128,8 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../core/constants/product-librar
         <input type="text" [(ngModel)]="searchQuery" (input)="showSuggestions = true" (keyup.enter)="onSearch(); closeMobileMenu()" placeholder="Search any product..." autocomplete="off">
         
         <!-- Mobile Suggestions -->
-        <div class="drawer-suggestions" *ngIf="showSuggestions && filteredSuggestions.length > 0">
-           <div class="suggestion-item" *ngFor="let prod of filteredSuggestions" (click)="selectSuggestion(prod); closeMobileMenu()">
+        <div class="drawer-suggestions" *ngIf="showSuggestions && suggestions.length > 0">
+           <div class="suggestion-item" *ngFor="let prod of suggestions" (click)="selectSuggestion(prod); closeMobileMenu()">
               <div class="s-info">
                  <span class="s-name">{{ prod.name }}</span>
               </div>
@@ -519,11 +521,14 @@ export class PublicNavbarComponent implements OnInit {
   isDropdownOpen = false;
   isMobileMenuOpen = false;
   showSuggestions = false;
+  suggestions: any[] = [];
+  private searchSubject = new Subject<string>();
 
   private authService = inject(AuthService);
   currentUser$ = this.authService.currentUser$;
   router = inject(Router);
   route = inject(ActivatedRoute);
+  private analyticsApi = inject(AnalyticsApiService);
 
   ngOnInit() {
     this.route.queryParams.subscribe(params => {
@@ -532,8 +537,32 @@ export class PublicNavbarComponent implements OnInit {
         setTimeout(() => this.scrollToSection(params['section']), 100);
       }
     });
+
     this.router.events.subscribe(() => {
       this.closeMobileMenu();
+    });
+
+    // Handle real-time suggestions
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(q => {
+        if (!q || q.length < 2) {
+          this.suggestions = [];
+          return of([]);
+        }
+        return this.analyticsApi.searchProducts(q).pipe(
+          catchError(() => of([]))
+        );
+      })
+    ).subscribe(results => {
+      this.suggestions = results.map(r => ({
+        id: r.product_unified_id,
+        name: r.product_name,
+        category: r.product_category,
+        image: r.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200'
+      })).slice(0, 5);
+      this.showSuggestions = true;
     });
   }
 
@@ -551,8 +580,13 @@ export class PublicNavbarComponent implements OnInit {
 
   onSearch() {
     if (this.searchQuery.trim()) {
+      this.showSuggestions = false;
       this.router.navigate(['/search'], { queryParams: { q: this.searchQuery } });
     }
+  }
+
+  onSearchInput() {
+    this.searchSubject.next(this.searchQuery);
   }
 
   toggleDropdown(event: Event) {
@@ -571,12 +605,6 @@ export class PublicNavbarComponent implements OnInit {
     this.authService.logout().subscribe(() => {
       this.router.navigate(['/']);
     });
-  }
-
-  get filteredSuggestions() {
-    if (!this.searchQuery || this.searchQuery.length < 1) return [];
-    const q = this.searchQuery.toLowerCase();
-    return PLATFORM_PRODUCT_LIBRARY.filter(p => p.name.toLowerCase().includes(q)).slice(0, 5);
   }
 
   selectSuggestion(prod: any) {

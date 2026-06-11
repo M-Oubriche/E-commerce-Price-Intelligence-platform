@@ -9,7 +9,7 @@ from api import deps
 from models.users import User, UserSession, UserRole
 from models.reseller import SellerProduct, TrackedCompetitor, PriceAlert
 from schemas.preferences import UserProfileUpdate, UserProfileOut, UserSessionOut
-from core.redis import redis_client
+from core.redis import get_redis
 from jose import jwt
 from core.config import settings
 from services.auth import AuthService
@@ -88,7 +88,7 @@ async def revoke_session(
         raise HTTPException(status_code=404, detail="Session not found.")
     
     # 1. Revoke from Redis
-    await redis_client.delete(f"session:{session.refresh_token_hash}")
+    get_redis().delete(f"session:{session.refresh_token_hash}")
     
     # 2. Delete from DB
     await db.delete(session)
@@ -109,7 +109,7 @@ async def delete_my_account(
     await AuthService.revoke_all_user_sessions(db, current_user.id)
     
     # 2. Clear Redis Notifications queue
-    await redis_client.delete(f"notifications:{current_user.id}")
+    get_redis().delete(f"notifications:{current_user.id}")
 
     # 3. Explicitly delete complex reseller-specific data first if they are a reseller
     # This prevents potential ORM cascade order issues (e.g. TrackedCompetitorProduct)

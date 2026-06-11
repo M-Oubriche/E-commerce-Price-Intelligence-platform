@@ -1,12 +1,20 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, AfterViewInit, inject, ViewChild, ElementRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Router, ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { PublicNavbarComponent } from '../../shared/components/public-navbar/public-navbar.component';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
+import { AnalyticsApiService } from '../../core/services/analytics-api.service';
+import { WatchlistService } from '../../core/services/watchlist.service';
+import { ResellerService, SellerProduct } from '../../core/services/reseller.service';
+import { ActivityLogsService } from '../../core/services/activity-logs.service';
 import { trigger, transition, style, animate } from '@angular/animations';
+import { forkJoin, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
+import { Chart, registerables } from 'chart.js';
+
+Chart.register(...registerables);
 
 @Component({
   selector: 'app-product-detail',
@@ -23,11 +31,11 @@ import { trigger, transition, style, animate } from '@angular/animations';
     ])
   ]
 })
-export class ProductDetailComponent implements OnInit {
+export class ProductDetailComponent implements OnInit, OnDestroy, AfterViewInit {
   productId = '';
   product: any = {
-    name: '', brand: '', category: '', rating: 0, reviewCount: 0, dealScore: 0, isFakeDeal: false,
-    description: '', image: '', images: [], platformCount: 0, platforms: [], bestPrice: 0, bestPlatform: '',
+    name: '', brand: null, category: '', dealScore: 0, isFakeDeal: false,
+    description: '', image: '', images: [], platformCount: 0, platforms: [], bestPrice: 0, currentPrice: 0, bestPlatform: '',
     priceChange: 0, specs: []
   };
   activeTab = '1W';
@@ -36,11 +44,20 @@ export class ProductDetailComponent implements OnInit {
   alertSet = false;
   isTracking = false;
   isLoggedIn = false;
+  isReseller = false;
+  showResellerPriceForm = false;
+  resellerPrice: number | null = null;
+  catalogProductId: string | null = null;
+  catalogProducts: SellerProduct[] = [];
 
   authService = inject(AuthService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private toastService = inject(ToastService);
+  private analyticsApi = inject(AnalyticsApiService);
+  private watchlistService = inject(WatchlistService);
+  private resellerService = inject(ResellerService);
+  private activityLogsService = inject(ActivityLogsService);
 
   historyTabs = [
     { label: '1W', requiresAuth: false },
@@ -50,94 +67,229 @@ export class ProductDetailComponent implements OnInit {
     { label: '1Y', requiresAuth: true }
   ];
 
-  currentChartData = [
-    { date: 'Mar 08', price: 999 },
-    { date: 'Mar 09', price: 980 },
-    { date: 'Mar 10', price: 980 },
-    { date: 'Mar 11', price: 970 },
-    { date: 'Mar 12', price: 960 },
-    { date: 'Mar 13', price: 950 },
-    { date: 'Mar 14', price: 854 }
-  ];
-
-  similarProducts = [
-    { id: '2', name: 'Samsung Galaxy S24 Ultra', bestPrice: 1199, image: 'https://images.unsplash.com/photo-1610945265064-0e34e5519bbf?w=200', dealScore: 8.8, category: 'Smartphones', platform: 'Amazon' },
-    { id: '3', name: 'Google Pixel 8 Pro', bestPrice: 899, image: 'https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=200', dealScore: 9.1, category: 'Smartphones', platform: 'BestBuy' },
-    { id: '4', name: 'OnePlus 12', bestPrice: 799, image: 'https://images.unsplash.com/photo-1678911820864-e2c567c655d7?w=200', dealScore: 7.5, category: 'Smartphones', platform: 'Newegg' },
-    { id: '5', name: 'iPhone 14 Pro', bestPrice: 749, image: 'https://images.unsplash.com/photo-1678685888221-cda773a3dcdb?w=200', dealScore: 6.4, category: 'Smartphones', platform: 'eBay' }
-  ];
+  currentChartData: any[] = [];
+  fullHistoryData: any[] = [];
+  similarProducts: any[] = [];
+  isLoading = true;
 
   scoreFactors = [
     { label: 'Price vs history', score: 8.5, description: 'Currently 15% below the 90-day average price', color: '#10B981' },
-    { label: 'Platform reliability', score: 9.0, description: 'Amazon has a 98% accuracy rating on our platform', color: '#10B981' },
     { label: 'Availability', score: 7.5, description: 'In stock at 6 of 8 tracked platforms', color: '#F59E0B' }
   ];
 
   suggestedAlertPrice = 0;
   alertTargetPrice = 0;
 
+  @ViewChild('priceChart') priceChartCanvas!: ElementRef<HTMLCanvasElement>;
+  private chartInstance: Chart<'line'> | null = null;
+  private watchlistItemId: string | null = null;
+
   ngOnInit() {
-    this.isLoggedIn = this.authService.isLoggedIn();
+    this.authService.currentUser$.subscribe(user => {
+      this.isLoggedIn = !!user;
+      this.isReseller = user?.role === 'RESELLER';
+      if (this.isLoggedIn && !this.isReseller && this.productId) this.loadWatchlistStatus();
+      if (this.isReseller) this.loadCatalogStatus();
+    });
+
     this.route.params.subscribe(params => {
-      this.productId = params['id'];
-      
-      // Initialize tracking and alert state from service
-      if (this.isLoggedIn) {
+      this.productId = params['id'] ? decodeURIComponent(params['id']) : '';
+      this.isTracking = false;
+      this.alertSet = false;
+      this.watchlistItemId = null;
+      this.showAlertForm = false;
+      this.showResellerPriceForm = false;
+      this.catalogProductId = null;
+      this.resellerPrice = null;
+      this.fetchProductData();
+      if (this.isLoggedIn && !this.isReseller && this.productId) this.loadWatchlistStatus();
+      if (this.isReseller) this.loadCatalogStatus();
+    });
+  }
+
+  private loadWatchlistStatus() {
+    this.watchlistService.getWatchlist().pipe(catchError(() => of([]))).subscribe(items => {
+      const match = (items as any[]).find((i: any) => i.product_id === this.productId);
+      if (match) {
+        this.watchlistItemId = match.id;
+        this.isTracking = true;
+        if (match.shopper_alerts && match.shopper_alerts.length > 0) {
+          this.alertSet = true;
+          this.alertTargetPrice = match.shopper_alerts[0].target_value;
+        } else {
+          this.alertSet = false;
+          this.alertTargetPrice = 0;
+        }
+      } else {
         this.isTracking = false;
         this.alertSet = false;
+        this.watchlistItemId = null;
       }
+    });
+  }
 
-      // Look for product in library
-      const libraryProduct = PLATFORM_PRODUCT_LIBRARY.find(p => p.id === this.productId);
-      
-      if (libraryProduct) {
-        this.product = {
-          id: libraryProduct.id,
-          name: libraryProduct.name,
-          brand: libraryProduct.brand || 'Premium Brand',
-          category: libraryProduct.category,
-          rating: libraryProduct.rating || 4.8,
-          reviewCount: 1240,
-          dealScore: libraryProduct.dealScore || 9.4,
-          isFakeDeal: false,
-          description: libraryProduct.description || 'Experience the next generation of electronics with advanced features and premium build quality.',
-          image: libraryProduct.image,
-          images: [libraryProduct.image, 'https://images.unsplash.com/photo-1592890288564-76628a30a657?w=800', 'https://images.unsplash.com/photo-1556656793-062ff9878258?w=800'],
-          platformCount: 8,
-          bestPrice: libraryProduct.defaultPrice,
-          bestPlatform: 'Amazon',
-          bestPlatformUrl: 'https://amazon.com',
-          priceChange: -45,
-          specs: [
-            { label: 'Category', value: libraryProduct.category },
-            { label: 'Quality', value: 'Certified' },
-            { label: 'Warranty', value: '1 Year' }
-          ],
-          platforms: [
-            { name: 'Amazon', shipping: 'Free shipping', inStock: true, price: libraryProduct.defaultPrice, vsLastWeek: -45, url: '#' },
-            { name: 'eBay', shipping: 'Free shipping', inStock: true, price: Math.round(libraryProduct.defaultPrice * 1.05), vsLastWeek: -30, url: '#' },
-            { name: 'AliExpress', shipping: '$15.00 shipping', inStock: true, price: Math.round(libraryProduct.defaultPrice * 1.02), vsLastWeek: -10, url: '#' },
-            { name: 'Walmart', shipping: 'Free shipping', inStock: false, price: Math.round(libraryProduct.defaultPrice * 1.08), vsLastWeek: 12, url: '#' },
-            { name: 'BestBuy', shipping: 'Free shipping', inStock: true, price: Math.round(libraryProduct.defaultPrice * 1.1), vsLastWeek: 5, url: '#' }
-          ]
-        };
-      } else {
-        // Fallback or Handle Not Found
-        this.product.name = 'Product Not Found';
-        this.product.description = 'Sorry, we do not currently track this product in our database.';
+  private loadCatalogStatus() {
+    this.resellerService.getProducts().pipe(catchError(() => of([]))).subscribe(prods => {
+      this.catalogProducts = prods;
+      const normalized = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+      const name = normalized(this.product.name);
+      const words = name.split(/\s+/).filter(w => w.length > 2);
+      const scored = prods.map(cp => {
+        const cpName = normalized(cp.product_name);
+        const matches = words.filter(w => cpName.includes(w)).length;
+        const score = words.length > 0 ? matches / words.length : (cpName === name ? 1 : 0);
+        const exactBonus = cpName === name ? 10 : 0;
+        return { product: cp, score: score + exactBonus };
+      });
+      scored.sort((a, b) => b.score - a.score);
+      const best = scored[0];
+      if (best && best.score >= 0.5) {
+        this.catalogProductId = best.product.id;
+        this.isTracking = true;
       }
-      
-      this.suggestedAlertPrice = Math.round(this.product.bestPrice * 0.9);
-      this.alertTargetPrice = this.suggestedAlertPrice;
+    });
+  }
+
+  private fetchProductData() {
+    this.isLoading = true;
+
+    forkJoin({
+      details: this.analyticsApi.getProductDetail(this.productId).pipe(catchError(() => of([]))),
+      history: this.analyticsApi.getProductHistory(this.productId).pipe(catchError(() => of([]))),
+      similar: this.analyticsApi.getSimilarProducts(this.productId).pipe(catchError(() => of([])))
+    }).subscribe({
+      next: ({ details, history, similar }) => {
+        if (details && details.length > 0) {
+          const d = details[0];
+          this.product = {
+            id: d.product_unified_id,
+            name: d.product_name,
+            brand: this.extractBrand(d.product_name),
+            category: d.product_category,
+            dealScore: d.deal_score,
+            isFakeDeal: d.is_fake_deal,
+            description: this.buildDescription(d),
+            image: d.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800',
+            images: [d.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=800'],
+            platformCount: d.total_platforms_tracked || 1,
+            bestPrice: d.current_price,
+            currentPrice: d.current_price,
+            bestPlatform: d.source,
+            bestPlatformUrl: d.source_url || '#',
+            priceChange: d.current_price && d.avg_price_30d ? d.current_price - d.avg_price_30d : 0,
+            lastUpdated: d.last_updated,
+            totalPlatforms: d.total_platforms || d.total_platforms_tracked || 1,
+            specs: [
+              { label: 'Category', value: d.product_category },
+              { label: 'Best Platform', value: d.source }
+            ],
+            platforms: details.map((p: any) => ({
+              name: p.source,
+              price: p.current_price,
+              inStock: p.in_stock ?? true,
+              vsLastWeek: p.current_price && p.avg_price_30d ? Math.round(p.current_price - p.avg_price_30d) : 0,
+              url: p.source_url || '#'
+            }))
+          };
+
+          // Update Score Factors Dynamically
+          const totalTracked = d.total_platforms_tracked || 1;
+          const availabilityScore = Math.min(10, totalTracked * 3);
+
+          this.scoreFactors = [
+            { 
+              label: 'Price vs history', 
+              score: d.deal_score, 
+              description: d.discount_percent && d.discount_percent > 0 
+                ? `Currently ${d.discount_percent}% below the 30-day average price.`
+                : d.is_fake_deal ? 'Price spike detected recently. Not a genuine discount.' : 'Price is currently stable compared to historical average.',
+              color: this.getScoreColor(d.deal_score)
+            },
+            { 
+              label: 'Availability', 
+              score: availabilityScore,
+              description: `Tracked across ${totalTracked} platforms.`, 
+              color: this.getScoreColor(availabilityScore)
+            }
+          ];
+        } else {
+          this.toastService.show('Product not found.', 'error');
+          this.isLoading = false;
+          return;
+        }
+
+        if (history.length > 0) {
+          this.fullHistoryData = history.map(h => ({
+            rawDate: new Date(h.date),
+            date: new Date(h.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+            price: h.price
+          }));
+          this.updateChartData();
+        }
+
+        if (similar.length > 0) {
+          this.similarProducts = similar.map(s => ({
+            id: s.product_unified_id,
+            name: s.product_name,
+            bestPrice: s.current_price,
+            image: s.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200',
+            dealScore: s.deal_score,
+            category: s.product_category,
+            platform: s.source
+          }));
+        }
+
+        this.suggestedAlertPrice = Math.round(this.product.bestPrice * 0.9);
+        this.alertTargetPrice = this.suggestedAlertPrice;
+        this.isLoading = false;
+        this.saveToRecentlyViewed();
+      },
+      error: () => {
+        this.isLoading = false;
+        this.toastService.show('Failed to load product details.', 'error');
+      }
     });
   }
 
   selectImage(img: string) { this.product.image = img; }
-  selectTab(tab: any) { this.activeTab = tab.label; }
+  
+  selectTab(tab: any) { 
+    this.activeTab = tab.label; 
+    this.updateChartData();
+  }
 
-  get scoreColor(): string {
-    if (this.product.dealScore >= 8) return '#10B981';
-    if (this.product.dealScore >= 5) return '#F59E0B';
+  private updateChartData() {
+    if (this.isTabLocked) {
+      this.currentChartData = this.fullHistoryData.slice(-7); // Show limited view if locked
+      return;
+    }
+
+    const now = new Date();
+    let cutoff = new Date();
+
+    switch (this.activeTab) {
+      case '1W': cutoff.setDate(now.getDate() - 7); break;
+      case '1M': cutoff.setMonth(now.getMonth() - 1); break;
+      case '3M': cutoff.setMonth(now.getMonth() - 3); break;
+      case '6M': cutoff.setMonth(now.getMonth() - 6); break;
+      case '1Y': cutoff.setFullYear(now.getFullYear() - 1); break;
+      default: cutoff.setDate(now.getDate() - 7);
+    }
+
+    this.currentChartData = this.fullHistoryData.filter(d => d.rawDate >= cutoff);
+    
+    // If we have no data for the period (scrapers just started), show everything we have
+    if (this.currentChartData.length < 2) {
+      this.currentChartData = this.fullHistoryData;
+    }
+
+    this.renderChart();
+  }
+
+  getScoreColor(score?: number): string {
+    const s = score !== undefined ? score : this.product.dealScore;
+    if (s >= 8) return '#10B981';
+    if (s >= 5) return '#F59E0B';
     return '#EF4444';
   }
 
@@ -163,16 +315,19 @@ export class ProductDetailComponent implements OnInit {
   }
 
   get chartLowest(): number {
+    if (this.currentChartData.length === 0) return 0;
     return Math.min(...this.currentChartData.map((p: any) => p.price));
   }
 
   get chartHighest(): number {
+    if (this.currentChartData.length === 0) return 0;
     return Math.max(...this.currentChartData.map((p: any) => p.price));
   }
 
   get chartAverage(): number {
+    if (this.currentChartData.length === 0) return 0;
     const sum = this.currentChartData.reduce((a: number, p: any) => a + p.price, 0);
-    return Math.round(sum / this.currentChartData.length);
+    return sum / this.currentChartData.length;
   }
 
   get isTabLocked(): boolean {
@@ -180,17 +335,109 @@ export class ProductDetailComponent implements OnInit {
     return !!(tab?.requiresAuth && !this.isLoggedIn);
   }
 
+  relativeTime(dateStr: string): string {
+    if (!dateStr) return 'recently';
+    const diff = Date.now() - new Date(dateStr).getTime();
+    const hours = Math.floor(diff / 3600000);
+    if (hours < 1) return 'Just now';
+    if (hours < 24) return `${hours}h ago`;
+    return `${Math.floor(hours / 24)}d ago`;
+  }
+
+  private extractBrand(name: string): string | null {
+    const knownBrands = ['Apple', 'Samsung', 'Sony', 'LG', 'Dell', 'HP', 'Lenovo', 'ASUS', 'Acer', 'Microsoft', 'Google', 'Amazon', 'Logitech', 'Razer', 'Corsair', 'SteelSeries', 'HyperX', 'Keychron', 'Bose', 'JBL', 'Sennheiser', 'Nintendo', 'Xbox', 'PlayStation', 'MSI', 'Gigabyte', 'AMD', 'Intel', 'NVIDIA'];
+    const first = name.split(' ')[0];
+    return knownBrands.includes(first) ? first : null;
+  }
+
+  private buildDescription(d: any): string {
+    const parts: string[] = [];
+    if (d.avg_price_30d && d.current_price) {
+      const diff = d.current_price - d.avg_price_30d;
+      if (diff < 0) {
+        parts.push(`Currently $${Math.abs(diff).toFixed(2)} below the 30-day average`);
+      } else if (diff > 0) {
+        parts.push(`Currently $${diff.toFixed(2)} above the 30-day average`);
+      }
+    }
+    if (d.all_time_low_price && d.current_price) {
+      if (d.current_price <= d.all_time_low_price) {
+        parts.push('at an all-time low price');
+      } else {
+        parts.push(`all-time low was $${d.all_time_low_price.toFixed(2)}`);
+      }
+    }
+    if (d.discount_percent && d.discount_percent > 0) {
+      parts.push(`${d.discount_percent}% below recent average`);
+    }
+    if (parts.length > 0) {
+      return parts.join('. ') + '.';
+    }
+    return `Tracked on ${d.source || 'multiple platforms'} with a deal score of ${d.deal_score || 'N/A'}.`;
+  }
+
+  private saveToRecentlyViewed() {
+    this.activityLogsService.logProductView(this.productId, {
+      name: this.product.name,
+      category: this.product.category,
+      image: this.product.image,
+      currentPrice: this.product.bestPrice,
+      platform: this.product.bestPlatform,
+      dealScore: this.product.dealScore,
+    }).pipe(catchError(() => of(null))).subscribe();
+  }
+
   createAlert() {
     if (!this.isLoggedIn) {
       this.router.navigate(['/auth'], { queryParams: { mode: 'signup', returnUrl: this.currentUrl } });
       return;
     }
-
-    // No-op for now as addAlert was removed from AuthService
-    this.alertSet = true;
-    this.showAlertForm = false;
-    this.isTracking = true;
-    this.toastService.show('Price alert set successfully (Stub)!');
+    if (this.isReseller) {
+      if (!this.catalogProductId) {
+        this.toastService.show('Track this product in your catalog first to set an alert.');
+        return;
+      }
+      this.resellerService.createAlert({
+        seller_product_id: this.catalogProductId,
+        trigger_mode: 'PRICE_UNDERCUT_BY',
+        threshold_value: this.alertTargetPrice || this.product.bestPrice,
+        threshold_type: 'ABSOLUTE',
+        priority: 'MEDIUM'
+      }).pipe(catchError(err => {
+        this.toastService.show(err.error?.detail || 'Failed to create alert.');
+        return of(null);
+      })).subscribe(res => {
+        if (res) {
+          this.alertSet = true;
+          this.showAlertForm = false;
+          this.toastService.show(`Alert set on "${this.product.name}"`);
+        }
+      });
+      return;
+    }
+    if (!this.alertTargetPrice || this.alertTargetPrice <= 0) {
+      this.toastService.show('Please enter a valid target price greater than 0.');
+      return;
+    }
+    this.watchlistService.addToWatchlist({
+      product_id: this.productId,
+      product_name: this.product.name,
+      target_price: this.alertTargetPrice,
+      original_price: this.product.bestPrice,
+      platform: this.product.bestPlatform,
+      alert_condition: 'BELOW_TARGET',
+    }).pipe(catchError(err => {
+      this.toastService.show(err.error?.detail || 'Failed to create alert. Please try again.');
+      return of(null);
+    })).subscribe(res => {
+      if (res) {
+        this.watchlistItemId = (res as any).id;
+        this.alertSet = true;
+        this.showAlertForm = false;
+        this.isTracking = true;
+        this.toastService.show(`Price alert set for $${Number(this.alertTargetPrice).toLocaleString('en-US', { minimumFractionDigits: 2 })}!`);
+      }
+    });
   }
 
   toggleTrack() {
@@ -198,53 +445,137 @@ export class ProductDetailComponent implements OnInit {
       this.router.navigate(['/auth'], { queryParams: { mode: 'signup', returnUrl: this.currentUrl } });
       return;
     }
-    // No-op for now as toggleTracked was removed from AuthService
-    this.isTracking = !this.isTracking;
-    
-    // If tracking was removed, alertSet should also be false
-    if (!this.isTracking) {
-      this.alertSet = false;
+    if (this.isReseller) {
+      if (this.catalogProductId) {
+        this.router.navigate(['/reseller/catalog', this.catalogProductId]);
+        return;
+      }
+      this.showResellerPriceForm = !this.showResellerPriceForm;
+      this.resellerPrice = this.product.bestPrice;
+      return;
     }
-    
-    this.toastService.show(this.isTracking ? 'Product tracked (Stub)' : 'Tracking removed (Stub)');
+    if (this.isTracking) {
+      if (!this.watchlistItemId) return;
+      this.watchlistService.removeFromWatchlist(this.watchlistItemId).pipe(catchError(() => of(null))).subscribe(() => {
+        this.isTracking = false;
+        this.alertSet = false;
+        this.watchlistItemId = null;
+        this.toastService.show('Product removed from tracking');
+      });
+    } else {
+      this.watchlistService.addToWatchlist({
+        product_id: this.productId,
+        product_name: this.product.name,
+        target_price: this.alertTargetPrice || this.product.bestPrice,
+        original_price: this.product.bestPrice,
+        platform: this.product.bestPlatform,
+        alert_condition: 'BELOW_TARGET',
+      }).pipe(catchError(() => of(null))).subscribe(res => {
+        if (res) {
+          this.watchlistItemId = (res as any).id;
+          this.isTracking = true;
+          this.toastService.show('Product added to tracking');
+        }
+      });
+    }
+  }
+
+  addToCatalog() {
+    if (!this.resellerPrice || this.resellerPrice <= 0) return;
+    this.resellerService.createProduct({
+      product_name: this.product.name,
+      category: this.product.category,
+      my_price: this.resellerPrice,
+      price_when_added: this.resellerPrice,
+      platform: this.product.bestPlatform
+    }).pipe(catchError(err => {
+      this.toastService.show(err.error?.detail || 'Failed to add product.');
+      return of(null);
+    })).subscribe(res => {
+      if (res) {
+        this.catalogProductId = res.id;
+        this.isTracking = true;
+        this.showResellerPriceForm = false;
+        this.toastService.show(`"${this.product.name}" added to your catalog`);
+      }
+    });
   }
 
   get currentUrl(): string {
     return this.router.url;
   }
 
-  get chartGridLines(): number[] {
-    return [30, 60, 90, 120, 150];
+  ngAfterViewInit() {
+    if (this.currentChartData.length > 0) this.renderChart();
   }
 
-  get chartPoints(): any[] {
-    const width = 600;
-    const height = 180;
-    const minPrice = this.chartLowest * 0.95;
-    const maxPrice = this.chartHighest * 1.05;
-    const priceRange = maxPrice - minPrice;
+  ngOnDestroy() {
+    this.chartInstance?.destroy();
+  }
 
-    return this.currentChartData.map((p, i) => {
-      const x = (i / (this.currentChartData.length - 1)) * width;
-      const y = height - ((p.price - minPrice) / priceRange) * height;
-      return {
-        x, y, price: p.price, date: p.date,
-        isLowest: p.price === this.chartLowest,
-        isHighest: p.price === this.chartHighest
-      };
+  private renderChart() {
+    if (!this.priceChartCanvas) return;
+    const ctx = this.priceChartCanvas.nativeElement.getContext('2d');
+    if (!ctx) return;
+
+    this.chartInstance?.destroy();
+
+    const isLight = document.documentElement.classList.contains('light-mode');
+    const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent-blue')?.trim() || '#3B82F6';
+    const textColor = isLight ? '#64748B' : 'rgba(255,255,255,0.77)';
+    const gridColor = isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.04)';
+    const pointCount = this.currentChartData.length;
+
+    this.chartInstance = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: this.currentChartData.map(p => p.date),
+        datasets: [{
+          data: this.currentChartData.map(p => p.price),
+          borderColor: accent,
+          backgroundColor: accent + '15',
+          borderWidth: 2,
+          pointBackgroundColor: accent,
+          pointBorderColor: isLight ? '#ffffff' : '#1a1f2e',
+          pointBorderWidth: 2,
+          pointRadius: pointCount < 3 ? 5 : 0,
+          pointHoverRadius: 6,
+          fill: true,
+          tension: 0.3,
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: isLight ? '#ffffff' : '#1E293B',
+            titleColor: textColor,
+            bodyColor: isLight ? '#1E293B' : '#ffffff',
+            borderColor: gridColor,
+            borderWidth: 1,
+            padding: 10,
+            cornerRadius: 6,
+            displayColors: false,
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: gridColor },
+            ticks: { color: textColor, font: { size: 11 } }
+          },
+          y: {
+            grid: { color: gridColor },
+            ticks: {
+              color: textColor,
+              font: { size: 11 },
+              callback: (v) => '$' + Number(v).toLocaleString('en-US')
+            }
+          }
+        },
+        interaction: { intersect: false, mode: 'index' }
+      }
     });
-  }
-
-  get chartLinePath(): string {
-    const points = this.chartPoints;
-    if (points.length === 0) return '';
-    return `M ${points[0].x},${points[0].y} ` + points.slice(1).map(p => `L ${p.x},${p.y}`).join(' ');
-  }
-
-  get chartAreaPath(): string {
-    const points = this.chartPoints;
-    if (points.length === 0) return '';
-    const linePath = this.chartLinePath;
-    return `${linePath} L ${points[points.length - 1].x},180 L ${points[0].x},180 Z`;
   }
 }

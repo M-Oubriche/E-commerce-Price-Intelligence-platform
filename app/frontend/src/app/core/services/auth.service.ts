@@ -57,8 +57,7 @@ export class AuthService {
 
   private readonly API_URL = `${environment.apiUrl}/auth`;
   private readonly KEYS = {
-    USER: 'pulseprice_user',
-    REFRESH_TOKEN: 'pulseprice_refresh_token'
+    USER: 'pulseprice_user'
   };
 
   private isBrowser: boolean;
@@ -89,9 +88,8 @@ export class AuthService {
     }
     try {
       const u = localStorage.getItem(this.KEYS.USER);
-      const rt = localStorage.getItem(this.KEYS.REFRESH_TOKEN);
       
-      if (u && rt) {
+      if (u) {
         this.userSubject.next(JSON.parse(u));
         // Restore access token via refresh endpoint on startup
         this.refresh().subscribe({
@@ -133,12 +131,13 @@ export class AuthService {
     formData.append('username', email);
     formData.append('password', password);
 
-    return this.httpBackend.post<ApiResponse<TokenResponse>>(`${this.API_URL}/login`, formData).pipe(
+    return this.httpBackend.post<ApiResponse<TokenResponse>>(
+      `${this.API_URL}/login`, 
+      formData,
+      { withCredentials: true }
+    ).pipe(
       switchMap(res => {
         this.setAccessToken(res.data.access_token);
-        if (res.data.refresh_token && this.isBrowser) {
-          localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.data.refresh_token);
-        }
         return this.getUserProfile().pipe(
           tap(() => this.readySubject.next(true))
         );
@@ -153,14 +152,12 @@ export class AuthService {
   googleAuth(idToken: string): Observable<GoogleAuthResponse> {
     return this.httpBackend.post<GoogleAuthResponse>(
       `${this.API_URL}/google`,
-      { token: idToken }
+      { token: idToken },
+      { withCredentials: true }
     ).pipe(
       tap(res => {
         if (!res.is_new_user && res.access_token && res.user) {
           this.setAccessToken(res.access_token);
-          if (res.refresh_token && this.isBrowser) {
-            localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.refresh_token);
-          }
           this.setUser(res.user);
           this.readySubject.next(true);
         }
@@ -171,14 +168,12 @@ export class AuthService {
   confirmGoogleSignup(idToken: string, role: UserRole): Observable<User> {
     return this.httpBackend.post<GoogleAuthResponse>(
       `${this.API_URL}/google/confirm`,
-      { token: idToken, role }
+      { token: idToken, role },
+      { withCredentials: true }
     ).pipe(
       tap(res => {
         if (res.access_token && res.user) {
           this.setAccessToken(res.access_token);
-          if (res.refresh_token && this.isBrowser) {
-            localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.refresh_token);
-          }
           this.setUser(res.user);
           this.readySubject.next(true);
         }
@@ -205,8 +200,6 @@ export class AuthService {
   }
 
   logout(): Observable<void> {
-    const refreshToken = this.isBrowser ? localStorage.getItem(this.KEYS.REFRESH_TOKEN) : null;
-    
     // 1. Mark as not ready to block guards
     this.readySubject.next(false);
     
@@ -223,28 +216,22 @@ export class AuthService {
     // 4. Mark as ready again (now with no user)
     this.readySubject.next(true);
 
-    if (!refreshToken) return of(undefined);
-
-    return this.httpBackend.post<void>(`${this.API_URL}/logout`, { refresh_token: refreshToken }, { withCredentials: true }).pipe(
+    return this.httpBackend.post<void>(`${this.API_URL}/logout`, {}, { withCredentials: true }).pipe(
       map(() => undefined),
       catchError(() => of(undefined))
     );
   }
 
   refresh(): Observable<string> {
-    const refreshToken = this.isBrowser ? localStorage.getItem(this.KEYS.REFRESH_TOKEN) : null;
-    if (!refreshToken) return throwError(() => new Error('No refresh token'));
+    if (!this.isBrowser) return throwError(() => new Error('No browser'));
 
     return this.httpBackend.post<ApiResponse<TokenResponse>>(
-      `${this.API_URL}/refresh`, 
-      { refresh_token: refreshToken }, 
+      `${this.API_URL}/refresh`,
+      {},
       { withCredentials: true }
     ).pipe(
       map(res => {
         this.setAccessToken(res.data.access_token);
-        if (res.data.refresh_token && this.isBrowser) {
-          localStorage.setItem(this.KEYS.REFRESH_TOKEN, res.data.refresh_token);
-        }
         return res.data.access_token;
       }),
       catchError(err => {
@@ -296,7 +283,6 @@ export class AuthService {
     this.userSubject.next(null);
     if (this.isBrowser) {
       localStorage.removeItem(this.KEYS.USER);
-      localStorage.removeItem(this.KEYS.REFRESH_TOKEN);
     }
   }
 

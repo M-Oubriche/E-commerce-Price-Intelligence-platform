@@ -1,15 +1,38 @@
 {{ config(materialized='table') }}
 
-select
-    date_trunc(scraped_at, WEEK) as scrape_week,
+WITH latest_prices AS (
+    SELECT
+        product_unified_id,
+        product_category,
+        source,
+        converted_price_usd,
+        avg_rating,
+        review_count,
+        ROW_NUMBER() OVER(
+            PARTITION BY product_unified_id, source 
+            ORDER BY scraped_at DESC
+        ) as rn
+    FROM {{ ref('stg_raw_prices') }}
+),
+
+current_market AS (
+    SELECT * FROM latest_prices WHERE rn = 1
+)
+
+SELECT
     product_category,
-    count(distinct product_external_id) as unique_products,
-    count(1) as total_observations,
-    avg(converted_price_usd) as avg_price_usd,
-    min(converted_price_usd) as min_price_usd,
-    max(converted_price_usd) as max_price_usd,
-    stddev(converted_price_usd) as price_volatility_usd
-from {{ ref('int_price_history') }}
-group by
-    scrape_week,
-    product_category
+    
+    -- Descriptive Stats
+    COUNT(DISTINCT product_unified_id) AS product_count,
+    ROUND(AVG(converted_price_usd), 2) AS mean_price,
+    ROUND(APPROX_QUANTILES(converted_price_usd, 100)[OFFSET(50)], 2) AS median_price,
+    ROUND(STDDEV(converted_price_usd), 2) AS std_dev_price,
+    MIN(converted_price_usd) AS min_price,
+    MAX(converted_price_usd) AS max_price,
+    
+    -- Correlation inputs (pre-aggregated averages for the category)
+    ROUND(AVG(avg_rating), 2) AS category_avg_rating,
+    ROUND(AVG(review_count), 2) AS category_avg_reviews
+
+FROM current_market
+GROUP BY product_category

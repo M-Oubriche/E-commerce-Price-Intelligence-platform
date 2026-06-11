@@ -6,20 +6,20 @@ from core.database import Base
 import enum
 
 class SellerStatus(str, enum.Enum):
-    ACTIVE = "active"
-    PAUSED = "paused"
-    ARCHIVED = "archived"
+    ACTIVE = "ACTIVE"
+    PAUSED = "PAUSED"
+    ARCHIVED = "ARCHIVED"
 
 class Aggressiveness(str, enum.Enum):
-    HIGH = "High"
-    MEDIUM = "Medium"
-    LOW = "Low"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
 
 class RiskLevel(str, enum.Enum):
-    HIGH = "High"
-    MEDIUM = "Medium"
-    LOW = "Low"
-    HEALTHY = "Healthy"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+    HEALTHY = "HEALTHY"
 
 class PriceAlertTrigger(str, enum.Enum):
     MARGIN_DROPS_BELOW = "MARGIN_DROPS_BELOW"
@@ -30,9 +30,9 @@ class ThresholdType(str, enum.Enum):
     PERCENT = "PERCENT"
 
 class Priority(str, enum.Enum):
-    HIGH = "High"
-    MEDIUM = "Medium"
-    LOW = "Low"
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
 
 class SellerProduct(Base):
     __tablename__ = "seller_products"

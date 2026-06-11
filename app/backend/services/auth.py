@@ -9,7 +9,7 @@ from sqlalchemy import update, delete
 from models.users import User, UserSession, LoginAttempt, EmailVerificationToken, PasswordResetToken, AuthProvider
 from models.preferences import AlertPreference, DisplayPreference
 from core.security import hash_password, verify_password, create_access_token, create_refresh_token
-from core.redis import redis_client
+from core.redis import get_redis
 from core.config import settings
 from schemas.users import UserCreate
 from services.email import send_verification_email, send_password_reset_email
@@ -166,7 +166,7 @@ class AuthService:
         
         # 2. Delete from Redis
         for rt_hash in hashes:
-            await redis_client.delete(f"session:{rt_hash}")
+            get_redis().delete(f"session:{rt_hash}")
             
         # 3. Mark all as revoked in DB
         await db.execute(
@@ -187,7 +187,7 @@ class AuthService:
         await AuthService.revoke_all_user_sessions(db, user.id)
         
         # 2. Clear Redis Notifications queue/history for this user
-        await redis_client.delete(f"notifications:{user.id}")
+        get_redis().delete(f"notifications:{user.id}")
         
         # 3. Delete user object
         await db.delete(user)
@@ -197,30 +197,34 @@ class AuthService:
     async def authenticate(db: AsyncSession, email: str, password: str, ip_address: str):
         """Authenticate with brute-force protection and logging"""
         lockout_key = f"login:failed:{ip_address}"
-        failed_attempts = await redis_client.get(lockout_key)
+        failed_attempts = get_redis().get(lockout_key)
         
         if failed_attempts and int(failed_attempts) >= 5:
             await AuthService._log_login_attempt(db, email, ip_address, False, "account_lockout")
+            await db.commit()
             return "lockout"
 
         user = await AuthService.get_user_by_email(db, email=email)
         
         if not user or not user.password_hash or not verify_password(password, user.password_hash):
-            await redis_client.incr(lockout_key)
-            await redis_client.expire(lockout_key, 900)  # 15 minutes
+            get_redis().incr(lockout_key)
+            get_redis().expire(lockout_key, 900)  # 15 minutes
             await AuthService._log_login_attempt(db, email, ip_address, False, "invalid_credentials")
+            await db.commit()
             return None
 
         if not user.email_verified:
             await AuthService._log_login_attempt(db, email, ip_address, False, "email_not_verified")
+            await db.commit()
             return "unverified"
 
         if not user.is_active:
             await AuthService._log_login_attempt(db, email, ip_address, False, "account_disabled")
+            await db.commit()
             return None
 
         # Success
-        await redis_client.delete(lockout_key)
+        get_redis().delete(lockout_key)
         user.last_login_at = datetime.now(timezone.utc)
         await AuthService._log_login_attempt(db, email, ip_address, True)
         await db.commit()
@@ -235,7 +239,6 @@ class AuthService:
             failure_reason=reason
         )
         db.add(attempt)
-        # We don't commit here to allow bundling with other transactions if needed
 
     @staticmethod
     async def create_session(db: AsyncSession, user_id: uuid.UUID, role: str, email: str, ip: str, device: str):
@@ -268,8 +271,8 @@ class AuthService:
             "created_at": datetime.now(timezone.utc).isoformat(),
             "is_revoked": "0"
         }
-        await redis_client.hset(redis_key, mapping=session_data)
-        await redis_client.expire(redis_key, int(timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS).total_seconds()))
+        get_redis().hset(redis_key, mapping=session_data)
+        get_redis().expire(redis_key, int(timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS).total_seconds()))
 
         return access_token, refresh_token
 
@@ -287,7 +290,7 @@ class AuthService:
         await db.commit()
 
         # 2. Delete from Redis
-        await redis_client.delete(f"session:{rt_hash}")
+        get_redis().delete(f"session:{rt_hash}")
 
     @staticmethod
     async def refresh_session(db: AsyncSession, refresh_token: str, ip: str, device: str):
@@ -295,7 +298,7 @@ class AuthService:
         rt_hash = hashlib.sha256(refresh_token.encode()).hexdigest()
         redis_key = f"session:{rt_hash}"
         
-        session_data = await redis_client.hgetall(redis_key)
+        session_data = get_redis().hgetall(redis_key)
         
         if not session_data:
             # Fallback to DB
@@ -317,8 +320,8 @@ class AuthService:
                 "created_at": row.UserSession.created_at.isoformat(),
                 "is_revoked": "0"
             }
-            await redis_client.hset(redis_key, mapping=session_data)
-            await redis_client.expire(redis_key, int((row.UserSession.expires_at - datetime.now(timezone.utc)).total_seconds()))
+            get_redis().hset(redis_key, mapping=session_data)
+            get_redis().expire(redis_key, int((row.UserSession.expires_at - datetime.now(timezone.utc)).total_seconds()))
         else:
             if session_data.get("is_revoked") == "1":
                 return None

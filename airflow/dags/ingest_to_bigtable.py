@@ -99,16 +99,24 @@ def process_raw_files_to_bigtable():
                     row.set_cell("metadata_cf", b"category", prod.get("category", "").encode('utf-8'))
                     row.set_cell("metadata_cf", b"source", source.encode('utf-8'))
                     row.set_cell("metadata_cf", b"source_url", record.get("source_url", "").encode('utf-8'))
+                    row.set_cell("metadata_cf", b"external_id", prod.get("external_id", "Unknown").encode('utf-8')) # FIX: Bug 1
                     
+                    model_number = prod.get("model_number")
+                    if model_number:
+                        row.set_cell("metadata_cf", b"model_number", model_number.encode('utf-8'))
+                    
+                    if prod.get("description") is not None:
+                        row.set_cell("metadata_cf", b"description", prod.get("description").encode('utf-8')) # FIX: Bug 3
+
                     image_url = prod.get("image_url")
                     if image_url:
                         row.set_cell("metadata_cf", b"image_url", image_url.encode('utf-8'))
                         
                     # 3. Price CF
                     pricing = record.get("pricing", {})
-                    for p_field in ["raw_price", "converted_price_usd", "original_price_usd", "discount_percent", "conversion_rate"]:
+                    for p_field in ["raw_price", "converted_price_usd", "original_price_usd", "discount_percent", "conversion_rate_used"]: # FIX: Bug 2
                         if pricing.get(p_field) is not None:
-                            row.set_cell("price_cf", p_field.encode('utf-8'), str(pricing.get(p_field)).encode('utf-8'))
+                            row.set_cell("price_cf", p_field.encode('utf-8'), str(pricing.get(p_field)).encode('utf-8')) # FIX: Bug 2
                     
                     raw_currency = pricing.get("raw_currency")
                     if raw_currency:
@@ -120,13 +128,19 @@ def process_raw_files_to_bigtable():
                     
                     if avail.get("quantity") is not None:
                          row.set_cell("availability_cf", b"quantity", str(avail.get("quantity")).encode('utf-8'))
+                    if avail.get("shipping_available") is not None:
+                        row.set_cell("availability_cf", b"shipping_available", str(avail.get("shipping_available")).encode('utf-8')) # FIX: Bug 4
                     
                     # 5. Seller CF
                     seller = record.get("seller", {})
                     if seller.get("seller_name"):
                         row.set_cell("seller_cf", b"seller_name", seller.get("seller_name").encode('utf-8'))
+                    if seller.get("seller_type"):
+                        row.set_cell("seller_cf", b"seller_type", seller.get("seller_type").encode('utf-8')) # FIX: Bug 5
                     if seller.get("seller_rating") is not None:
                         row.set_cell("seller_cf", b"seller_rating", str(seller.get("seller_rating")).encode('utf-8'))
+                    if seller.get("seller_location"):
+                        row.set_cell("seller_cf", b"seller_location", seller.get("seller_location").encode('utf-8')) # FIX: Bug 5
                         
                     # 6. Ratings CF
                     ratings = record.get("ratings", {})
@@ -138,7 +152,19 @@ def process_raw_files_to_bigtable():
                     # 7. Specs CF
                     specs = record.get("specs", {})
                     if specs:
-                        row.set_cell("specs_cf", b"json_blob", json.dumps(specs).encode('utf-8'))
+                        valid_categories = {
+                            "GPU", "CPU", "RAM", "SSD", "HDD", "Monitor", "Keyboard",
+                            "Mouse", "PSU", "Case", "Cooling", "Motherboard", "Laptop",
+                            "Desktop", "Mobile", "Peripheral", "Other"
+                        }
+                        if isinstance(specs, dict) and all(
+                            k in valid_categories and (v is None or isinstance(v, dict))
+                            for k, v in specs.items()
+                        ):
+                            row.set_cell("specs_cf", b"json_blob", json.dumps(specs).encode('utf-8'))
+                        else:
+                            import sys
+                            print(f"WARNING: Malformed specs on line {line_no} in {file_path}. Skipping.", file=sys.stderr)
 
                     rows.append(row)
 

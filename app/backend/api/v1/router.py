@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from api.v1.endpoints import auth, watchlist, shopper_alerts, users, preferences, notifications, reseller, google_auth, analytics
+from api.v1.endpoints import auth, watchlist, shopper_alerts, users, preferences, notifications, reseller, google_auth, analytics, activity_logs
 
 api_router = APIRouter()
 
@@ -12,3 +12,4 @@ api_router.include_router(watchlist.router, prefix="/watchlist", tags=["watchlis
 api_router.include_router(shopper_alerts.router, prefix="/shopper-alerts", tags=["shopper-alerts"])
 api_router.include_router(reseller.router, prefix="/reseller", tags=["reseller"])
 api_router.include_router(analytics.router, prefix="/analytics", tags=["analytics"])
+api_router.include_router(activity_logs.router, prefix="/activity-logs", tags=["activity-logs"])

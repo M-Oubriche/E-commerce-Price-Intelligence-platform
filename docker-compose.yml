@@ -244,6 +244,8 @@ services:
       APP_POSTGRES_USER: ${APP_POSTGRES_USER}
       APP_POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD}
       APP_POSTGRES_DB: ${APP_POSTGRES_DB}
+      # BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
+      GOOGLE_APPLICATION_CREDENTIALS: "/secrets/bigquery-service-account.json"
 
     volumes:
       # nifi_conf: the entire flow lives here
@@ -255,6 +257,7 @@ services:
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
       - ./scrapers:/app/scrapers
       - ./data/raw:/data/raw
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
       - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
 
     ports:
@@ -272,6 +275,25 @@ services:
       timeout: 10s
       retries: 10
       start_period: 90s
+
+  # GOOGLE CLOUD BIGTABLE EMULATOR
+  # NOTE: Used previously for local testing. Now migrating to GCP Bigtable via Terraform.
+  # bigtable-emulator:
+  #   image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+  #   container_name: bigtable_emulator
+  #   restart: unless-stopped
+  #   command: >
+  #     gcloud beta emulators bigtable start --host-port=0.0.0.0:8086 --project=${BIGTABLE_PROJECT_ID}
+  #   ports:
+  #     - "8086:8086"
+  #   networks:
+  #     - platform_net
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/8086'" ]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 10s
 
   # APPLICATION SERVICES (Frontend, Backend, DB, Cache)
 
@@ -327,6 +349,11 @@ services:
         condition: service_healthy
     env_file:
       - .env
+    volumes:
+      # Mount the code for live development
+      - ./app/backend:/app
+      # Mount the DevOps GCP key for BigQuery
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     environment:
       - DATABASE_URL=postgresql+asyncpg://${APP_POSTGRES_USER}:${APP_POSTGRES_PASSWORD}@app_postgres:5432/${APP_POSTGRES_DB}
       - REDIS_URL=redis://redis:6379/0
@@ -334,9 +361,7 @@ services:
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
       - BIGQUERY_PROJECT_ID=${BIGQUERY_PROJECT_ID}
       - BIGQUERY_DATASET=${BIGQUERY_DATASET}
-    volumes:
-      # Mount the code for live development
-      - ./app/backend:/app
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
       - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     ports:
       - "8000:8000"

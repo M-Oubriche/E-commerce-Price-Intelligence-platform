@@ -4,9 +4,12 @@ import { RouterModule, Router } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subject, of, forkJoin } from 'rxjs';
+import { debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { AuthService } from '../../../../core/services/auth.service';
 import { WatchlistService, WatchlistItem } from '../../../../core/services/watchlist.service';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-library';
+import { AnalyticsApiService } from '../../../../core/services/analytics-api.service';
+import { ActivityLogsService } from '../../../../core/services/activity-logs.service';
 
 @Component({
   selector: 'app-dashboard-home',
@@ -121,20 +124,30 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
               </div>
               <div class="progress-list">
                 <div class="progress-item" *ngFor="let alert of alerts.slice(0,3)">
-                  <div class="item-meta">
-                    <span class="item-name">{{ alert.productName }}</span>
-                    <span class="item-pct" [style.color]="getProgressColor(alert.progress)">{{ alert.progress }}%</span>
+                  <div class="item-row">
+                    <img *ngIf="alert.image" [src]="alert.image" class="item-thumb" 
+                         onerror="this.style.display='none'">
+                    <div class="item-info">
+                      <div class="item-top">
+                        <span class="item-name">{{ alert.productName }}</span>
+                        <span class="item-pct" [style.color]="getProgressColor(alert.progress)">{{ alert.progress }}%</span>
+                      </div>
+                      <span class="item-category">{{ alert.category }}</span>
+                      <div class="progress-bar-container">
+                        <div class="progress-bar-fill" 
+                             [style.width.%]="alert.progress"
+                             [style.background]="getProgressColor(alert.progress)"
+                             [class.glow]="alert.progress > 85"></div>
+                      </div>
+                      <div class="item-prices">
+                        <span class="curr">{{ alert.currentPrice | currency }}</span>
+                        <span class="tgt">Target: {{ alert.targetPrice | currency }}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div class="progress-bar-container">
-                    <div class="progress-bar-fill" 
-                         [style.width.%]="alert.progress"
-                         [style.background]="getProgressColor(alert.progress)"
-                         [class.glow]="alert.progress > 85"></div>
-                  </div>
-                  <div class="item-prices">
-                    <span class="curr">{{ alert.currentPrice | currency }}</span>
-                    <span class="tgt">Target: {{ alert.targetPrice | currency }}</span>
-                  </div>
+                </div>
+                <div class="progress-empty" *ngIf="alerts.length === 0">
+                  <span>No active alerts</span>
                 </div>
               </div>
               <a routerLink="/dashboard/alerts" class="panel-footer-link">Manage Alerts</a>
@@ -186,7 +199,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
                 Recently viewed
               </span>
               <span class="section-sub">products you visited recently</span>
-              <a routerLink="/search" class="section-clear">Clear history</a>
+              <a class="section-clear" (click)="clearRecentlyViewed($event)">Clear history</a>
             </div>
 
             <div class="recent-scroll">
@@ -250,7 +263,7 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
             </div>
             <div class="search-box-wrapper" [class.shake]="searchShake">
               <svg class="search-ico" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-              <input type="text" [(ngModel)]="searchQuery" (input)="showSuggestions = true" (keydown.enter)="onSearch()" placeholder="Search product name or paste Amazon/Walmart link..." autocomplete="off">
+              <input type="text" [(ngModel)]="searchQuery" (input)="onSearchInput()" (keydown.enter)="onSearch()" placeholder="Search product name or paste Amazon/Walmart link..." autocomplete="off">
               <button class="primary-search-btn" (click)="onSearch()">Analyze Price</button>
             </div>
             <!-- Autocomplete -->
@@ -641,16 +654,47 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
     .progress-list {
       display: flex;
       flex-direction: column;
-      gap: 20px;
+      gap: 16px;
     }
 
     .progress-item {
-      .item-meta {
+      .item-row {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+
+      .item-thumb {
+        width: 44px;
+        height: 44px;
+        border-radius: 8px;
+        object-fit: cover;
+        flex-shrink: 0;
+        background: var(--panel-border);
+      }
+
+      .item-info {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .item-top {
         display: flex;
         justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2px;
+        .item-name { font-size: 13px; font-weight: 600; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; margin-right: 8px; }
+        .item-pct { font-size: 13px; font-weight: 800; flex-shrink: 0; }
+      }
+
+      .item-category {
+        display: inline-block;
+        font-size: 10px;
+        font-weight: 600;
+        color: var(--text-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
         margin-bottom: 8px;
-        .item-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-        .item-pct { font-size: 13px; font-weight: 800; }
       }
 
       .progress-bar-container {
@@ -679,6 +723,13 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
         .curr { color: var(--text-secondary); }
         .tgt { color: var(--accent-green); }
       }
+    }
+
+    .progress-empty {
+      text-align: center;
+      padding: 24px 0;
+      font-size: 13px;
+      color: var(--text-muted);
     }
 
     .deal-list {
@@ -1104,20 +1155,28 @@ import { PLATFORM_PRODUCT_LIBRARY } from '../../../../core/constants/product-lib
 export class DashboardHomeComponent implements OnInit {
   authService = inject(AuthService);
   private watchlistService = inject(WatchlistService);
+  private analyticsApi = inject(AnalyticsApiService);
+  private activityLogsService = inject(ActivityLogsService);
   private destroyRef = inject(DestroyRef);
   router = inject(Router);
-  
+
+  private searchSubject = new Subject<string>();
+
   isLoading = true;
   searchQuery = '';
   searchShake = false;
   showSuggestions = false;
-  
+  suggestions: any[] = [];
+
   stats = { tracked: 0, activeAlerts: 0, dropsToday: 0, totalSaved: 0 };
   displayStats = { tracked: 0, activeAlerts: 0, dropsToday: 0, totalSaved: 0 };
 
   trackedProducts: any[] = [];
   priceDrops: any[] = [];
   alerts: any[] = [];
+  insights: any[] = [];
+  recentlyViewed: any[] = [];
+  personalizedDeals: any[] = [];
 
   get greeting(): string {
     return 'Welcome back';
@@ -1136,147 +1195,132 @@ export class DashboardHomeComponent implements OnInit {
     return 'All your tracked products are being monitored. No drops today yet.';
   }
 
-  insights = [
-    {
-      productId: '1',
-      product: 'iPhone 15 Pro',
-      message: 'Currently at its lowest price in 6 months. Historical data suggests this is a good time to buy.',
-      type: 'buy-now',
-      icon: 'M13 10V3L4 14h7v7l9-11h-7z'
-    },
-    {
-      productId: '2',
-      product: 'MacBook Pro 14"',
-      message: 'Prices on this model typically drop in November. Consider waiting 3 weeks for a better deal.',
-      type: 'wait',
-      icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
-    },
-    {
-      productId: '4',
-      product: 'PS5 Console',
-      message: 'Price has been stable for 2 months with no significant drops expected soon. Buy now if you need it.',
-      type: 'neutral',
-      icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-    },
-    {
-      productId: '6',
-      product: 'RTX 4080 GPU',
-      message: 'Price has dropped 18% in the last 30 days and is still trending down. Wait for a better price.',
-      type: 'wait',
-      icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
-    }
-  ];
-
-  recentlyViewed = [
-    {
-      id: '1',
-      name: 'iPhone 15 Pro',
-      category: 'Smartphones',
-      currentPrice: 854,
-      platform: 'Amazon',
-      dealScore: 9.4,
-      viewedAgo: '2h ago',
-      image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=200'
-    },
-    {
-      id: '2',
-      name: 'MacBook Pro 14"',
-      category: 'Laptops',
-      currentPrice: 1879,
-      platform: 'Newegg',
-      dealScore: 8.7,
-      viewedAgo: '3h ago',
-      image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=200'
-    },
-    {
-      id: '3',
-      name: 'Sony WH-1000XM5',
-      category: 'Audio',
-      currentPrice: 279,
-      platform: 'BestBuy',
-      dealScore: 9.1,
-      viewedAgo: '5h ago',
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=200'
-    },
-    {
-      id: '4',
-      name: 'PS5 Console',
-      category: 'Gaming',
-      currentPrice: 449,
-      platform: 'Amazon',
-      dealScore: 9.4,
-      viewedAgo: '6h ago',
-      image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=200'
-    },
-    {
-      id: '5',
-      name: 'iPad Pro 12.9"',
-      category: 'Tablets',
-      currentPrice: 899,
-      platform: 'Apple',
-      dealScore: 8.2,
-      viewedAgo: '1d ago',
-      image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=200'
-    },
-    {
-      id: '6',
-      name: 'RTX 4080 GPU',
-      category: 'Components',
-      currentPrice: 899,
-      platform: 'Newegg',
-      dealScore: 8.7,
-      viewedAgo: '1d ago',
-      image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=200'
-    }
-  ];
-
-  personalizedDeals = [
-    { id: '2', category: 'Smartphones', productName: 'iPhone 15', currentPrice: 749, savingsAmount: 150 },
-    { id: '5', category: 'Audio', productName: 'AirPods Pro 2', currentPrice: 189, savingsAmount: 60 },
-    { id: '10', category: 'Gaming', productName: 'Xbox Series X', currentPrice: 399, savingsAmount: 100 }
-  ];
+  get filteredSuggestions(): any[] {
+    return this.suggestions;
+  }
 
   ngOnInit() {
     this.fetchDashboardData();
+
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(q => {
+        if (!q || q.length < 2) {
+          this.suggestions = [];
+          return of([]);
+        }
+        return this.analyticsApi.searchProducts(q).pipe(
+          catchError(() => of([]))
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(results => {
+      this.suggestions = results.map(r => ({
+        id: r.product_unified_id,
+        name: r.product_name,
+        category: r.product_category,
+        image: r.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200'
+      })).slice(0, 5);
+      this.showSuggestions = true;
+    });
   }
 
   fetchDashboardData() {
     this.isLoading = true;
-    this.watchlistService.getWatchlist()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (items) => {
-          this.trackedProducts = items.map(item => this.mapToDisplay(item)).slice(0, 5);
-          // For now, priceDrops is just items where current < original
-          this.priceDrops = items
-            .filter(item => item.current_price < item.original_price)
-            .map(item => this.mapToDisplay(item))
-            .slice(0, 4);
-          
-          this.alerts = items.flatMap(item => 
+
+    let fallbackTimer: ReturnType<typeof setTimeout>;
+    const done = () => {
+      if (fallbackTimer) clearTimeout(fallbackTimer);
+      this.isLoading = false;
+      setTimeout(() => this.runStatsAnimations(), 50);
+    };
+
+    fallbackTimer = setTimeout(() => done(), 8_000);
+
+    forkJoin({
+      watchlist: this.watchlistService.getWatchlist().pipe(catchError(() => of([] as WatchlistItem[]))),
+      priceDrops: this.analyticsApi.getFlashDeals().pipe(catchError(() => of([] as any[])))
+    }).pipe(
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: ({ watchlist: items, priceDrops: drops }) => {
+        this.trackedProducts = items.map(item => this.mapToDisplay(item)).slice(0, 5);
+        this.priceDrops = (drops || [])
+          .slice(0, 4)
+          .map(d => ({
+            id: d.product_unified_id,
+            name: d.product_name,
+            category: d.product_category,
+            image: d.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400',
+            currentPrice: d.latest_price,
+            originalPrice: d.previous_price,
+            dealScore: d.deal_score || Math.min(5 + Math.round(d.drop_percentage / 10), 10),
+          }));
+        this.alerts = items
+          .flatMap(item =>
             (item.shopper_alerts || []).map(alert => ({
               id: alert.id,
               productName: item.product_name,
+              category: item.category,
+              image: item.image_url,
               currentPrice: item.current_price,
               targetPrice: alert.target_value,
-              progress: alert.progress_pct
+              progress: alert.progress_pct,
             }))
-          ).slice(0, 5);
+          )
+          .sort((a, b) => b.progress - a.progress)
+          .slice(0, 5);
+        this.stats = {
+          tracked: items.length,
+          activeAlerts: items.reduce((acc, item) => acc + (item.shopper_alerts?.filter(a => a.status === 'active').length || 0), 0),
+          dropsToday: items.filter(item => item.current_price < item.original_price).length,
+          totalSaved: items.reduce((acc, item) => acc + Math.max(0, Number(item.original_price) - Number(item.current_price)), 0)
+        };
+        done();
+      },
+      error: () => done()
+    });
 
-          this.stats = {
-            tracked: items.length,
-            activeAlerts: items.reduce((acc, item) => acc + (item.shopper_alerts?.filter(a => a.status === 'active').length || 0), 0),
-            dropsToday: items.filter(item => item.current_price < item.original_price).length,
-            totalSaved: items.reduce((acc, item) => acc + Math.max(0, Number(item.original_price) - Number(item.current_price)), 0)
-          };
+    this.loadRecentlyViewed();
 
-          this.isLoading = false;
-          setTimeout(() => this.runStatsAnimations(), 50);
-        },
-        error: () => {
-          this.isLoading = false;
+    this.analyticsApi.getShopperInsights().pipe(
+      catchError(() => of([])),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: insights => {
+        if (insights && insights.length > 0) {
+          this.insights = insights.slice(0, 4).map(ins => ({
+            productId: ins.top_viewed_product_name,
+            product: ins.top_viewed_product_name,
+            message: ins.demand_trend,
+            type: (ins.interest_score > 80 ? 'buy-now' : ins.interest_score > 50 ? 'neutral' : 'wait') as 'buy-now' | 'neutral' | 'wait',
+            icon: ins.interest_score > 80
+              ? 'M13 10V3L4 14h7v7l9-11h-7z'
+              : 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+          }));
         }
-      });
+      },
+      error: () => {}
+    });
+
+    this.analyticsApi.getDealAnalysis().pipe(
+      catchError(() => of([])),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: deals => {
+        if (deals && deals.length > 0) {
+          this.personalizedDeals = deals.slice(0, 3).map(d => ({
+            id: d.product_unified_id,
+            category: d.product_category,
+            productName: d.product_name,
+            currentPrice: d.current_price || 0,
+            savingsAmount: d.avg_price_30d && d.current_price ? d.avg_price_30d - d.current_price : 0
+          }));
+        }
+      },
+      error: () => {}
+    });
   }
 
   private mapToDisplay(item: WatchlistItem) {
@@ -1290,6 +1334,45 @@ export class DashboardHomeComponent implements OnInit {
       dealScore: this.calculateDealScore(item),
       image: item.image_url
     };
+  }
+
+  private loadRecentlyViewed() {
+    const fallbackImage = 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200';
+    this.activityLogsService.getRecentlyViewed().pipe(
+      catchError(() => of({ data: [] })),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(res => {
+      this.recentlyViewed = (res.data || []).slice(0, 6).map(entry => {
+        const meta = entry.log_metadata || {};
+        return {
+          id: entry.entity_id,
+          name: meta.name || '',
+          category: meta.category || '',
+          currentPrice: meta.currentPrice || 0,
+          platform: meta.platform || '',
+          dealScore: meta.dealScore || 0,
+          image: meta.image || fallbackImage,
+          viewedAgo: this.formatViewedAgo(entry.created_at),
+        };
+      });
+    });
+  }
+
+  private formatViewedAgo(isoDate: string): string {
+    const diff = Date.now() - new Date(isoDate).getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'Just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hours = Math.floor(mins / 60);
+    if (hours < 24) return `${hours}h ago`;
+    const days = Math.floor(hours / 24);
+    if (days < 7) return `${days}d ago`;
+    return `${Math.floor(days / 7)}w ago`;
+  }
+
+  clearRecentlyViewed(event: Event) {
+    event.preventDefault();
+    this.recentlyViewed = [];
   }
 
   private calculateDealScore(item: WatchlistItem): number {
@@ -1328,6 +1411,10 @@ export class DashboardHomeComponent implements OnInit {
     return 'var(--accent-blue)';
   }
 
+  onSearchInput() {
+    this.searchSubject.next(this.searchQuery);
+  }
+
   onSearch() {
     if (this.searchQuery) {
       this.showSuggestions = false;
@@ -1336,12 +1423,6 @@ export class DashboardHomeComponent implements OnInit {
       this.searchShake = true;
       setTimeout(() => this.searchShake = false, 400);
     }
-  }
-
-  get filteredSuggestions() {
-    if (!this.searchQuery || this.searchQuery.length < 1) return [];
-    const q = this.searchQuery.toLowerCase();
-    return PLATFORM_PRODUCT_LIBRARY.filter(p => p.name.toLowerCase().includes(q)).slice(0, 5);
   }
 
   selectSuggestion(prod: any) {

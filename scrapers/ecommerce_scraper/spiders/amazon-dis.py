@@ -116,6 +116,7 @@ class AmazonScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=asin,
+                model_number=None,
                 name=title,
                 brand="Unknown", # Requires deep crawl to get reliably
                 category=category,

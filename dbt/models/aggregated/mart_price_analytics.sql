@@ -1,21 +1,49 @@
 {{ config(materialized='table') }}
 
-select
-    product_external_id,
+WITH latest_prices AS (
+    SELECT
+        product_unified_id,
+        product_name,
+        product_category,
+        product_image_url,
+        source,
+        seller_name,
+        converted_price_usd,
+        in_stock,
+        scraped_at,
+        -- Get rank to find the absolute latest price per source
+        ROW_NUMBER() OVER(
+            PARTITION BY product_unified_id, source, seller_name 
+            ORDER BY scraped_at DESC
+        ) as rn
+    FROM {{ ref('stg_raw_prices') }}
+),
+
+current_market AS (
+    SELECT * FROM latest_prices WHERE rn = 1
+)
+
+SELECT
+    product_unified_id,
     product_name,
-    product_brand,
     product_category,
-    source,
-    count(1) as total_scrapes,
-    avg(converted_price_usd) as avg_price_usd,
-    min(converted_price_usd) as min_price_usd,
-    max(converted_price_usd) as max_price_usd,
-    stddev(converted_price_usd) as price_volatility_usd,
-    max(scraped_at) as last_scraped_at
-from {{ ref('int_price_history') }}
-group by
-    product_external_id,
+    MAX(product_image_url) AS product_image_url,
+    
+    -- Analytics Metrics
+    COUNT(DISTINCT source) AS platforms_present,
+    COUNT(DISTINCT seller_name) AS seller_count,
+    
+    MIN(converted_price_usd) AS absolute_lowest_price_usd,
+    AVG(converted_price_usd) AS market_average_price_usd,
+    MAX(converted_price_usd) AS absolute_highest_price_usd,
+    
+    -- Volatility metric (max - min spread)
+    MAX(converted_price_usd) - MIN(converted_price_usd) AS price_spread_usd,
+    
+    MAX(scraped_at) AS last_market_update
+    
+FROM current_market
+GROUP BY 
+    product_unified_id,
     product_name,
-    product_brand,
-    product_category,
-    source
+    product_category

@@ -12,7 +12,7 @@ from core.config import settings
 
 router = APIRouter()
 
-@router.post("/register", response_model=SingleUserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_register)])
+@router.post("/register", status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_register)])
 async def register(
     user_in: UserCreate, 
     db: AsyncSession = Depends(deps.get_db)
@@ -25,10 +25,9 @@ async def register(
         )
     new_user = await AuthService.create_user(db, user_in=user_in)
     
-    # Generate verification token (to be sent by email in production)
     verification_token = await AuthService.create_verification_token(db, new_user.id)
     
-    return {"data": new_user}
+    return {"data": new_user, "verification_token": verification_token}
 
 
 @router.post("/login", dependencies=[Depends(rate_limit_login)])

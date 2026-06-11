@@ -8,6 +8,10 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
 
+    # --- BigQuery Config ---
+    BIGQUERY_PROJECT_ID: str = Field(default="price-intelligence-2026", alias="BIGQUERY_PROJECT_ID")
+    BIGQUERY_DATASET: str = Field(default="price_intelligence", alias="BIGQUERY_DATASET")
+
     DATABASE_URL: Optional[str] = None
     REDIS_URL: Optional[str] = None
     

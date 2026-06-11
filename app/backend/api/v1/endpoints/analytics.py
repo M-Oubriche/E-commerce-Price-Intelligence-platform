@@ -1,268 +1,433 @@
-"""
-analytics.py — BigQuery Mart Analytics Endpoint
-=================================================
-Connects to GCP BigQuery and queries the dbt-materialized mart tables.
-This is the final step in the pipeline: dbt Marts → Backend API.
-
-Endpoints:
-  GET /api/v1/analytics/price-summary?category=&source=&limit=
-  GET /api/v1/analytics/category-trends
-  GET /api/v1/analytics/cross-platform?product_id=
-  GET /api/v1/analytics/brand-comparison?category=
-  GET /api/v1/analytics/price-drops
-
-All results are cached in Redis (30 min TTL) to avoid hammering BigQuery.
-"""
+from fastapi import APIRouter, Query, BackgroundTasks, Depends
+from core.bigquery import cached_bq_query
+from core.config import settings
+from core.redis import redis_get, redis_set
+import asyncio
 import json
 import logging
-import os
-from typing import Optional
+from concurrent.futures import ThreadPoolExecutor
 
-from fastapi import APIRouter, HTTPException, Query
-from google.cloud import bigquery
-from google.oauth2 import service_account
+from api import deps
+# pyrefly: ignore [missing-import]
+from sqlalchemy.ext.asyncio import AsyncSession
+# pyrefly: ignore [missing-import]
+from sqlalchemy.future import select
+from models.users import User
+from models.reseller import SellerProduct
+import scipy.stats
+import numpy as np
 
-from core.redis import redis_client
+from services.advanced_stats import run_advanced_statistics
 
-log = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
+_stats_executor = ThreadPoolExecutor(max_workers=2)
+
 router = APIRouter()
 
-# ---------------------------------------------------------------------------
-# BigQuery client factory (uses the same service account as dbt/Airflow)
-# ---------------------------------------------------------------------------
-_bq_client: Optional[bigquery.Client] = None
+CACHE_TTL = 3600
+
+BQ_PROJECT = settings.BIGQUERY_PROJECT_ID
+BQ_DATASET = settings.BIGQUERY_DATASET
 
 
-def get_bq_client() -> bigquery.Client:
-    global _bq_client
-    if _bq_client is None:
-        creds_path = os.environ.get(
-            "GOOGLE_APPLICATION_CREDENTIALS",
-            "/secrets/bigquery-service-account.json"
+@router.get("/kpis", summary="Get Market KPIs")
+async def get_market_kpis(
+    days_back: int = Query(30, ge=1, le=365),
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    from sqlalchemy import func
+    from models.reseller import SellerStatus
+    
+    # 1. Get raw KPI data from BigQuery
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_market_kpis` LIMIT 1"
+    bq_result = await cached_bq_query("kpis", query, CACHE_TTL, days_back)
+    
+    if not bq_result or len(bq_result) == 0:
+        return []
+        
+    kpi_data = dict(bq_result[0])
+    
+    # 2. Get User's Active Products from Postgres
+    my_items_count = await db.scalar(
+        select(func.count()).where(
+            SellerProduct.user_id == current_user.id, 
+            SellerProduct.status == SellerStatus.ACTIVE
         )
-        project = os.environ.get("BIGQUERY_PROJECT_ID", "price-intelligence-2026")
-        try:
-            credentials = service_account.Credentials.from_service_account_file(creds_path)
-            _bq_client = bigquery.Client(project=project, credentials=credentials)
-            log.info("BigQuery client initialized for project=%s", project)
-        except Exception as exc:
-            log.error("Failed to init BigQuery client: %s", exc)
-            raise HTTPException(status_code=503, detail="Analytics service unavailable")
-    return _bq_client
+    )
+    my_items_count = my_items_count or 0
+    
+    # 3. Calculate accurate Market Visibility
+    total_market = kpi_data.get('total_market_items', 1)
+    if total_market == 0: total_market = 1
+    
+    kpi_data['my_market_visibility_pct'] = round((my_items_count / total_market) * 100, 2)
+    kpi_data['my_active_items'] = my_items_count
+    
+    return [kpi_data]
 
 
-BQ_PROJECT = os.environ.get("BIGQUERY_PROJECT_ID", "price-intelligence-2026")
-BQ_DATASET = os.environ.get("BIGQUERY_DATASET", "price_intelligence")
-CACHE_TTL = 1800  # 30 minutes
+@router.get("/trends", summary="Get Category Trends")
+async def get_category_trends(days_back: int = Query(30, ge=1, le=365)):
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_category_trends` ORDER BY product_count DESC"
+    return await cached_bq_query("trends", query, CACHE_TTL, days_back)
 
 
-async def _cached_query(cache_key: str, sql: str) -> list:
-    """Run a BigQuery query with Redis caching."""
-    # 1. Check cache
-    cached = await redis_client.get(cache_key)
-    if cached:
-        log.debug("Cache hit: %s", cache_key)
-        return json.loads(cached)
+@router.get("/price-drops", summary="Get Daily Price Drops")
+async def get_daily_price_drops():
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_daily_price_drops` ORDER BY absolute_drop_usd DESC LIMIT 50"
+    return await cached_bq_query("price-drops", query, CACHE_TTL)
 
-    # 2. Run BigQuery query
+
+@router.get("/deal-analysis", summary="Get Deal Analysis")
+async def get_deal_analysis(days_back: int = Query(30, ge=1, le=365)):
+    query = f"""WITH product_meta AS (
+    SELECT 
+        product_unified_id,
+        ROUND(AVG(avg_rating), 1) AS avg_rating,
+        SUM(review_count) AS total_reviews,
+        COUNT(DISTINCT source) AS total_platforms,
+        COUNT(DISTINCT CASE WHEN in_stock THEN source END) AS platforms_in_stock,
+        MAX(scraped_at) AS last_updated
+    FROM (
+        SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
+            ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+    )
+    WHERE rn = 1
+    GROUP BY product_unified_id
+)
+SELECT d.*,
+    ROUND(SAFE_DIVIDE((avg_price_30d - current_price), avg_price_30d) * 100, 1) AS discount_percent,
+    pm.avg_rating, pm.total_reviews, pm.total_platforms, pm.platforms_in_stock, pm.last_updated
+FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis` d
+LEFT JOIN product_meta pm ON d.product_unified_id = pm.product_unified_id
+ORDER BY d.deal_score DESC LIMIT 100"""
+    return await cached_bq_query("deal-analysis", query, CACHE_TTL, days_back)
+
+
+@router.get("/flash-deals", summary="Get Flash Deals — biggest daily price drops")
+async def get_flash_deals():
+    query = f"""SELECT d.*, pm.avg_rating, pm.total_reviews, pm.total_platforms, pm.platforms_in_stock, pm.last_updated
+FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_daily_price_drops` d
+LEFT JOIN (
+    SELECT 
+        product_unified_id,
+        ROUND(AVG(avg_rating), 1) AS avg_rating,
+        SUM(review_count) AS total_reviews,
+        COUNT(DISTINCT source) AS total_platforms,
+        COUNT(DISTINCT CASE WHEN in_stock THEN source END) AS platforms_in_stock,
+        MAX(scraped_at) AS last_updated
+    FROM (
+        SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
+            ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+    )
+    WHERE rn = 1
+    GROUP BY product_unified_id
+) pm ON d.product_unified_id = pm.product_unified_id
+ORDER BY d.drop_percentage DESC LIMIT 6"""
+    return await cached_bq_query("flash-deals", query, CACHE_TTL)
+
+
+@router.get("/trending", summary="Get Trending Deals — best deals weighted by score and rating")
+async def get_trending_deals():
+    query = f"""WITH product_meta AS (
+    SELECT 
+        product_unified_id,
+        ROUND(AVG(avg_rating), 1) AS avg_rating,
+        SUM(review_count) AS total_reviews,
+        COUNT(DISTINCT source) AS total_platforms,
+        COUNT(DISTINCT CASE WHEN in_stock THEN source END) AS platforms_in_stock,
+        MAX(scraped_at) AS last_updated
+    FROM (
+        SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
+            ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+    )
+    WHERE rn = 1
+    GROUP BY product_unified_id
+)
+SELECT d.*,
+    ROUND(SAFE_DIVIDE((avg_price_30d - current_price), avg_price_30d) * 100, 1) AS discount_percent,
+    ROUND(d.deal_score * 0.6 + COALESCE(pm.avg_rating, 0) * 0.4, 1) AS trending_score,
+    pm.avg_rating, pm.total_reviews, pm.total_platforms, pm.platforms_in_stock, pm.last_updated
+FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis` d
+LEFT JOIN product_meta pm ON d.product_unified_id = pm.product_unified_id
+ORDER BY trending_score DESC LIMIT 12"""
+    return await cached_bq_query("trending", query, CACHE_TTL)
+
+
+@router.get("/platform-performance", summary="Get Platform Performance")
+async def get_platform_performance(days_back: int = Query(30, ge=1, le=365)):
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_platform_performance` ORDER BY competitiveness_score DESC"
+    return await cached_bq_query("platform-performance", query, CACHE_TTL, days_back)
+
+
+@router.get("/platform-category-avg", summary="Get Platform Category Averages")
+async def get_platform_category_avg(days_back: int = Query(30, ge=1, le=365)):
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_platform_category_avg` ORDER BY platform, product_category"
+    return await cached_bq_query("platform-category-avg", query, CACHE_TTL, days_back)
+
+
+@router.get("/shopper-insights", summary="Get Shopper Insights")
+async def get_shopper_insights():
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_shopper_insights` LIMIT 100"
+    return await cached_bq_query("shopper-insights", query, CACHE_TTL)
+
+
+@router.get("/product-correlation", summary="Get Product Correlation Data")
+async def get_product_correlation(days_back: int = Query(30, ge=1, le=365)):
+    query = f"SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_product_correlation_data` LIMIT 100"
+    return await cached_bq_query("product-correlation", query, CACHE_TTL, days_back)
+
+
+@router.get("/product-by-id", summary="Get Product Details by ID (query param)")
+async def get_product_detail_by_id(product_id: str):
+    query = f"""WITH product_meta AS (
+    SELECT 
+        product_unified_id,
+        ROUND(AVG(avg_rating), 1) AS avg_rating,
+        SUM(review_count) AS total_reviews,
+        COUNT(DISTINCT source) AS total_platforms,
+        COUNT(DISTINCT CASE WHEN in_stock THEN source END) AS platforms_in_stock,
+        MAX(scraped_at) AS last_updated
+    FROM (
+        SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
+            ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+        WHERE product_unified_id = '{product_id}'
+    )
+    WHERE rn = 1
+    GROUP BY product_unified_id
+),
+source_info AS (
+    SELECT product_unified_id, source, source_url, in_stock,
+        ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
+    FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+    WHERE product_unified_id = '{product_id}'
+)
+SELECT d.*,
+    ROUND(SAFE_DIVIDE((avg_price_30d - current_price), avg_price_30d) * 100, 1) AS discount_percent,
+    COUNT(*) OVER(PARTITION BY d.product_unified_id) AS total_platforms_tracked,
+    pm.avg_rating, pm.total_reviews, pm.total_platforms, pm.platforms_in_stock, pm.last_updated,
+    si.source_url, si.in_stock
+FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis` d
+LEFT JOIN product_meta pm ON d.product_unified_id = pm.product_unified_id
+LEFT JOIN source_info si ON d.product_unified_id = si.product_unified_id AND d.source = si.source AND si.rn = 1
+WHERE d.product_unified_id = '{product_id}'
+ORDER BY d.current_price ASC"""
+    return await cached_bq_query(f"product:{product_id}", query, CACHE_TTL)
+
+
+@router.get("/product-by-id/history", summary="Get Product Price History by ID (query param)")
+async def get_product_history_by_id(product_id: str):
+    query = f"""
+        SELECT price_date as date, daily_lowest_price_usd as price 
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.int_price_history` 
+        WHERE product_unified_id = '{product_id}'
+        ORDER BY price_date ASC
+    """
+    return await cached_bq_query(f"history:{product_id}", query, CACHE_TTL)
+
+
+@router.get("/product-by-id/similar", summary="Get Similar Products by ID (query param)")
+async def get_similar_products_by_id(product_id: str):
+    query = f"""
+        WITH current_prod AS (
+            SELECT product_category FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis`
+            WHERE product_unified_id = '{product_id}'
+            LIMIT 1
+        )
+        SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis`
+        WHERE product_category = (SELECT product_category FROM current_prod)
+        AND product_unified_id != '{product_id}'
+        ORDER BY deal_score DESC
+        LIMIT 4
+    """
+    return await cached_bq_query(f"similar:{product_id}", query, CACHE_TTL)
+
+
+@router.get("/product/{product_id}", summary="Get Product Details")
+async def get_product_detail(product_id: str):
+    query = f"""WITH product_meta AS (
+    SELECT 
+        product_unified_id,
+        ROUND(AVG(avg_rating), 1) AS avg_rating,
+        SUM(review_count) AS total_reviews,
+        COUNT(DISTINCT source) AS total_platforms,
+        COUNT(DISTINCT CASE WHEN in_stock THEN source END) AS platforms_in_stock,
+        MAX(scraped_at) AS last_updated
+    FROM (
+        SELECT product_unified_id, source, avg_rating, review_count, in_stock, scraped_at,
+            ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+        WHERE product_unified_id = '{product_id}'
+    )
+    WHERE rn = 1
+    GROUP BY product_unified_id
+),
+source_info AS (
+    SELECT product_unified_id, source, source_url, in_stock,
+        ROW_NUMBER() OVER(PARTITION BY product_unified_id, source ORDER BY scraped_at DESC) AS rn
+    FROM `{BQ_PROJECT}.{BQ_DATASET}.stg_raw_prices`
+    WHERE product_unified_id = '{product_id}'
+)
+SELECT d.*,
+    ROUND(SAFE_DIVIDE((avg_price_30d - current_price), avg_price_30d) * 100, 1) AS discount_percent,
+    COUNT(*) OVER(PARTITION BY d.product_unified_id) AS total_platforms_tracked,
+    pm.avg_rating, pm.total_reviews, pm.total_platforms, pm.platforms_in_stock, pm.last_updated,
+    si.source_url, si.in_stock
+FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis` d
+LEFT JOIN product_meta pm ON d.product_unified_id = pm.product_unified_id
+LEFT JOIN source_info si ON d.product_unified_id = si.product_unified_id AND d.source = si.source AND si.rn = 1
+WHERE d.product_unified_id = '{product_id}'
+ORDER BY d.current_price ASC"""
+    return await cached_bq_query(f"product:{product_id}", query, CACHE_TTL)
+
+
+@router.get("/product/{product_id}/history", summary="Get Product Price History")
+async def get_product_history(product_id: str):
+    # This queries the int_price_history cleaned table for historical points
+    query = f"""
+        SELECT price_date as date, daily_lowest_price_usd as price 
+        FROM `{BQ_PROJECT}.{BQ_DATASET}.int_price_history` 
+        WHERE product_unified_id = '{product_id}'
+        ORDER BY price_date ASC
+    """
+    return await cached_bq_query(f"history:{product_id}", query, CACHE_TTL)
+
+
+@router.get("/product/{product_id}/similar", summary="Get Similar Products")
+async def get_similar_products(product_id: str):
+    # This queries for products in the same category, excluding the current product
+    # We first find the category of the given product, then find others
+    query = f"""
+        WITH current_prod AS (
+            SELECT product_category FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis`
+            WHERE product_unified_id = '{product_id}'
+            LIMIT 1
+        )
+        SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis`
+        WHERE product_category = (SELECT product_category FROM current_prod)
+        AND product_unified_id != '{product_id}'
+        ORDER BY deal_score DESC
+        LIMIT 4
+    """
+    return await cached_bq_query(f"similar:{product_id}", query, CACHE_TTL)
+
+
+@router.get("/search", summary="Search Products")
+async def search_products(q: str = "", category: str = ""):
+    # Normalize spaces: replace non-breaking spaces (\xa0) and zero-width chars with regular space
+    normalized = q.replace('\u00a0', ' ').replace('\u200b', '').strip()
+    search_term = normalized.lower()
+    # Also normalize non-breaking spaces in stored BigQuery product names
+    nb_sp = '\u00a0'
+    
+    where_clauses = []
+    if search_term:
+        where_clauses.append(f"(LOWER(REPLACE(product_name, '{nb_sp}', ' ')) LIKE '%{search_term}%' OR LOWER(product_category) LIKE '%{search_term}%')")
+    if category and category.lower() != 'all':
+        cat = category.replace("'", "''").lower()
+        where_clauses.append(f"LOWER(product_category) = '{cat}'")
+        
+    where_sql = ""
+    if where_clauses:
+        where_sql = "WHERE " + " AND ".join(where_clauses)
+
+    query = f"""
+        SELECT * FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_deal_analysis`
+        {where_sql}
+        ORDER BY deal_score DESC
+        LIMIT 500
+    """
+    return await cached_bq_query(f"search:{search_term}:{category}", query, CACHE_TTL)
+
+
+@router.get("/advanced-stats", summary="Get Advanced Statistical Analysis (T-Tests, Regression, Correlation)")
+async def get_advanced_stats(
+    current_user: User = Depends(deps.get_current_user),
+    db: AsyncSession = Depends(deps.get_db)
+):
+    cache_key = "analytics:advanced-stats"
+    result = None
+    
+    # 1. Try to fetch from Redis first
     try:
-        client = get_bq_client()
-        rows = [dict(row) for row in client.query(sql).result()]
-        # Serialize — convert non-JSON-serializable types
-        for row in rows:
-            for k, v in row.items():
-                if hasattr(v, "isoformat"):
-                    row[k] = v.isoformat()
-        await redis_client.set(cache_key, json.dumps(rows), ex=CACHE_TTL)
-        return rows
-    except HTTPException:
-        raise
-    except Exception as exc:
-        log.error("BigQuery query failed: %s | SQL: %s", exc, sql[:200])
-        raise HTTPException(status_code=502, detail=f"Analytics query failed: {exc}")
+        cached = await asyncio.wait_for(redis_get(cache_key), timeout=5.0)
+        if cached is not None:
+            logger.info("Advanced stats served from Redis cache.")
+            result = json.loads(cached)
+    except Exception as e:
+        logger.warning(f"Failed to read advanced stats from Redis: {e}")
 
+    # 2. If not in cache, run the heavy Python math in a background thread
+    if result is None:
+        logger.info("Cache miss for advanced stats. Running pandas math...")
+        loop = asyncio.get_running_loop()
+        try:
+            # run_advanced_statistics takes 1-3 seconds, so we run it in an executor to avoid blocking FastAPI
+            result = await loop.run_in_executor(_stats_executor, run_advanced_statistics)
+            
+            # 3. Save the calculated result back to Redis for 1 hour (3600 seconds)
+            try:
+                await asyncio.wait_for(redis_set(cache_key, json.dumps(result), 3600), timeout=5.0)
+            except Exception as e:
+                logger.warning(f"Failed to save advanced stats to Redis: {e}")
+        except Exception as e:
+            logger.error(f"Failed to compute advanced stats: {e}")
+            return {"error": "Failed to compute advanced statistics."}
 
-# ---------------------------------------------------------------------------
-# Endpoints
-# ---------------------------------------------------------------------------
-
-@router.get(
-    "/price-summary",
-    summary="Price statistics per product from mart_price_analytics",
-    tags=["analytics"],
-)
-async def price_summary(
-    category: Optional[str] = Query(None, description="Filter by product category (GPU, CPU, RAM, SSD…)"),
-    source: Optional[str] = Query(None, description="Filter by source platform (jumia, bestbuy…)"),
-    limit: int = Query(50, ge=1, le=500),
-):
-    """
-    Returns avg/min/max price and volatility per product per source.
-    Powered by dbt mart: `mart_price_analytics`.
-    """
-    where_clauses = []
-    if category:
-        where_clauses.append(f"LOWER(product_category) = LOWER('{category}')")
-    if source:
-        where_clauses.append(f"LOWER(source) = LOWER('{source}')")
-
-    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-    sql = f"""
-        SELECT
-            product_external_id,
-            product_name,
-            product_brand,
-            product_category,
-            source,
-            total_scrapes,
-            ROUND(avg_price_usd, 2)       AS avg_price_usd,
-            ROUND(min_price_usd, 2)       AS min_price_usd,
-            ROUND(max_price_usd, 2)       AS max_price_usd,
-            ROUND(price_volatility_usd, 2) AS price_volatility_usd,
-            last_scraped_at
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_price_analytics`
-        {where_sql}
-        ORDER BY total_scrapes DESC
-        LIMIT {limit}
-    """
-    cache_key = f"analytics:price-summary:{category}:{source}:{limit}"
-    return {"data": await _cached_query(cache_key, sql)}
-
-
-@router.get(
-    "/category-trends",
-    summary="Weekly price trends per category from mart_category_trends",
-    tags=["analytics"],
-)
-async def category_trends(
-    category: Optional[str] = Query(None),
-    weeks: int = Query(12, ge=1, le=52),
-):
-    """
-    Returns weekly avg/min/max price per product category for the last N weeks.
-    Powered by dbt mart: `mart_category_trends`.
-    """
-    where_sql = f"WHERE LOWER(product_category) = LOWER('{category}')" if category else ""
-    sql = f"""
-        SELECT
-            scrape_week,
-            product_category,
-            unique_products,
-            total_observations,
-            ROUND(avg_price_usd, 2)       AS avg_price_usd,
-            ROUND(min_price_usd, 2)       AS min_price_usd,
-            ROUND(max_price_usd, 2)       AS max_price_usd,
-            ROUND(price_volatility_usd, 2) AS price_volatility_usd
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_category_trends`
-        {where_sql}
-        ORDER BY scrape_week DESC
-        LIMIT {weeks * 10}
-    """
-    cache_key = f"analytics:category-trends:{category}:{weeks}"
-    return {"data": await _cached_query(cache_key, sql)}
-
-
-@router.get(
-    "/cross-platform",
-    summary="Compare prices for a product across all platforms",
-    tags=["analytics"],
-)
-async def cross_platform(
-    product_id: Optional[str] = Query(None, description="Filter to a specific product_external_id"),
-    category: Optional[str] = Query(None),
-    limit: int = Query(100, ge=1, le=500),
-):
-    """
-    Shows the same product's latest price on each scraped platform, with
-    the spread vs. the cheapest option highlighted.
-    Powered by dbt mart: `mart_cross_platform`.
-    """
-    where_clauses = []
-    if product_id:
-        where_clauses.append(f"product_external_id = '{product_id}'")
-    if category:
-        where_clauses.append(f"LOWER(product_category) = LOWER('{category}')")
-    where_sql = ("WHERE " + " AND ".join(where_clauses)) if where_clauses else ""
-
-    sql = f"""
-        SELECT
-            product_external_id,
-            product_name,
-            product_brand,
-            product_category,
-            source,
-            ROUND(converted_price_usd, 2)       AS price_usd,
-            ROUND(avg_cross_platform_price, 2)  AS avg_cross_platform_price,
-            ROUND(min_cross_platform_price, 2)  AS min_cross_platform_price,
-            ROUND(max_cross_platform_price, 2)  AS max_cross_platform_price,
-            ROUND(price_above_minimum, 2)        AS price_above_minimum,
-            last_scraped_at
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_cross_platform`
-        {where_sql}
-        ORDER BY price_usd ASC
-        LIMIT {limit}
-    """
-    cache_key = f"analytics:cross-platform:{product_id}:{category}:{limit}"
-    return {"data": await _cached_query(cache_key, sql)}
-
-
-@router.get(
-    "/brand-comparison",
-    summary="Price and rating comparison across brands",
-    tags=["analytics"],
-)
-async def brand_comparison(
-    category: Optional[str] = Query(None, description="Filter by product category"),
-):
-    """
-    Returns average price, average rating, and total review count per brand.
-    Powered by dbt mart: `mart_brand_comparison`.
-    """
-    where_sql = f"WHERE LOWER(product_category) = LOWER('{category}')" if category else ""
-    sql = f"""
-        SELECT
-            product_category,
-            product_brand,
-            total_products,
-            ROUND(avg_price_usd, 2) AS avg_price_usd,
-            ROUND(avg_rating, 2)    AS avg_rating,
-            total_reviews
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_brand_comparison`
-        {where_sql}
-        ORDER BY total_products DESC
-    """
-    cache_key = f"analytics:brand-comparison:{category}"
-    return {"data": await _cached_query(cache_key, sql)}
-
-
-@router.get(
-    "/price-drops",
-    summary="Recent price drops detected by NiFi real-time ingestion",
-    tags=["analytics"],
-)
-async def price_drops(
-    min_drop_pct: float = Query(5.0, description="Minimum drop percentage to include"),
-    limit: int = Query(50, ge=1, le=200),
-):
-    """
-    Returns recently ingested rows where NiFi flagged a price drop ≥ min_drop_pct%.
-    Pulled from BigQuery `raw_ecommerce_prices` (populated by the export DAG).
-    """
-    sql = f"""
-        SELECT
-            row_key,
-            product_name,
-            product_brand,
-            product_category,
-            source,
-            ROUND(converted_price_usd, 2)  AS current_price_usd,
-            ROUND(price_drop_percent, 2)   AS drop_percent,
-            scraped_at
-        FROM `{BQ_PROJECT}.{BQ_DATASET}.raw_ecommerce_prices`
-        WHERE is_price_drop = TRUE
-          AND price_drop_percent >= {min_drop_pct}
-        ORDER BY scraped_at DESC
-        LIMIT {limit}
-    """
-    cache_key = f"analytics:price-drops:{min_drop_pct}:{limit}"
-    return {"data": await _cached_query(cache_key, sql)}
+    # 4. Calculate User-Specific T-Test (Postgres My Prices vs BQ Market Avg)
+    try:
+        stmt = select(SellerProduct).where(SellerProduct.user_id == current_user.id)
+        db_result = await db.execute(stmt)
+        user_products = db_result.scalars().all()
+        
+        user_category_prices = {}
+        for p in user_products:
+            if p.category:
+                if p.category not in user_category_prices:
+                    user_category_prices[p.category] = []
+                user_category_prices[p.category].append(float(p.my_price))
+                
+        # Get market averages
+        market_trends_query = f"SELECT product_category, mean_price FROM `{BQ_PROJECT}.{BQ_DATASET}.mart_category_trends`"
+        market_trends = await cached_bq_query("trends_for_ttest", market_trends_query, CACHE_TTL)
+        market_avg_map = {row['product_category']: float(row['mean_price']) for row in market_trends}
+        
+        custom_ttest = []
+        for cat, prices in user_category_prices.items():
+            market_avg = market_avg_map.get(cat)
+            if market_avg is None:
+                continue
+                
+            my_avg = sum(prices) / len(prices)
+            gap = my_avg - market_avg
+            
+            # 1-sample t-test (user prices vs market mean)
+            if len(prices) > 1:
+                try:
+                    t_stat, p_val = scipy.stats.ttest_1samp(prices, market_avg)
+                    p_val = float(p_val) if not np.isnan(p_val) else 0.5
+                except:
+                    p_val = 0.5
+            else:
+                p_val = 0.05 if abs(gap) > (market_avg * 0.1) else 0.5
+                
+            custom_ttest.append({
+                "category": cat,
+                "platform": "My Store",
+                "my_price": round(my_avg, 2),
+                "market_avg": round(market_avg, 2),
+                "gap": round(gap, 2),
+                "p_value": round(p_val, 3),
+                "significant": p_val < 0.05
+            })
+            
+        result["ttest_results"] = custom_ttest
+    except Exception as e:
+        logger.error(f"Failed to compute user-specific T-Test: {e}")
+        
+    return result

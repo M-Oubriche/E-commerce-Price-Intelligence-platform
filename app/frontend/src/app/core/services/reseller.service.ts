@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable, map, catchError } from 'rxjs';
+import { Observable, map, catchError, Subject } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import { ApiResponse } from '../models/api-response.model';
 import { AuthService } from './auth.service';
@@ -38,7 +38,7 @@ export interface PriceAlert {
   target_margin_pct?: number;
   threshold_value?: number;
   threshold_type: 'ABSOLUTE' | 'PERCENT';
-  priority: 'High' | 'Medium' | 'Low';
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
   risk_level?: string;
   is_active: boolean;
   last_triggered_at?: string;
@@ -68,6 +68,9 @@ export class ResellerService {
   private http = inject(HttpClient);
   private authService = inject(AuthService);
   private readonly BASE_URL = `${environment.apiUrl}/reseller`;
+
+  /** Emit after any create/update/delete to trigger sidebar refresh */
+  sidebarRefresh$ = new Subject<void>();
 
   private handleRequest<T>(requestFn: () => Observable<T>): Observable<T> {
     return requestFn().pipe(
