@@ -6,13 +6,13 @@ from typing import Optional
 from api import deps
 from core.rate_limit import rate_limit_auth, rate_limit_login, rate_limit_register
 from models.users import User
-from schemas.users import UserCreate, UserOut, Token, SingleUserResponse
+from schemas.users import UserCreate, UserOut, Token, SingleUserResponse, RegisterResponse
 from services.auth import AuthService
 from core.config import settings
 
 router = APIRouter()
 
-@router.post("/register", status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_register)])
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=RegisterResponse, dependencies=[Depends(rate_limit_register)])
 async def register(
     user_in: UserCreate, 
     db: AsyncSession = Depends(deps.get_db)
@@ -27,7 +27,7 @@ async def register(
     
     verification_token = await AuthService.create_verification_token(db, new_user.id)
     
-    return {"data": new_user, "verification_token": verification_token}
+    return RegisterResponse(data=UserOut.model_validate(new_user), verification_token=verification_token)
 
 
 @router.post("/login", dependencies=[Depends(rate_limit_login)])

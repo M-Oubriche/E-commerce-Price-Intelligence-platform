@@ -26,6 +26,8 @@ async def get_optional_current_user(
         return None
     try:
         payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            return None
         user_id: str = payload.get("sub")
         if not user_id:
             return None
@@ -43,6 +45,11 @@ async def get_current_user(
         payload = jwt.decode(
             token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
         )
+        if payload.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type.",
+            )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(
