@@ -114,7 +114,7 @@ models:
     columns:
       - name: margin_health_status
         description: "Categorical status: Excellent, Warning, or Critical based on margin thresholds."
-        tests:
+        data_tests:
           - accepted_values:
               values: ['Excellent', 'Warning', 'Critical']
 
