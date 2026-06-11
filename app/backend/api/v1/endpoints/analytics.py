@@ -8,7 +8,9 @@ import logging
 from concurrent.futures import ThreadPoolExecutor
 
 from api import deps
+# pyrefly: ignore [missing-import]
 from sqlalchemy.ext.asyncio import AsyncSession
+# pyrefly: ignore [missing-import]
 from sqlalchemy.future import select
 from models.users import User
 from models.reseller import SellerProduct

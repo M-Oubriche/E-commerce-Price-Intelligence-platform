@@ -11,21 +11,45 @@ import psycopg2
 
 def ingest_to_bigtable(json_str):
     try:
-        data = json.loads(json_str)
-    except json.JSONDecodeError:
-        print("Invalid JSON received.", file=sys.stderr)
+        conn = psycopg2.connect(
+            host="app_postgres",
+            database=os.environ.get("APP_POSTGRES_DB", "app"),
+            user=os.environ.get("APP_POSTGRES_USER", "app_user"),
+            password=os.environ.get("APP_POSTGRES_PASSWORD", "app_pass")
+        )
+        cur = conn.cursor()
+        
+        product_name = record.get("product", {}).get("name", "Unknown")
+        source = record.get("source", "Unknown")
+        new_price = record.get("pricing", {}).get("converted_price_usd")
+        product_id = record.get("raw_id", "Unknown")
+        
+        cur.execute(
+            "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent, is_processed) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (product_id, product_name, source, prev_price, new_price, round(drop_percent, 2), False)
+        )
+        conn.commit()
+        cur.close()
+        conn.close()
+        print("DEBUG: Alert successfully inserted into Postgres.", file=sys.stderr)
+    except Exception as e:
+        print(f"ERROR: Failed to insert alert into Postgres: {e}", file=sys.stderr)
+
+def ingest_to_bigtable(json_str):
+    # Initialize Bigtable Client
+    project_id  = os.environ.get("BIGTABLE_PROJECT_ID")
+    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID")
+    if not project_id or not instance_id:
+        print(
+            "ERROR: BIGTABLE_PROJECT_ID and BIGTABLE_INSTANCE_ID must be set. "
+            "Check your .env file and docker-compose.yml.",
+            file=sys.stderr
+        )
         sys.exit(1)
-
-    # Normalize to a list to process batches
-    records = data if isinstance(data, list) else [data]
-    if not records:
-        return
-
-    # Initialize Connections ONCE per script execution
-    project_id = os.environ.get("BIGTABLE_PROJECT_ID", "ecommerce-platform-dev")
-    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID", "price-intelligence-db")
     table_id = "ecommerce_prices"
     
+    # When BIGTABLE_EMULATOR_HOST is NOT set (production), the client connects
+    # to real Google Cloud Bigtable using GOOGLE_APPLICATION_CREDENTIALS.
     client = bigtable.Client(project=project_id, admin=True)
     instance = client.instance(instance_id)
     table = instance.table(table_id)
@@ -102,8 +126,8 @@ def ingest_to_bigtable(json_str):
                             cur = pg_conn.cursor()
                             prod_name = record.get("product", {}).get("name", "Unknown")
                             cur.execute(
-                                "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent) VALUES (%s, %s, %s, %s, %s, %s)",
-                                (product_id, prod_name, source, previous_price, current_price, round(price_drop_percent, 2))
+                                "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent, is_processed) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                                (product_id, prod_name, source, previous_price, current_price, round(price_drop_percent, 2), False)
                             )
                             pg_conn.commit()
                             cur.close()

@@ -1,0 +1,25 @@
+version: 2
+
+sources:
+  - name: price_intelligence
+    description: "Raw exported records from Google Cloud Bigtable – the single source of truth for all product pricing data."
+    schema: price_intelligence
+    tables:
+      - name: raw_ecommerce_prices
+        description: "Flat export of all Bigtable ecommerce_prices rows. One row per scrape event (row_key = category#brand#product_id#source#timestamp)."
+        columns:
+          - name: row_key
+            description: "Bigtable row key: {category}#{brand}#{product_id}#{source}#{timestamp}"
+            tests:
+              - not_null
+              - unique
+          - name: scraped_at
+            description: "UTC timestamp when the product was scraped"
+            tests:
+              - not_null
+          - name: source
+            description: "Origin platform (jumia, bestbuy, newegg, etc.)"
+            tests:
+              - not_null
+          - name: converted_price_usd
+            description: "Price normalized to USD"

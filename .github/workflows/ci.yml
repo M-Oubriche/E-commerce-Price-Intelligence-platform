@@ -278,12 +278,12 @@ jobs:
 
       - name: Start Essential Services
         # Explicitly excludes NiFi to prevent GitHub Runner OOM (Out Of Memory) kills
-        run: docker compose up -d postgres app_postgres redis bigtable-emulator airflow-webserver airflow-scheduler
+        run: docker compose up -d postgres app_postgres redis airflow-webserver airflow-scheduler
 
       - name: Verify Service Health
         run: |
           echo "Waiting for services to become healthy..."
-          SERVICES="postgres app_postgres redis bigtable-emulator airflow-webserver"
+          SERVICES="postgres app_postgres redis airflow-webserver"
           for SERVICE in $SERVICES; do
             echo "Waiting for $SERVICE..."
             TIMEOUT=180

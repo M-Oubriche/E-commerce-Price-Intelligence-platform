@@ -35,8 +35,10 @@ x-airflow-env:
   # Disable the "stable API" warning in logs (cosmetic)
   AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
 
-  # --- Bigtable Connectivity ---
-  BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
+  # --- Bigtable Connectivity (real GCP) ---
+  # BIGTABLE_EMULATOR_HOST is intentionally NOT set here — its absence tells the
+  # Bigtable client to connect to real Google Cloud Bigtable using
+  # GOOGLE_APPLICATION_CREDENTIALS (mounted as /secrets/bigquery-service-account.json).
   BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
   BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
 
@@ -69,6 +71,7 @@ services:
       - ./scrapers:/app/scrapers
       # bind mount — host path ./data/raw maps to /data/raw in container
       - ./data/raw:/data/raw
+      - ./data/archive:/data/archive
     env_file:
       - .env
     working_dir: /app/scrapers
@@ -185,6 +188,8 @@ services:
       # Scheduler needs this because tasks (not just DAGs) run here
       # under LocalExecutor — tasks read from /data/raw directly
       - ./data/raw:/data/raw
+      # Archive dir — Airflow archives processed JSONL files here
+      - ./data/archive:/data/archive
       # Allow Airflow to trigger docker containers
       - /var/run/docker.sock:/var/run/docker.sock
       - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
@@ -207,8 +212,6 @@ services:
     container_name: price_nifi
     restart: unless-stopped
     depends_on:
-      bigtable-emulator:
-        condition: service_healthy
       app_postgres:
         condition: service_healthy
     env_file:
@@ -232,10 +235,16 @@ services:
       NIFI_CLUSTER_IS_NODE: "false"
       NIFI_ELECTION_MAX_WAIT: "1 min"
 
-      # Bigtable connection
+      # Bigtable connection (real GCP — no emulator host)
       BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
       BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
-      BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
+      GOOGLE_APPLICATION_CREDENTIALS: /secrets/bigquery-service-account.json
+
+      # App Postgres — used by nifi_ingest.py to write price-drop alerts
+      APP_POSTGRES_USER: ${APP_POSTGRES_USER}
+      APP_POSTGRES_PASSWORD: ${APP_POSTGRES_PASSWORD}
+      APP_POSTGRES_DB: ${APP_POSTGRES_DB}
+      # BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
 
     volumes:
       # nifi_conf: the entire flow lives here
@@ -247,6 +256,8 @@ services:
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
       - ./scrapers:/app/scrapers
       - ./data/raw:/data/raw
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
 
     ports:
       - "8090:8090" # NiFi UI: http://localhost:8090/nifi
@@ -265,22 +276,23 @@ services:
       start_period: 90s
 
   # GOOGLE CLOUD BIGTABLE EMULATOR
-  bigtable-emulator:
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
-    container_name: bigtable_emulator
-    restart: unless-stopped
-    command: >
-      gcloud beta emulators bigtable start --host-port=0.0.0.0:8086 --project=${BIGTABLE_PROJECT_ID}
-    ports:
-      - "8086:8086"
-    networks:
-      - platform_net
-    healthcheck:
-      test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/8086'" ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+  # NOTE: Used previously for local testing. Now migrating to GCP Bigtable via Terraform.
+  # bigtable-emulator:
+  #   image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+  #   container_name: bigtable_emulator
+  #   restart: unless-stopped
+  #   command: >
+  #     gcloud beta emulators bigtable start --host-port=0.0.0.0:8086 --project=${BIGTABLE_PROJECT_ID}
+  #   ports:
+  #     - "8086:8086"
+  #   networks:
+  #     - platform_net
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/8086'" ]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 10s
 
   # APPLICATION SERVICES (Frontend, Backend, DB, Cache)
 
@@ -346,6 +358,10 @@ services:
       - REDIS_URL=redis://redis:6379/0
       - SECRET_KEY=${SECRET_KEY}
       - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
+      - BIGQUERY_PROJECT_ID=${BIGQUERY_PROJECT_ID}
+      - BIGQUERY_DATASET=${BIGQUERY_DATASET}
+      - GOOGLE_APPLICATION_CREDENTIALS=/secrets/bigquery-service-account.json
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
     ports:
       - "8000:8000"
     networks: 
