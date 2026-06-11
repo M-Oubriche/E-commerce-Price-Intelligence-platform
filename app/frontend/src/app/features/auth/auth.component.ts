@@ -222,16 +222,26 @@ export class AuthComponent implements OnInit {
   }
 
   onLogin() {
-    if (this.loginForm.invalid) return;
+    if (this.loginForm.invalid) {
+      this.loginForm.markAllAsTouched();
+      return;
+    }
     this.isSubmitting = true;
     this.authService.login(this.loginForm.value.email, this.loginForm.value.password).subscribe({
       next: (u) => this.onLoginSuccess(u),
-      error: () => this.isSubmitting = false
+      error: (err) => {
+        this.isSubmitting = false;
+        const message = err.error?.detail?.error?.message || err.error?.detail || err.message || 'Invalid email or password.';
+        this.toastService.show(message, 'error');
+      }
     });
   }
 
   onSignup() {
-    if (this.signupForm.invalid || !this.accountType) return;
+    if (this.signupForm.invalid || !this.accountType) {
+      this.signupForm.markAllAsTouched();
+      return;
+    }
     this.isSubmitting = true;
     this.authService.register(this.signupForm.value.name, this.signupForm.value.email, this.signupForm.value.password, this.accountType).subscribe({
       next: () => {
@@ -239,7 +249,11 @@ export class AuthComponent implements OnInit {
         this.mode = 'signup-success';
         this.toastService.show('Account created! Please check your email.', 'success');
       },
-      error: () => this.isSubmitting = false
+      error: (err) => {
+        this.isSubmitting = false;
+        const message = err.error?.detail?.error?.message || err.error?.detail || err.message || 'Something went wrong. Please try again.';
+        this.toastService.show(message, 'error');
+      }
     });
   }
 

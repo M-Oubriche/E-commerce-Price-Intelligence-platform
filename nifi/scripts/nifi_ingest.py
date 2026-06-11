@@ -25,8 +25,8 @@ def ingest_to_bigtable(json_str):
         product_id = record.get("raw_id", "Unknown")
         
         cur.execute(
-            "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent) VALUES (%s, %s, %s, %s, %s, %s)",
-            (product_id, product_name, source, prev_price, new_price, round(drop_percent, 2))
+            "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent, is_processed) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (product_id, product_name, source, prev_price, new_price, round(drop_percent, 2), False)
         )
         conn.commit()
         cur.close()
@@ -126,8 +126,8 @@ def ingest_to_bigtable(json_str):
                             cur = pg_conn.cursor()
                             prod_name = record.get("product", {}).get("name", "Unknown")
                             cur.execute(
-                                "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent) VALUES (%s, %s, %s, %s, %s, %s)",
-                                (product_id, prod_name, source, previous_price, current_price, round(price_drop_percent, 2))
+                                "INSERT INTO alert_events (product_id, product_name, source, old_price, new_price, drop_percent, is_processed) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+                                (product_id, prod_name, source, previous_price, current_price, round(price_drop_percent, 2), False)
                             )
                             pg_conn.commit()
                             cur.close()
