@@ -52,6 +52,17 @@ models:
         tests:
           - not_null
 
+  - name: mart_category_trends
+    description: "Provides descriptive statistics (mean, median, std_dev) per category."
+    columns:
+      - name: product_category
+        description: "The primary product category."
+        tests:
+          - unique
+          - not_null
+      - name: median_price
+        description: "The exact median price calculated via BigQuery's APPROX_QUANTILES."
+
   - name: mart_market_kpis
     description: "Global KPIs for the hero banner, including 30-day price volatility."
     columns:
@@ -98,6 +109,16 @@ models:
         tests:
           - not_null
 
+  - name: mart_cross_platform
+    description: "Cross-references seller prices against the market minimum to compute margin health."
+    columns:
+      - name: margin_health_status
+        description: "Categorical status: Excellent, Warning, or Critical based on margin thresholds."
+        tests:
+          - accepted_values:
+              arguments:
+                values: ['Excellent', 'Warning', 'Critical']
+
   - name: mart_platform_category_avg
     description: "Calculates average prices broken down by Category AND Platform for the Price Gap Heatmap."
     columns:
@@ -115,6 +136,10 @@ models:
         tests:
           - not_null
 
-
-
-
+  - name: mart_price_analytics
+    description: "Market-wide price analytics including platform counts and seller saturation."
+    columns:
+      - name: product_unified_id
+        tests:
+          - unique
+          - not_null
