@@ -36,7 +36,7 @@ x-airflow-env:
   AIRFLOW__API__AUTH_BACKENDS: "airflow.api.auth.backend.basic_auth"
 
   # --- Bigtable Connectivity ---
-  BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
+  # BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
   BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
   BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
 
@@ -207,8 +207,6 @@ services:
     container_name: price_nifi
     restart: unless-stopped
     depends_on:
-      bigtable-emulator:
-        condition: service_healthy
       app_postgres:
         condition: service_healthy
     env_file:
@@ -235,7 +233,8 @@ services:
       # Bigtable connection
       BIGTABLE_PROJECT_ID: ${BIGTABLE_PROJECT_ID}
       BIGTABLE_INSTANCE_ID: ${BIGTABLE_INSTANCE_ID}
-      BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
+      # BIGTABLE_EMULATOR_HOST: "bigtable-emulator:8086"
+      GOOGLE_APPLICATION_CREDENTIALS: "/secrets/bigquery-service-account.json"
 
     volumes:
       # nifi_conf: the entire flow lives here
@@ -247,6 +246,7 @@ services:
       - nifi_provenance:/opt/nifi/nifi-current/provenance_repository
       - ./scrapers:/app/scrapers
       - ./data/raw:/data/raw
+      - ./infrastructure/keys/bigquery-service-account.json:/secrets/bigquery-service-account.json:ro
 
     ports:
       - "8090:8090" # NiFi UI: http://localhost:8090/nifi
@@ -265,22 +265,23 @@ services:
       start_period: 90s
 
   # GOOGLE CLOUD BIGTABLE EMULATOR
-  bigtable-emulator:
-    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
-    container_name: bigtable_emulator
-    restart: unless-stopped
-    command: >
-      gcloud beta emulators bigtable start --host-port=0.0.0.0:8086 --project=${BIGTABLE_PROJECT_ID}
-    ports:
-      - "8086:8086"
-    networks:
-      - platform_net
-    healthcheck:
-      test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/8086'" ]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
+  # NOTE: Used previously for local testing. Now migrating to GCP Bigtable via Terraform.
+  # bigtable-emulator:
+  #   image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+  #   container_name: bigtable_emulator
+  #   restart: unless-stopped
+  #   command: >
+  #     gcloud beta emulators bigtable start --host-port=0.0.0.0:8086 --project=${BIGTABLE_PROJECT_ID}
+  #   ports:
+  #     - "8086:8086"
+  #   networks:
+  #     - platform_net
+  #   healthcheck:
+  #     test: [ "CMD-SHELL", "bash -c '</dev/tcp/localhost/8086'" ]
+  #     interval: 5s
+  #     timeout: 5s
+  #     retries: 10
+  #     start_period: 10s
 
   # APPLICATION SERVICES (Frontend, Backend, DB, Cache)
 
