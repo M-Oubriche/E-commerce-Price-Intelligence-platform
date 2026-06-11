@@ -102,9 +102,18 @@ def export_bigtable_to_bigquery(**context):
         return
 
     # ---- 1. Read all rows from Bigtable ----
+    # SCALABILITY: full table scan loads everything into memory.
+    # At ~100k rows (~200MB) this is fine. When exceeding 1M rows (~2GB)
+    # refactor to incremental scan using Bigtable row-range filtering
+    # or a GCP BigQuery storage API connector.
     log.info("Scanning Bigtable rows…")
     all_rows = list(table.read_rows())
     log.info("Read %d rows from Bigtable.", len(all_rows))
+    if len(all_rows) > 500_000:
+        log.warning(
+            "Bigtable scan exceeds 500k rows in memory. "
+            "Consider refactoring to incremental export."
+        )
     if not all_rows:
         return
 
