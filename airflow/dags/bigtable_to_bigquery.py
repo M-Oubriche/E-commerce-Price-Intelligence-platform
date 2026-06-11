@@ -260,7 +260,10 @@ def export_bigtable_to_bigquery(**context):
     # Keeps the latest scraped_at row per row_key.
     log.info("Deduplicating BigQuery table by row_key…")
     dedup_query = f"""
-    CREATE OR REPLACE TABLE `{table_id}` AS
+    CREATE OR REPLACE TABLE `{table_id}`
+    PARTITION BY DATE(IFNULL(CAST(scraped_at AS TIMESTAMP), TIMESTAMP('1970-01-01')))
+    CLUSTER BY source, product_category
+    AS
     SELECT * EXCEPT(rn) FROM (
         SELECT *, ROW_NUMBER() OVER (
             PARTITION BY row_key
