@@ -3,7 +3,6 @@
 > **Module:** Data engineering & Data analysis  
 > **Academic Year:** 2025 – 2026  
 > **Date:** June 2026  
-> **Version:** 1.5  
 > **Institution:** FSTT — Faculty of Sciences and Techniques of Tangier  
 > **Program:** LSI - Software and Intelligent Systems  
 
@@ -42,18 +41,24 @@
 ---
 
 ### A. Data Engineering
-1. [Data Pipeline — End-to-End Flow](#3-data-pipeline--end-to-end-flow)
-2. [Ingestion Layer — Scrapers](#4-ingestion-layer--scrapers)
-3. [Streaming Layer — Apache NiFi](#5-streaming-layer--apache-nifi)
-4. [Batch Layer — Apache Airflow](#6-batch-layer--apache-airflow)
-5. [Storage Layer — Bigtable + BigQuery](#7-storage-layer--bigtable--bigquery)
-6. [Data Quality & Testing](#11-data-quality--testing)
-7. [Scalability & Future-Proofing](#12-scalability--future-proofing)
+1. [Executive Summary](#1-executive-summary)
+2. [Architecture Overview](#2-architecture-overview)
+3. [Data Pipeline — End-to-End Flow](#3-data-pipeline--end-to-end-flow)
+4. [Ingestion Layer — Scrapers](#4-ingestion-layer--scrapers)
+5. [Streaming Layer — Apache NiFi](#5-streaming-layer--apache-nifi)
+6. [Batch Layer — Apache Airflow](#6-batch-layer--apache-airflow)
+7. [Storage Layer — Bigtable + BigQuery](#7-storage-layer--bigtable--bigquery)
+8. [Data Quality & Testing](#8-data-quality--testing)
+9. [Scalability & Future-Proofing](#9-scalability--future-proofing)
 
 ---
 
 ### B. Full Stack
-1. [Serving Layer — FastAPI + Redis](#9-serving-layer--fastapi--redis)
+- [Tech Stack at a Glance](#-the-tech-stack-at-a-glance)
+- [System Architecture](#-system-architecture)
+1. [The Backend Engine (FastAPI)](#1-the-backend-engine-fastapi)
+2. [The Frontend Experience (Angular 17+)](#2-the-frontend-experience-angular-17)
+3. [The Database Schema (PostgreSQL 18 Tables)](#3-the-database-schema-postgresql-18-tables)
 
 ---
 
@@ -336,7 +341,7 @@ A deliberate architectural choice: **two parallel ingestion paths** with differe
 
 ## 4. Ingestion Layer — Scrapers
 
-### 3.1 Technology Stack
+### 4.1 Technology Stack
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
@@ -347,7 +352,7 @@ A deliberate architectural choice: **two parallel ingestion paths** with differe
 | **Rate fetching** | `ExchangeRate-API` | Free tier, 1500 requests/month, updated daily |
 | **Config format** | `manual_links.json` | Declarative URL catalog; no code changes to add URLs |
 
-### 3.2 Data Model Design (`models.py` — 220 lines)
+### 4.2 Data Model Design (`models.py` — 220 lines)
 
 The data model is a **unified schema envelope** that normalizes all e-commerce platforms into a single structure:
 
@@ -381,7 +386,7 @@ class Specs(BaseModel):
 
 Each scraper populates only its category's spec sub-model; all others remain `None`. On serialization, the JSON only includes non-null fields, keeping payloads compact.
 
-### 3.3 Base Scraper (`base.py` — 60 lines)
+### 4.3 Base Scraper (`base.py` — 60 lines)
 
 The abstract base class provides:
 
@@ -399,7 +404,7 @@ def get_conversion_rate(self, from_currency, to_currency="USD"):
 
 This prevents redundant API calls when multiple scrapers for the same currency run in sequence.
 
-### 3.4 Active Spiders
+### 4.4 Active Spiders
 
 #### JumiaScraper (`jumia.ma` — MAD)
 - **203 lines** — the most battle-tested scraper
@@ -555,7 +560,7 @@ if not table.exists():
 
 ## 6. Batch Layer — Apache Airflow
 
-### 4.1 Airflow Architecture
+### 6.1 Airflow Architecture
 
 Apache Airflow 2.10.5 runs as a **custom Docker deployment** with:
 - **PostgreSQL 15** as the metastore
@@ -563,7 +568,7 @@ Apache Airflow 2.10.5 runs as a **custom Docker deployment** with:
 - **Docker-in-Docker**: The `root` user and `/var/run/docker.sock` mount enable `docker exec` for scraper and dbt tasks
 - **GCP connectivity**: Bigtable and BigQuery Python libraries installed for native cloud integration
 
-### 4.2 DAG: `init_bigtable_schema`
+### 6.2 DAG: `init_bigtable_schema`
 
 **Purpose:** One-time infrastructure initialization. Creates the Bigtable table with 7 column families, each configured with `MaxVersionsGCRule(10)` — retaining 10 historical versions per cell for price trend analysis.
 
@@ -728,9 +733,9 @@ specs_json (STRING)
 **Clustering:** `CLUSTER BY source, product_category` — optimizes the most common filter patterns
 
 ---
-## 11. Data Quality & Testing
+## 8. Data Quality & Testing
 
-### 11.1 Quality Gates
+### 8.1 Quality Gates
 
 The pipeline has **5 layers of data quality enforcement**:
 
@@ -742,7 +747,7 @@ The pipeline has **5 layers of data quality enforcement**:
 | **4. dbt tests** | 31 automated tests on uniqueness, nulls, values | `schema.yml` + `sources.yml` |
 | **5. Dedup pipeline** | In-memory + SQL-level deduplication | `bigtable_to_bigquery.py` (both Python + SQL) |
 
-### 11.2 dbt Test Suite
+### 8.2 dbt Test Suite
 
 **31 tests, all passing:**
 
@@ -763,9 +768,9 @@ PASS=31 WARN=0 ERROR=0 SKIP=0 TOTAL=31
 
 ---
 
-## 12. Scalability & Future-Proofing
+## 9. Scalability & Future-Proofing
 
-### 12.1 Current Capacity
+### 9.1 Current Capacity
 
 | Resource | Current | Limit | Safety Margin |
 |----------|---------|-------|---------------|
@@ -776,21 +781,21 @@ PASS=31 WARN=0 ERROR=0 SKIP=0 TOTAL=31
 | API requests | ~200/min | ~200/min (rate-limited) | At limit |
 | Redis cache | ~50 keys | 256MB | 5,000× |
 
-### 12.2 Growth Trajectory
+### 9.2 Growth Trajectory
 
 At the current scrape rate of ~7,000 records/day:
 - **1 month**: ~210,000 rows → well within limits
 - **6 months**: ~1,260,000 rows → approaching in-memory scan limit (500k tripwire triggers)
 - **12 months**: ~2,500,000 rows → full Bigtable scan refactor needed
 
-### 12.3 Built-In Safeguards
+### 9.3 Built-In Safeguards
 
 - **500k-row warning log**: `log.warning("Bigtable scan exceeds 500k rows...")` when full scan becomes risky
 - **BigQuery partitioning**: Ensures queries only scan relevant day partitions
 - **Airflow retries**: All tasks have 1-2 retries with exponential backoff
 - **NiFi auto-retry**: ListenHTTP → ExecuteStreamCommand has built-in failure routing
 
-### 12.4 Planned Scalability Path
+### 9.4 Planned Scalability Path
 
 | Threshold | Action |
 |-----------|--------|
