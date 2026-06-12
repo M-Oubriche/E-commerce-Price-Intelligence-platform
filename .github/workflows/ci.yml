@@ -269,7 +269,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
+            *.cache-to=type=gha,mode=max,ignore-error=true
 
       - name: Verify Airflow Init (Optional Catch)
         # Catch airflow-init failures early before webserver hides them
