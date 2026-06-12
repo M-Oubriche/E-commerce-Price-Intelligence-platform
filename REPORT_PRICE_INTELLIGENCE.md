@@ -982,76 +982,199 @@ At the current scrape rate of ~7,000 records/day:
 
 # B. Full Stack
 
-## 9. Serving Layer — FastAPI + Redis
+###  Mission
+**Bridge the gap between our analytical data pipelines and the end-users by delivering a fast, secure, and real-time interactive experience for both Clients and Resellers.**
 
-### 9.1 API Architecture
+---
 
-The backend is a **FastAPI** application with:
-- **Async lifespan management** — graceful startup/shutdown of background tasks
-- **18 analytics endpoints** — each backed by a dbt mart table
-- **Redis caching** — TTL-based (300s default, 3600s for computationally expensive stats)
-- **WebSocket push** — JWT-validated real-time notifications
-- **Rate limiting** — Sliding window via Redis sorted sets
+###  The Tech Stack at a Glance
+- **Frontend:** Angular 17+ (Component-driven, Dual-Role Layouts, Reactive UI)
+- **Backend:** FastAPI (Python 3.11, fully async, Pydantic validation)
+- **Database:** PostgreSQL (18 normalized tables, Alembic migrations)
+- **Real-time & Caching:** Redis (Pub/Sub for WebSockets, Rate limiting)
 
-### 9.2 Analytics Endpoints
+---
 
-```python
-@router.get("/trends")           # ← mart_category_trends
-@router.get("/kpis")             # ← mart_market_kpis + user product count
-@router.get("/price-drops")      # ← mart_daily_price_drops (top 50)
-@router.get("/deal-analysis")    # ← mart_deal_analysis
-@router.get("/flash-deals")      # ← mart_daily_price_drops (top 6)
-@router.get("/trending")         # ← deal_score * 0.6 + avg_rating * 0.4
-@router.get("/platform-performance")  # ← mart_platform_performance
-@router.get("/platform-category-avg") # ← mart_platform_category_avg
-@router.get("/shopper-insights")      # ← mart_shopper_insights (NLP text)
-@router.get("/product-correlation")   # ← raw (price, rating, reviews)
-@router.get("/product-by-id/{id}")    # ← enriched with history + similar
-@router.get("/search")                # ← LIKE with accent normalization
-@router.get("/advanced-stats")        # ← Welch's T-Test + Pearson + OLS
+###  System Architecture
+```text
+  ┌───────────────────────────────────────────────────────────────────────┐
+  │                      Full Stack Architecture                          │
+  └───────────────────────────────────────────────────────────────────────┘
+
+   Browser (Angular 17+)
+   ┌─────────────────────────────────────────┐
+   │  Client Dashboard │ Reseller Dashboard  │
+   └───────────┬─────────────────────────────┘
+               │  REST (JWT)          │  WebSocket
+               │                     │  ws://{user_id}
+               ▼                     ▼
+   ┌───────────────────────────────────────────────┐
+   │                  FastAPI Backend              │
+   │  ┌──────────┐  ┌──────────┐  ┌────────────┐  │
+   │  │   Auth   │  │  Routes  │  │  WS Mgr    │  │
+   │  │  JWT +   │  │  /api/v1 │  │  push to   │  │
+   │  │  OAuth2  │  │  30+ ep  │  │  clients   │  │
+   │  └──────────┘  └──────────┘  └─────┬──────┘  │
+   └────────────┬───────────────────────┼──────────┘
+                │                       │ subscribe
+       ┌────────┴────────┐    ┌─────────▼──────────┐
+       │   PostgreSQL    │    │       Redis         │
+       │   18 tables     │    │  Rate limit +       │
+       │   Alembic mig.  │    │  Pub/Sub bus        │
+       └─────────────────┘    └────────────────────┘
 ```
 
-### 9.3 Redis Caching Strategy
+---
 
-```python
-async def cached_bq_query(endpoint, query, ttl=300):
-    1. Try Redis cache hit
-    2. On miss/timeout → query BigQuery
-    3. Best-effort cache write (fire-and-forget)
+### 1. The Backend Engine (FastAPI)
+High-performance, fully async API built with FastAPI, SQLAlchemy (async), Alembic, and Redis.
+
+```bash
+docker compose up backend -d
+# Interactive docs → http://localhost:8000/docs
 ```
 
-**Cache tiers:**
-| Endpoint | TTL | Reasoning |
-|----------|-----|-----------|
-| Trends, KPIs, Platform Perf | 300s | Fresh enough for dashboard |
-| Advanced Stats | 3600s | Expensive computation (regression) |
-| Product search | 300s | Cache includes search term |
-| Product detail | 300s | By product_id |
+####  Deep Dive: The Real-Time Event Architecture
+To achieve true real-time price drop notifications without hammering the database with polling requests, the architecture leverages **Redis Pub/Sub** acting as an event bus between the Data Engineering pipeline and the Full Stack layer.
 
-### 9.4 Real-Time Notification System
+**The Technical Flow:**
+1. **Detection (NiFi & Webhook):** When Apache NiFi processes a newly scraped price and detects a drop ≥5% compared to the historical baseline, it fires an asynchronous HTTP webhook to an internal FastAPI endpoint (`POST /internal/events/price-drop`).
+2. **Event Fan-Out (Redis Pub/Sub):** The FastAPI route handler does not block to send emails or web sockets. Instead, it instantly publishes a JSON payload to a Redis channel named `events:price_drops`.
+3. **The Background Worker:** When the FastAPI server starts, an `asyncio.create_task()` spins up a long-running background worker. This worker holds a persistent connection to Redis, actively listening (`psubscribe`) to the `events:*` channels.
+4. **WebSocket Manager:** The background worker receives the JSON payload, checks the `user_id` against the `ConnectionManager` (a singleton class holding active WebSocket objects in memory), and routes the payload directly to the correct user's TCP socket.
+5. **Angular Reactivity:** The Angular 17 service (`WebSocketService`) receives the frame and uses RxJS `BehaviorSubject` to instantly push the new price into the Deal Feed component, rendering a toast notification with zero HTTP overhead and zero page reloads.
 
-```mermaid
-flowchart TD
-    WK["Worker<br/>price drop detection"]
-    WK --> PG["(PostgreSQL<br/>alert_events)"]
-    WK --> RD["{Redis Pub/Sub<br/>notifications:{user_id}}"]
-    RD --> FA["FastAPI subscriber<br/>asyncio + run_in_executor"]
-    FA --> WS["WebSocket Manager<br/>user_id → List[WebSocket]"]
-    WS --> ANG["Angular UI<br/>toast notification"]
+```text
+ [ Apache NiFi ] ──(Webhook)──▶ [ FastAPI Internal Route ] ──(Publish)──▶ [ Redis Channel: events:price_drops ]
+                                                                                   │
+                                                                             (Subscribes)
+                                                                                   │
+ [ Angular UI ] ◀──(TCP Frame)── [ FastAPI WS Manager ] ◀──(asyncio Task)── [ Background Worker ]
 ```
 
+####  Complete API Reference (30+ Endpoints)
+| Module | Method | Endpoint | Description |
+| :--- | :--- | :--- | :--- |
+| **Auth** | POST | `/api/v1/auth/register` | Register new user (client or reseller) |
+| | POST | `/api/v1/auth/login` | Login, receive access + refresh tokens |
+| | POST | `/api/v1/auth/logout` | Server-side session invalidation |
+| | POST | `/api/v1/auth/refresh` | Rotate access token silently |
+| | POST | `/api/v1/auth/google` | Google OAuth2 popup login |
+| | POST | `/api/v1/auth/verify-email` | Confirm email address |
+| | POST | `/api/v1/auth/request-password-reset` | Send reset link via email |
+| | POST | `/api/v1/auth/reset-password` | Apply new password with token |
+| **Users** | GET | `/api/v1/users/me` | Get authenticated user profile |
+| | PUT | `/api/v1/users/me` | Update profile fields |
+| **Preferences**| GET | `/api/v1/preferences/` | Get display & alert preferences |
+| | PUT | `/api/v1/preferences/` | Update theme, currency, language, timezone |
+| **Watchlist** | GET | `/api/v1/watchlist/` | List all tracked products |
+| | POST | `/api/v1/watchlist/` | Add product to watchlist |
+| | PUT | `/api/v1/watchlist/{id}` | Update target price |
+| | DELETE| `/api/v1/watchlist/{id}` | Remove tracked product |
+| **Shopper Alerts**| GET | `/api/v1/shopper-alerts/` | List configured alerts |
+| | POST | `/api/v1/shopper-alerts/` | Create alert with condition + threshold |
+| | PATCH| `/api/v1/shopper-alerts/{id}` | Update or pause alert |
+| | DELETE| `/api/v1/shopper-alerts/{id}` | Delete alert |
+| **Reseller** | GET/POST | `/api/v1/reseller/products` | Manage personal product catalog |
+| | PUT/DELETE| `/api/v1/reseller/products/{id}` | Update or remove product |
+| | GET/POST | `/api/v1/reseller/competitors` | Track competitor sellers |
+| | GET | `/api/v1/reseller/price-alerts` | Reseller margin breach alerts |
+| **Analytics** | GET | `/api/v1/analytics/price-history` | Historical price trend data |
+| | GET | `/api/v1/analytics/market-overview` | Platform-wide statistics |
+| | GET | `/api/v1/analytics/competitor-analysis` | Price-gap breakdown per product |
+| **Notifications**| GET | `/api/v1/notifications/` | Full notification delivery history |
+| **Activity Logs**| GET | `/api/v1/activity-logs/` | User action audit trail |
+| **WebSocket** | WS | `/api/v1/ws/{user_id}` | Real-time price drop stream |
+| **Health** | GET | `/health` | API liveness check |
 
+####  Security Architecture
+| Layer | Implementation |
+| :--- | :--- |
+| **Access Tokens** | JWT, 15-minute expiry, signed with secret key |
+| **Refresh Tokens** | 30-day lifetime, stored hashed in DB, rotated on use |
+| **Session Tracking** | `user_sessions` table logs device, IP, expiry per token |
+| **Rate Limiting** | Redis-backed — 100 req/min general, 10 req/min on auth endpoints |
+| **Password Reset** | Time-limited tokens (hashed), single-use, auto-purged |
+| **Email Verification**| Token-gated account activation |
+| **Google OAuth2** | Full popup-based OAuth2 flow with `google_sub` binding |
+| **CORS** | Restricted to known origins (`localhost:4200`, `localhost:80`) |
+| **Token Cleanup** | Background async task purges expired/used tokens every hour |
 
-### 9.5 Advanced Statistics (`services/advanced_stats.py` — 193 lines)
+####  Background Workers
+Beyond the Redis Pub/Sub worker, the FastAPI backend also runs scheduled maintenance loops on startup:
+- **Expired Token Cleanup:** An `asyncio.sleep(3600)` loop that safely deletes expired and already-used email verification and password reset tokens from the PostgreSQL database, preventing table bloat.
 
-A **scientific computing pipeline** embedded in the API:
+---
 
-1. **IQR outlier removal**: `Q1 - 1.5*IQR` / `Q3 + 1.5*IQR`
-2. **Welch's T-Test** (`pingouin.ttest`): Platform price vs market average
-3. **Pearson Correlation Matrix**: Price × Rating × Reviews
-4. **OLS Regression** (`statsmodels`): Rating predicts Price with 95% confidence
-5. **Dynamic insight text**: Generated based on R-squared and sample sizes
-6. **Result persistence**: `WRITE_TRUNCATE` to `mart_statistical_results`
+### 2. The Frontend Experience (Angular 17+)
+```bash
+docker compose up frontend -d
+# Access → http://localhost:4200
+```
+The application dynamically renders completely different experiences based on the user's role:
+
+####  Shopper (Client) Dashboard
+*Designed for consumers looking to save money.*
+
+| Feature | Description |
+| :--- | :--- |
+| **Price Watcher** | Track any product across all platforms, set target price |
+| **Smart Alerts** | Configure alert conditions (below target, drop %, availability) |
+| **Deal Feed** | Live WebSocket stream — price drops appear in real time |
+| **Notification Center** | Full history: what triggered, when delivered, which channel |
+| **Preferences Panel** | Switch theme (dark/light), currency, language, timezone |
+
+####  Reseller (Entrepreneur) Dashboard
+*Designed for businesses looking to protect their profit margins.*
+
+| Feature | Description |
+| :--- | :--- |
+| **Catalog Tracker** | Add your products with floor/ceiling price guards |
+| **Price History** | Visual chart of your product price evolution over time |
+| **Competitor Scanner** | Auto-match competitors, compute price gap per product |
+| **Aggressiveness Score** | AI-scored ranking of competitor threat level |
+| **Business Analytics** | Margin protection trends and market visibility index |
+| **Margin Alerts** | Get notified when a competitor undercuts your floor price |
+
+---
+
+### 3. The Database Schema (PostgreSQL 18 Tables)
+The relational data is organized into 18 normalized tables managed via Alembic migrations to ensure strict data integrity.
+
+**Initialize on first run:**
+```bash
+docker compose exec backend alembic upgrade head
+```
+
+####  Module 1 — Identity & Security (5 tables)
+- `users`: (id, email, password_hash, full_name, role, is_active, google_sub)
+- `user_sessions`: (id, user_id, refresh_token_hash, device_info, ip_address, expires_at)
+- `login_attempts`: (id, email, ip_address, was_successful, failure_reason)
+- `email_verification_tokens`: (id, user_id, token_hash, is_used, expires_at)
+- `password_reset_tokens`: (id, user_id, token_hash, is_used, expires_at)
+
+####  Module 2 — User Preferences (2 tables)
+- `alert_preferences`: (id, user_id, price_drop_alerts, email_notifications, websocket_live)
+- `display_preferences`: (id, user_id, theme, language, currency, timezone)
+
+####  Module 3 — Shopper Features (4 tables)
+- `watchlist_items`: (id, user_id, product_id, product_name, platform, target_price)
+- `shopper_alerts`: (id, user_id, watchlist_item_id, condition_type, target_value, status)
+- `alert_events`: (id, product_id, product_name, source, old_price, new_price, drop_percent)
+- `notification_deliveries`: (id, alert_event_id, user_id, channel, status, failed_reason)
+
+####  Module 4 — Reseller Intelligence (5 tables)
+- `seller_products`: (id, user_id, product_name, my_price, min_price_floor, max_price_ceiling)
+- `seller_product_price_history`: (id, seller_product_id, old_price, new_price, recorded_at)
+- `tracked_competitors`: (id, user_id, seller_name, platform, aggressiveness, competitiveness)
+- `tracked_competitor_products`: (id, tracked_competitor_id, seller_product_id, their_price, price_gap)
+- `price_alerts`: (id, user_id, seller_product_id, trigger_mode, threshold_value, priority)
+
+####  Module 5 — System & Audit (2 tables)
+- `platform_meta_registry`: (id, platform_name, slug, base_url, currency_code, is_scraping_enabled)
+- `activity_logs`: (id, user_id, action, entity_type, entity_id, log_metadata)
+
+> **Note:** For exact field types (UUID, Numeric, JSONB, ENUM, etc.), see `app/backend/models/`.
 
 ---
 
