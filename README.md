@@ -511,7 +511,7 @@ flowchart TD
     PG --> WK["Worker<br/>Fuzzy match → notification"]
 ```
 
-
+![NiFi Flow Screenshot](./image/nifi.jpeg)
 
 ### 5.3 NiFi Ingest Script (`nifi_ingest.py` — 385 lines)
 
@@ -590,7 +590,7 @@ flowchart TD
     TB --> TBn["Fire-and-forget to<br/>bigtable_to_bigquery_export DAG<br/>reset_dag_run=True"]
 ```
 
-
+![Ingest Ecommerce Prices DAG Screenshot](./image/ingest_ecommerce_prices.jpeg)
 
 **Production-grade error handling:**
 ```python
@@ -622,6 +622,8 @@ flowchart LR
     DR --> DT["dbt_test<br/>31 tests"]
     DT --> DD["dbt_docs_generate<br/>Non-blocking"]
 ```
+
+![Bigtable to BigQuery Export DAG Screenshot](./image/bigtable_to_bigquery_export.jpeg)
 
 **Safe type coercion** — Every potential `None` or malformed cell is handled:
 
