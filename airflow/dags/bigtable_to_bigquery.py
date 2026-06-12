@@ -261,13 +261,13 @@ def export_bigtable_to_bigquery(**context):
     log.info("Deduplicating BigQuery table by row_key…")
     dedup_query = f"""
     CREATE OR REPLACE TABLE `{table_id}`
-    PARTITION BY DATE(IFNULL(CAST(scraped_at AS TIMESTAMP), TIMESTAMP('1970-01-01')))
+    PARTITION BY DATE(scraped_at)
     CLUSTER BY source, product_category
     AS
     SELECT * EXCEPT(rn) FROM (
         SELECT *, ROW_NUMBER() OVER (
             PARTITION BY row_key
-            ORDER BY IFNULL(CAST(scraped_at AS TIMESTAMP), TIMESTAMP('1970-01-01')) DESC
+            ORDER BY scraped_at DESC
         ) AS rn
         FROM `{table_id}`
     )
