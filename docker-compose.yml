@@ -465,6 +465,25 @@ services:
       python -m http.server 8085 --bind 0.0.0.0 --directory target
       "
 
+  # JUPYTER NOTEBOOKS — For Exploratory Data Analysis
+  jupyter:
+    build:
+      context: .
+      dockerfile: docker/Dockerfiles/jupyter.Dockerfile
+    container_name: price_jupyter
+    restart: unless-stopped
+    environment:
+      <<: *bigquery-env
+    volumes:
+      # Mount the notebooks directory so the .ipynb files persist on your local machine
+      - ./notebooks:/home/jupyter_user/notebooks
+      # Mount the GCP credentials exactly like the other containers
+      - ${BIGQUERY_KEY_PATH:-./infrastructure/keys/bigquery-service-account.json}:/secrets/bigquery-service-account.json:ro
+    ports:
+      - "8888:8888"
+    networks:
+      - platform_net
+
 # NETWORKS
 #
 # All services share one bridge network called platform_net.
