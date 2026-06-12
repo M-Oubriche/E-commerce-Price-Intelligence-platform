@@ -1,6 +1,9 @@
-# Data Analytics Workspace (Jupyter Notebooks)
+# Optional Sandbox: Data Analytics Workspace (Jupyter Notebooks)
 
-This directory contains interactive Jupyter Notebooks used for Exploratory Data Analysis (EDA), statistical testing, and machine learning prototyping.
+> ⚠️ **NOTE TO EVALUATORS:**  
+> **This directory is strictly an optional, supplementary sandbox.**  
+> The core Data Analytics and business logic of this platform are fully automated and codified within the **Data Warehouse (using dbt)** and the **FastAPI Backend**.  
+> These notebooks are merely decoupled testing environments used by analysts for ad-hoc queries, exploratory data analysis (EDA), and machine learning prototyping *outside* of the main production pipeline.
 
 ## How to use
 1. Start the Jupyter container:

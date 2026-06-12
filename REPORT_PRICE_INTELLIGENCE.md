@@ -25,8 +25,8 @@
 | # | Name | Role | Responsibilities |
 |---|------|------|-----------------|
 | 1 | **Ou-briche Mohamed** | DevOps / DataOps | Infrastructure, Docker, CI/CD, Monitoring, Secrets Management |
-| 2 | **Mohamed Soulaimane Nadi Lahjouji** | Data Engineering | Scrapers, NiFi Flows, Airflow DAGs, dbt Models, Storage |
-| 3 | **ASRAR Taha** | Data Analysis | Statistical Analysis, Notebooks, Reports, Insights |
+| 2 | **Mohamed Soulaimane Nadi Lahjouji** | Data Engineering | Scrapers, NiFi Flows, Airflow DAGs,  Storage, dbt tests |
+| 3 | **ASRAR Taha** | Data Analysis | dbt Data Modeling , Statistical Analysis, Notebooks, Reports |
 | 4 | **BENZIAN Aya** | Full Stack | Angular Dashboard, FastAPI Backend, WebSocket Notifications |
 
 ---
@@ -47,9 +47,8 @@
 3. [Streaming Layer — Apache NiFi](#5-streaming-layer--apache-nifi)
 4. [Batch Layer — Apache Airflow](#6-batch-layer--apache-airflow)
 5. [Storage Layer — Bigtable + BigQuery](#7-storage-layer--bigtable--bigquery)
-6. [Transformation Layer — dbt](#8-transformation-layer--dbt)
-7. [Data Quality & Testing](#11-data-quality--testing)
-8. [Scalability & Future-Proofing](#12-scalability--future-proofing)
+6. [Data Quality & Testing](#11-data-quality--testing)
+7. [Scalability & Future-Proofing](#12-scalability--future-proofing)
 
 ---
 
@@ -66,7 +65,13 @@
 ---
 
 ### D. Data Analysis
-*(To be completed)*
+1. [Overview](#1-overview)
+2. [Data Architecture & Strategy](#2-data-architecture--strategy)
+3. [Core Analytics: The dbt Layer](#3-core-analytics-the-dbt-layer)
+4. [Advanced Statistical Analytics (Python Engine)](#4-advanced-statistical-analytics-python-engine)
+5. [Visual Analytics & Dashboard Integration](#5-visual-analytics--dashboard-integration)
+6. [Optional Sandbox: Jupyter Notebooks](#6-optional-sandbox-jupyter-notebooks)
+7. [Overall Analytics Architecture](#7-overall-analytics-architecture)
 
 ---
 
@@ -331,7 +336,7 @@ A deliberate architectural choice: **two parallel ingestion paths** with differe
 
 ## 4. Ingestion Layer — Scrapers
 
-### 4.1 Technology Stack
+### 3.1 Technology Stack
 
 | Component | Choice | Rationale |
 |-----------|--------|-----------|
@@ -342,7 +347,7 @@ A deliberate architectural choice: **two parallel ingestion paths** with differe
 | **Rate fetching** | `ExchangeRate-API` | Free tier, 1500 requests/month, updated daily |
 | **Config format** | `manual_links.json` | Declarative URL catalog; no code changes to add URLs |
 
-### 4.2 Data Model Design (`models.py` — 220 lines)
+### 3.2 Data Model Design (`models.py` — 220 lines)
 
 The data model is a **unified schema envelope** that normalizes all e-commerce platforms into a single structure:
 
@@ -376,7 +381,7 @@ class Specs(BaseModel):
 
 Each scraper populates only its category's spec sub-model; all others remain `None`. On serialization, the JSON only includes non-null fields, keeping payloads compact.
 
-### 4.3 Base Scraper (`base.py` — 60 lines)
+### 3.3 Base Scraper (`base.py` — 60 lines)
 
 The abstract base class provides:
 
@@ -394,7 +399,7 @@ def get_conversion_rate(self, from_currency, to_currency="USD"):
 
 This prevents redundant API calls when multiple scrapers for the same currency run in sequence.
 
-### 4.4 Active Spiders
+### 3.4 Active Spiders
 
 #### JumiaScraper (`jumia.ma` — MAD)
 - **203 lines** — the most battle-tested scraper
@@ -550,7 +555,7 @@ if not table.exists():
 
 ## 6. Batch Layer — Apache Airflow
 
-### 6.1 Airflow Architecture
+### 4.1 Airflow Architecture
 
 Apache Airflow 2.10.5 runs as a **custom Docker deployment** with:
 - **PostgreSQL 15** as the metastore
@@ -558,7 +563,7 @@ Apache Airflow 2.10.5 runs as a **custom Docker deployment** with:
 - **Docker-in-Docker**: The `root` user and `/var/run/docker.sock` mount enable `docker exec` for scraper and dbt tasks
 - **GCP connectivity**: Bigtable and BigQuery Python libraries installed for native cloud integration
 
-### 6.2 DAG: `init_bigtable_schema`
+### 4.2 DAG: `init_bigtable_schema`
 
 **Purpose:** One-time infrastructure initialization. Creates the Bigtable table with 7 column families, each configured with `MaxVersionsGCRule(10)` — retaining 10 historical versions per cell for price trend analysis.
 
@@ -723,192 +728,6 @@ specs_json (STRING)
 **Clustering:** `CLUSTER BY source, product_category` — optimizes the most common filter patterns
 
 ---
-
-## 8. Transformation Layer — dbt
-
-### 8.1 Configuration
-
-| File | Details |
-|------|---------|
-| `dbt_project.yml` | 4 model paths, `price_intelligence` profile |
-| `profiles.yml` | BigQuery service-account auth, 4 threads, 300s timeout, US location |
-| `packages.yml` | `dbt_utils` v1.3.3, `dbt_expectations` v0.10.10 |
-| `schema.yml` | 31 tests across 11 models |
-
-**Materialization Strategy:**
-
-| Layer | Materialization | Reason |
-|-------|----------------|--------|
-| **Staging** (6 models) | `view` | Zero storage cost; always reflects source |
-| **Cleaned** (4 models) | `view` | Composable; no data duplication until needed |
-| **Aggregated** (11 models) | `table` | Dashboard-speed queries; computed daily |
-
-```mermaid
-flowchart LR
-    subgraph STG["Staging (6 views)"]
-        SB["stg_bestbuy<br/>source='bestbuy'"]
-        SJ["stg_jumia<br/>source IN ('jumia','jumia.ma')"]
-        SN["stg_newegg<br/>source='newegg'"]
-        SP["stg_pc21<br/>source IN ('pc21','pc21.ma','pc21.fr')"]
-        SU["stg_ultrapc<br/>source IN ('ultrapc','ultra_pc','ultra pc')"]
-        SM["stg_materielnet<br/>source IN ('materielnet','materiel.net')"]
-    end
-    SB & SJ & SN & SP & SU & SM --> SAS["stg_all_sources<br/>UNION ALL"]
-
-    subgraph CLEAN["Cleaned (4 views)"]
-        SAS --> CN["int_currency_norm<br/>COALESCE converted_price_usd"]
-        CN --> CP["int_clean_prices<br/>Quality Gate<br/>30+ filters"]
-        CP --> PH["int_price_history<br/>Daily surrogate key"]
-        CP --> PC2["int_price_changes<br/>LAG window function"]
-    end
-
-    subgraph MART["Aggregated (11 tables)"]
-        PH --> PP["mart_platform_performance<br/>Competitiveness score"]
-        PH --> CT["mart_category_trends<br/>Median prices"]
-        PH --> MK["mart_market_kpis<br/>30-day volatility"]
-        PH --> DA["mart_deal_analysis<br/>Deal Score 0-10"]
-        PH --> DP["mart_daily_price_drops<br/>DENSE_RANK 3-day"]
-        PH --> PA["mart_price_analytics<br/>Market-wide metrics"]
-        PH --> BC["mart_brand_comparison<br/>Brand × Category"]
-        PH --> PCA["mart_platform_category_avg<br/>Heatmap data"]
-        PH --> PCC["mart_product_correlation_data<br/>Price/Rating/Reviews"]
-        PC2 --> SI["mart_shopper_insights<br/>NLP-ready sentences"]
-        PC2 --> CP3["mart_cross_platform<br/>Margin health"]
-    end
-```
-
-### 8.2 Staging Layer (Bronze — 6 views)
-
-Each source has an identical schema with a source-specific filter:
-
-```
-raw_ecommerce_prices
-    ├── stg_bestbuy       WHERE source = 'bestbuy'
-    ├── stg_jumia         WHERE source IN ('jumia', 'jumia.ma')
-    ├── stg_newegg        WHERE source = 'newegg'
-    ├── stg_pc21          WHERE source IN ('pc21', 'pc21.ma', 'pc21.fr')
-    ├── stg_ultrapc       WHERE source IN ('ultrapc', 'ultra_pc', 'ultra pc')
-    ├── stg_materielnet   WHERE source IN ('materielnet', 'materiel.net')
-    └── stg_all_sources   UNION ALL of all 6
-```
-
-### 8.3 Cleaned Layer (Silver — 4 views)
-
-#### `int_currency_norm` — Currency Normalization
-
-If `converted_price_usd` is NULL, computes it via a fallback chain:
-```sql
-COALESCE(converted_price_usd,
-    CASE
-        WHEN raw_currency = 'USD' THEN raw_price
-        WHEN conversion_rate > 0 THEN raw_price / conversion_rate
-        ELSE raw_price  -- Last resort: pass through (best-effort)
-    END
-)
-```
-
-#### `int_clean_prices` — The Quality Gate (123 lines)
-
-The most critical transformation — where raw marketplace data becomes analytics-ready:
-
-**1. Product Unification** — Cross-platform matching via COALESCE:
-```sql
-COALESCE(
-    product_model_number,                    -- 1. Explicit model number (best match)
-    REGEXP_REPLACE(LOWER(product_name), …),  -- 2. Translated+hashed name (cross-platform)
-    product_external_id                      -- 3. Raw ID (last resort)
-) AS product_unified_id
-```
-
-**2. French-to-English Translation** — 8 replacements for cross-platform matching:
-```sql
-'ordinateur portable' → 'laptop'
-'souris'              → 'mouse'
-'clavier'             → 'keyboard'
-'ecran'               → 'monitor'
-'casque'              → 'headset'
-'reconditionne'       → 'refurbished'
-'carte graphique'     → 'gpu'
-'carte mere'          → 'motherboard'
-```
-
-**3. Accessory Filtering** — 15 keyword exclusions:
-```sql
-'laptop stand', 'phone case', 'screen protector', 'cooling pad',
-'housse', 'chargeur', 'sac à dos', ...
-```
-
-**4. Price Sanity Bounds** — 13 categories × 2 thresholds:
-
-| Category | Min (USD) | Max (USD) |
-|----------|-----------|-----------|
-| Laptop | 100 | 10,000 |
-| Desktop | 100 | 15,000 |
-| GPU | 50 | 6,000 |
-| Monitor | 50 | 4,000 |
-| CPU | 30 | 2,500 |
-| … | … | … |
-| Mouse | 5 | 500 |
-
-#### `int_price_history` — Daily Time-Series
-
-Groups to `(product_unified_id, source, seller, price_date)` grain:
-```sql
-SELECT
-    {{ dbt_utils.generate_surrogate_key(
-        ['product_unified_id', 'source', 'seller_name', 'price_date']
-    ) }} AS history_id,
-    MIN(converted_price_usd) AS daily_lowest_price_usd,
-    AVG(converted_price_usd) AS daily_avg_price_usd,
-    MAX(in_stock) AS was_in_stock
-FROM int_clean_prices
-GROUP BY product_unified_id, source, COALESCE(seller_name, 'Unknown'), DATE(scraped_at)
-```
-
-#### `int_price_changes` — Window-Function Price Tracking
-
-```sql
-LAG(daily_lowest_price_usd) OVER (
-    PARTITION BY product_unified_id, source, seller_name
-    ORDER BY price_date
-) AS prev_price_usd,
-CASE
-    WHEN prev_price_usd IS NULL THEN 0
-    ELSE ROUND((daily_lowest_price_usd - prev_price_usd) / prev_price_usd * 100, 2)
-END AS price_change_percent
-```
-
-### 8.4 Aggregated Layer (Gold — 11 tables)
-
-| Mart | Materialization | Key Logic | Tests |
-|------|---------------|-----------|-------|
-| `mart_platform_performance` | table | **Proprietary competitiveness score**: `(rating/5)*300 + (stock_pct/100)*300 + (market_share)*400` → score 1-1000 | unique, not_null |
-| `mart_category_trends` | table | Exact median via `APPROX_QUANTILES(price, 100)[OFFSET(50)]` | unique, not_null |
-| `mart_market_kpis` | table | **30-day price volatility**: `(STDDEV(price)/AVG(price))*100` | not_null |
-| `mart_deal_analysis` | table | **Deal Score (0-10)** from distance-to-ATL; **Fake Deal detection**: check if 14-day max spike > 15% above 30-day avg | not_null |
-| `mart_daily_price_drops` | table | `DENSE_RANK()` over last 3 days | not_null |
-| `mart_shopper_insights` | table | NLP-ready sentences: *"Prices for GPU have dropped significantly this week."* | unique, not_null |
-| `mart_cross_platform` | table | **Margin health**: Excellent (≤ competitor) / Warning (≤105%) / Critical (>105%) | accepted_values |
-| `mart_price_analytics` | table | Market-wide: platform count, seller saturation, price spread | unique, not_null |
-| `mart_brand_comparison` | table | Category × Brand price/rating aggregates | — |
-| `mart_platform_category_avg` | table | Average prices per (category, platform) for heatmap | not_null |
-| `mart_product_correlation_data` | table | Raw (Price, Rating, Reviews) for scipy | not_null |
-
-### 8.5 Test Suite (31 tests)
-
-| Test Type | Count | Example |
-|-----------|-------|---------|
-| `not_null` | 16 | `not_null_int_price_history_history_id` |
-| `unique` | 6 | `unique_mart_price_analytics_product_unified_id` |
-| `accepted_values` | 1 | `accepted_values_mart_cross_platform_margin_health_status` |
-| Source `unique` | 2 | `source_unique_raw_ecommerce_prices_row_key` |
-| Source `not_null` | 4 | `source_not_null_raw_ecommerce_prices_source` |
-| `dbt_expectations` | 2 | `expect_column_values_to_be_between` on prices |
-
-**Test results:** 31/31 PASS, 0 WARN, 0 ERROR as of latest run (June 11, 2026).
-
----
-
 ## 11. Data Quality & Testing
 
 ### 11.1 Quality Gates
@@ -1279,7 +1098,191 @@ A final `merge-gate` job aggregates the statuses of all previous stages, ensurin
 
 # D. Data Analysis
 
-*(To be completed)*
+## 1. Overview
+The Data Analytics infrastructure of the E-Commerce Price Intelligence platform is designed to transform raw, unstructured web-scraped data into statistically significant business insights. 
+
+Rather than relying on isolated scripts, the analytics workflow is deeply integrated into a modern production pipeline. It leverages a robust Data Warehouse (Google BigQuery) for SQL-based heavy lifting, a Python backend (FastAPI) for advanced statistical modeling, and a dynamic frontend (Angular) for visual consumption. 
+
+---
+
+## 2. Data Architecture & Strategy
+
+### 2.1 The ELT Paradigm
+The project strictly adheres to the **ELT (Extract, Load, Transform)** architecture. 
+* **Extract & Load:** Handled by the Data Engineering team. Python Scrapers extract data and pass it through a Dual-Pipeline (Real-Time streaming via **Apache NiFi** and Batch JSONL loads via **Apache Airflow**). **Both pipelines load directly into Google Bigtable.** From there, Airflow exports the data from Bigtable into **BigQuery** as a flat, denormalized table.
+* **Transform:** Handled exclusively by the Data Analytics layer inside BigQuery using **dbt (data build tool)**. This allows the infinitely scalable compute power of the cloud data warehouse to process aggregations.
+
+### 2.2 Bottom-Up Data Modeling (Kimball Methodology)
+Instead of attempting a rigid, Enterprise-wide Top-Down (Inmon) design, this project utilizes a **Bottom-Up** approach. We focused on building modular, process-specific **Data Marts** directly on top of integrated data buses. This agile methodology allowed us to deliver specific business KPIs (like Category Trends and Market Baselines) rapidly.
+
+### 2.3 The Schema Structure
+The data modeling follows a flattened, denormalized approach tailored for columnar databases (BigQuery), avoiding the extreme complexity of a Snowflake schema in favor of a performant, **Star-Schema-inspired Data Mart** design.
+
+```mermaid
+graph TD
+    subgraph ELT Strategy
+    A[Scrapers] --> B[NiFi Real-Time]
+    A --> C[Airflow Batch Load]
+    B --> D[(Bigtable)]
+    C --> D
+    
+    D -->|Airflow Export| E[(BigQuery: raw_ecommerce_prices)]
+    E --> F[dbt Transformations]
+    F --> G[Data Marts]
+    end
+```
+
+---
+
+## 3. Core Analytics: The dbt Layer
+The core data modeling was orchestrated using **dbt (data build tool)**, structured into three distinct layers to ensure modularity and DRY (Don't Repeat Yourself) principles.
+
+### 3.1 dbt Architecture
+```mermaid
+flowchart LR
+    subgraph STAGING
+        SB[stg_bestbuy]
+        SJ[stg_jumia]
+        SN[stg_newegg]
+        SP[stg_pc21]
+        SU[stg_ultrapc]
+        SM[stg_materielnet]
+        SAS[stg_all_sources]
+    end
+    SB & SJ & SN & SP & SU & SM --> SAS
+
+    subgraph CLEANED
+        SAS --> CN[int_currency_norm]
+        CN --> CP[int_clean_prices]
+        CP --> PH[int_price_history]
+        CP --> PC2[int_price_changes]
+    end
+
+    subgraph MARTS
+        %% Marts driven by int_clean_prices
+        CP --> PP[mart_platform_performance]
+        CP --> CT[mart_category_trends]
+        CP --> PA[mart_price_analytics]
+        CP --> BC[mart_brand_comparison]
+        CP --> PCA[mart_platform_category_avg]
+        CP --> PCC[mart_product_correlation_data]
+        CP --> CP3[mart_cross_platform]
+
+        %% Marts driven by int_price_history
+        PH --> SI[mart_shopper_insights]
+        PH --> DA[mart_deal_analysis]
+        
+        %% Marts driven by int_price_changes
+        PC2 --> DP[mart_daily_price_drops]
+        
+        %% Marts driven by both
+        CP --> MK[mart_market_kpis]
+        PH --> MK
+    end
+```
+
+### 3.2 Staging Layer (Bronze — 6 views)
+The staging layer extracts data from the flat BigQuery table `raw_ecommerce_prices`. Each source has an identical schema with a source-specific filter. All staging views are then aggregated in `stg_all_sources` using `UNION ALL`.
+* **Code Example (`stg_bestbuy.sql`)**:
+```sql
+SELECT *
+FROM {{ source('ecommerce', 'raw_ecommerce_prices') }}
+WHERE source = 'bestbuy'
+```
+
+### 3.3 Cleaned Layer (Silver — 4 views)
+The intermediate layer acts as the centralized bus where business logic is applied. This is where we ensure consistency and quality across the dataset.
+* **`int_currency_norm.sql`**: Computes `converted_price_usd` via a fallback chain if null.
+* **`int_clean_prices.sql`**: Applies complex filtering (Quality Gate). It performs robust **cross-platform product matching** (e.g., standardizing 'ordinateur portable' to 'laptop'), removes unwanted accessories (like "phone cases"), and implements strict **outlier filtering** by enforcing minimum and maximum price bounds for each category.
+* **`int_price_history.sql`**: Generates a daily surrogate key for time-series analytics.
+
+### 3.4 Data Marts (Gold — 11 tables)
+The final presentation layer, mathematically aggregated into tables for dashboard-speed queries.
+* **`mart_market_kpis`**: Calculates market-wide metrics like 30-day Price Volatility.
+* **`mart_category_trends`**: Calculates median prices, quartiles, and descriptive statistics for specific product categories.
+* **`mart_product_correlation_data`**: Provides aggregated Price, Rating, and Review intersections.
+
+---
+
+## 4. Advanced Statistical Analytics (Python Engine)
+While dbt handles SQL aggregations, the platform leverages a **FastAPI Backend** to perform advanced statistical computations dynamically using Python libraries (`scipy`, `pingouin`, `pandas`).
+
+### 4.1 T-Tests & Hypothesis Testing
+When a user inputs their local store's inventory, the API runs a **One-Sample T-Test** against the global market distribution to determine if the user's prices are statistically higher or lower than the competition, returning accurate P-Values.
+
+### 4.2 OLS Regression & Correlation
+The API powers cross-variable analytics by calculating the **Pearson Correlation Coefficient** and running Ordinary Least Squares (OLS) regressions to determine if a statistically significant relationship exists between `discount_percent` and `average_rating`.
+
+```mermaid
+sequenceDiagram
+    participant Frontend
+    participant FastAPI
+    participant BigQuery
+    
+    Frontend->>FastAPI: Request Correlation Analysis
+    FastAPI->>BigQuery: Fetch mart_product_correlation_data
+    BigQuery-->>FastAPI: Return Data
+    FastAPI->>FastAPI: Run scipy.stats.pearsonr()
+    FastAPI-->>Frontend: Return P-Value & R² Coefficient
+```
+
+---
+
+## 5. Visual Analytics & Dashboard Integration
+The final step of the analytical lifecycle is visual presentation via the Angular frontend, utilizing modern charting libraries like **Chart.js**.
+
+* **Scatter Plots with Regression Lines:** Visually proves pricing correlations to the user.
+* **Time-Series Area Charts:** Displays historical price drops and market volatility over 30 days.
+* **Heatmaps & KPI Cards:** Showcases instantaneous market aggregations powered by the specific Data Marts.
+
+---
+
+## 6. Optional Sandbox: Jupyter Notebooks
+> ⚠️ **Note to Evaluators:** The core analytics of this platform are fully automated within the ELT pipeline (dbt + FastAPI).
+
+To supplement the production environment, an isolated **Jupyter Notebooks** directory (`/notebooks`) is maintained. This serves as an ad-hoc sandbox for the Data Analytics team. It connects securely to the BigQuery Data Marts to allow for Exploratory Data Analysis (EDA), statistical analysis, and anomaly hunting, prototyping prior to implementing those features into the main backend application.
+
+---
+
+## 7. Overall Analytics Architecture
+Below is the comprehensive architecture diagram illustrating how Data Analysis flows through the entire project lifecycle.
+
+```mermaid
+graph TD
+    %% Data Engineering Layer
+    A[Scrapers] -->|JSONL| B(Airflow Batch)
+    A -->|Stream| C(NiFi Real-Time)
+    B -->|Load| D[(Bigtable)]
+    C -->|Load| D
+    D -->|Airflow Export| E[(BigQuery: raw_ecommerce_prices)]
+
+    %% Core Analytics Layer
+    subgraph Primary Analytics Engine - Data Warehouse
+    E -->|dbt: Staging| F[Staging Views]
+    F -->|dbt: Intermediate| G[Cleaned Views]
+    G -->|dbt: Aggregation| H[Business Data Marts]
+    end
+
+    %% Backend Engine
+    subgraph Application Backend
+    H -->|SQL Fetch| I[FastAPI Backend]
+    I -.->|Specific Endpoints| J[SciPy / Pingouin: T-Tests & OLS]
+    J -.->|Statistical Results| I
+    end
+
+    %% Visual Analytics Layer
+    subgraph Production Visuals - Frontend
+    I -->|REST API| K[Angular Dashboard]
+    K -->|Chart.js| L((Final Interactive Graphs))
+    end
+
+    %% Ad-Hoc Analytics Layer (Detached)
+    subgraph Optional Sandbox
+    H -.->|Ad-hoc querying| M[Jupyter Notebooks]
+    M -.->|Prototyping| N[Side-Research / EDA]
+    end
+```
+
 
 ---
 

@@ -10,6 +10,7 @@ with price_history as (
         product_name,
         product_brand,
         product_category,
+        product_image_url,
         converted_price_usd,
         lag(converted_price_usd) over (
             partition by product_unified_id, source
