@@ -1,7 +1,27 @@
 {{ config(materialized='view') }}
 
 WITH raw_data AS (
-    SELECT * FROM {{ ref('int_currency_norm') }}
+    SELECT 
+        * EXCEPT(product_category),
+        CASE 
+            WHEN LOWER(product_name) LIKE '%laptop stand%'
+              OR LOWER(product_name) LIKE '%notebook stand%'
+              OR LOWER(product_name) LIKE '%monitor stand%'
+              OR LOWER(product_name) LIKE '%laptop sleeve%'
+              OR LOWER(product_name) LIKE '%laptop cover%'
+              OR LOWER(product_name) LIKE '%phone case%'
+              OR LOWER(product_name) LIKE '%screen protector%'
+              OR LOWER(product_name) LIKE '%protective case%'
+              OR LOWER(product_name) LIKE '%housse%'
+              OR LOWER(product_name) LIKE '%chargeur%'
+              OR LOWER(product_name) LIKE '%sac à dos%'
+              OR LOWER(product_name) LIKE '%sac a dos%'
+              OR LOWER(product_name) LIKE '%cooling pad%'
+              OR LOWER(product_name) LIKE '%refroidisseur%'
+            THEN 'Other'
+            ELSE product_category 
+        END AS product_category
+    FROM {{ ref('int_currency_norm') }}
 )
 
 SELECT
@@ -72,22 +92,7 @@ WHERE COALESCE(
   -- 1. Drop scraper bugs where price was not extracted
   AND converted_price_usd > 0
 
-  -- 2. Keyword exclusions — only words that are unambiguously accessories as the MAIN product
-  AND LOWER(product_name) NOT LIKE '%laptop stand%'
-  AND LOWER(product_name) NOT LIKE '%notebook stand%'
-  AND LOWER(product_name) NOT LIKE '%monitor stand%'
-  AND LOWER(product_name) NOT LIKE '%laptop sleeve%'
-  AND LOWER(product_name) NOT LIKE '%laptop cover%'
-  AND LOWER(product_name) NOT LIKE '%phone case%'
-  AND LOWER(product_name) NOT LIKE '%screen protector%'
-  AND LOWER(product_name) NOT LIKE '%protective case%'
-  AND LOWER(product_name) NOT LIKE '%housse%'
-  AND LOWER(product_name) NOT LIKE '%chargeur%'
-  AND LOWER(product_name) NOT LIKE '%sac à dos%'
-  AND LOWER(product_name) NOT LIKE '%sac a dos%'
-  AND LOWER(product_name) NOT LIKE '%cooling pad%'
-  AND LOWER(product_name) NOT LIKE '%refroidisseur%'
-
+  -- 2. (Accessories are now reclassified to 'Other' instead of being dropped)
   -- 3. Minimum sensible price thresholds per category
   AND NOT (LOWER(product_category) = 'laptop'      AND converted_price_usd < 100)
   AND NOT (LOWER(product_category) = 'desktop'     AND converted_price_usd < 100)

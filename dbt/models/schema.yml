@@ -15,10 +15,33 @@ models:
         description: "The product price normalized to USD."
         tests:
           - not_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.1
+              max_value: 20000.0
       - name: source
         description: "The scraping source or marketplace platform."
         tests:
           - not_null
+      - name: product_category
+        description: "The standardized product category."
+        tests:
+          - not_null
+          - dbt_expectations.expect_column_values_to_be_in_set:
+              value_set: ['GPU', 'CPU', 'RAM', 'SSD', 'HDD', 'Monitor', 'Keyboard', 'Mouse', 'PSU', 'Case', 'Cooling', 'Motherboard', 'Laptop', 'Desktop', 'Mobile', 'Peripheral', 'Other']
+      - name: avg_rating
+        description: "The average rating of the product."
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.0
+              max_value: 5.0
+              row_condition: "avg_rating is not null"
+      - name: discount_percent
+        description: "The price discount percentage."
+        tests:
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0.0
+              max_value: 100.0
+              row_condition: "discount_percent is not null"
 
   # ----------------------------------------------------
   # INTERMEDIATE LAYER (SILVER)

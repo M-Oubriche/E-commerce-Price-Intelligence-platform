@@ -25,8 +25,8 @@ current_market AS (
 
 SELECT
     product_unified_id,
-    product_name,
-    product_category,
+    ANY_VALUE(product_name) AS product_name,
+    ANY_VALUE(product_category) AS product_category,
     MAX(product_image_url) AS product_image_url,
     
     -- Analytics Metrics
@@ -43,7 +43,4 @@ SELECT
     MAX(scraped_at) AS last_market_update
     
 FROM current_market
-GROUP BY 
-    product_unified_id,
-    product_name,
-    product_category
+GROUP BY product_unified_id

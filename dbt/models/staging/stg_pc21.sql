@@ -27,4 +27,4 @@ select
     review_count,
     specs_json
 from {{ source('price_intelligence', 'raw_ecommerce_prices') }}
-where lower(source) in ('pc21', 'pc21.ma')
+where lower(source) in ('pc21', 'pc21.ma', 'pc21.fr')

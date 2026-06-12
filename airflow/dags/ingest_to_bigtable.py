@@ -176,13 +176,16 @@ def process_raw_files_to_bigtable():
                 print(f"Writing {len(rows)} rows to Bigtable...")
                 # Note: table.mutate_rows handles batch operations
                 response = table.mutate_rows(rows)
-                # Check for errors
+                # Check for errors — archive only on full success
                 failed = sum(1 for status in response if status.code != 0)
                 if failed > 0:
-                    print(f"WARNING: {failed} mutations failed.")
-                total_processed += (len(rows) - failed)
+                    raise RuntimeError(
+                        f"{failed}/{len(rows)} Bigtable mutations failed for {file_path}. "
+                        "File NOT archived — retry on next DAG run."
+                    )
+                total_processed += len(rows)
 
-        # Archive file after processing
+        # Archive file after processing (only reached if no error above)
         dest_dir = archive_dir / datetime.now().strftime("%Y-%m-%d")
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_file = dest_dir / file_path.name
