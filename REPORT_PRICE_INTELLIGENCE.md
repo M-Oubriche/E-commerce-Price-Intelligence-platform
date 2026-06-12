@@ -1,6 +1,6 @@
 # PulsePrice — E-Commerce Price Intelligence Platform
 
-> **Module:** Big Data & Cloud Infrastructure  
+> **Module:** Data engineering & Data analysis  
 > **Academic Year:** 2025 – 2026  
 > **Date:** June 2026  
 > **Version:** 1.5  
