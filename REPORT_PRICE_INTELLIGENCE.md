@@ -41,7 +41,7 @@
 
 ---
 
-### A. Data Engineering — *(Data Engineering Member)*
+### A. Data Engineering
 1. [Data Pipeline — End-to-End Flow](#3-data-pipeline--end-to-end-flow)
 2. [Ingestion Layer — Scrapers](#4-ingestion-layer--scrapers)
 3. [Streaming Layer — Apache NiFi](#5-streaming-layer--apache-nifi)
@@ -53,17 +53,17 @@
 
 ---
 
-### B. Full Stack — *(Full Stack Member)*
+### B. Full Stack
 1. [Serving Layer — FastAPI + Redis](#9-serving-layer--fastapi--redis)
 
 ---
 
-### C. DevOps / DataOps — Ou-briche Mohamed
+### C. DevOps / DataOps
 1. [Orchestration & Infrastructure](#10-orchestration--infrastructure)
 
 ---
 
-### D. Data Analysis — *(Data Analysis Member)*
+### D. Data Analysis
 *(To be completed)*
 
 ---
