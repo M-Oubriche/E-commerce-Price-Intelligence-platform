@@ -198,25 +198,25 @@ flowchart TD
     SCRAPING --> BATCH
 
     %% TWO PATHS
-    REALTIME[["⚡ Real-Time Events\nKafka Topic"]]
-    BATCH[["📦 Batch Files\nCSV / JSON Dumps"]]
+    REALTIME[[" Real-Time Events\nKafka Topic"]]
+    BATCH[["Batch Files\nCSV / JSON Dumps"]]
 
     %% NIFI
-    NIFI["🔀 Apache NiFi\nStreaming Ingestion & Routing"]
+    NIFI["Apache NiFi\nStreaming Ingestion & Routing"]
     REALTIME --> NIFI
-    NIFI -->|"big price change"| ALERT["🔔 Real-Time\nPrice Alert"]
+    NIFI -->|"big price change"| ALERT[" Real-Time\nPrice Alert"]
     NIFI -->|"all data"| BigTable
 
     %% AIRFLOW
-    AIRFLOW["⚙️ Apache Airflow\nBatch Orchestration & Scheduling"]
+    AIRFLOW["Apache Airflow\nBatch Orchestration & Scheduling"]
     BATCH --> AIRFLOW
     AIRFLOW --> BigTable
 
     %% BigTable
-    BigTable[("🗄️ Google Cloud Bigtable \n Time-Series Storage")]
+    BigTable[("Google Cloud Bigtable \n Time-Series Storage")]
 
     %% DBT
-    DBT["🔧 dbt Transformations\nClean → Aggregate → Model"]
+    DBT[" dbt Transformations\nClean → Aggregate → Model"]
     BigTable--> DBT
     
      %% BigQuery
@@ -225,15 +225,15 @@ flowchart TD
     
 
     %% ANALYSIS
-    ANALYSIS["📊 Python Analysis\nDescriptive & Inferential Statistics"]
+    ANALYSIS["Python Analysis\nDescriptive & Inferential Statistics"]
     BigQuery--> ANALYSIS
 
     %% DASHBOARD
-    DASHBOARD["🖥️ Streamlit Dashboard\nLive Prices + Charts + Reports"]
+    DASHBOARD["Streamlit Dashboard\nLive Prices + Charts + Reports"]
     ANALYSIS --> DASHBOARD
 
     %% DATAOPS (side)
-    DATAOPS["🛠️ DataOps\nDocker · GitHub · CI/CD · Monitoring"]
+    DATAOPS["DataOps\nDocker · GitHub · CI/CD · Monitoring"]
     DATAOPS -. "supports everything" .-> NIFI
     DATAOPS -. "supports everything" .-> AIRFLOW
     DATAOPS -. "supports everything" .-> DBT
@@ -1312,12 +1312,12 @@ graph TD
 
 | Source | Records/Day | Category Coverage | Status |
 |--------|-------------|-------------------|--------|
-| Jumia.ma | ~365 | 13 of 17 | ✅ Active |
-| BestBuy.com | ~1,000 | 12 of 17 | ✅ Active |
-| Newegg.com | ~400 | 13 of 17 | ✅ Active |
-| UltraPC.ma | ~400 | 11 of 17 | ✅ Active |
-| PC21.fr | ~5,200 | 13 of 17 | ✅ Active (fixed: was silently dropped) |
-| Materiel.net | 0 | 0 of 17 | ❌ Timeout (site unreachable) |
+| Jumia.ma | ~365 | 13 of 17 | Active |
+| BestBuy.com | ~1,000 | 12 of 17 | Active |
+| Newegg.com | ~400 | 13 of 17 | Active |
+| UltraPC.ma | ~400 | 11 of 17 | Active |
+| PC21.fr | ~5,200 | 13 of 17 | Active (fixed: was silently dropped) |
+| Materiel.net | 0 | 0 of 17 | Timeout (site unreachable) |
 
 ### 1.3 Cost Estimates
 
@@ -1337,10 +1337,10 @@ graph TD
 
 | Requirement | Bigtable | BigQuery |
 |-------------|----------|----------|
-| Real-time writes | ✅ Native row mutations | ❌ Streaming inserts (costly) |
-| Point lookups by key | ✅ O(1) | ❌ Table scan |
-| Historical analysis | ❌ Limited SQL | ✅ Full SQL + dbt |
-| Cost at scale | ✅ Cheap for key-value | ✅ Cheap for storage |
+| Real-time writes | Native row mutations | Streaming inserts (costly) |
+| Point lookups by key | O(1) | Table scan |
+| Historical analysis | Limited SQL | Full SQL + dbt |
+| Cost at scale | Cheap for key-value | Cheap for storage |
 
 **Decision**: Use Bigtable as the real-time ingestion target (fast writes, key-based lookups) and BigQuery as the analytics target (SQL, joins, aggregations). The DAG bridges both worlds.
 
@@ -1348,11 +1348,11 @@ graph TD
 
 | Characteristic | NiFi | Airflow |
 |---------------|------|---------|
-| UI-first flow design | ✅ Visual canvas | ❌ Code-only |
-| Real-time streaming | ✅ ListenHTTP, polling | ❌ Batch-oriented |
-| Error recovery | ✅ Built-in retry/backpressure | ✅ Retries + DAG rerun |
-| Data transformation | ❌ Limited (ExecuteScript) | ✅ Python operators |
-| Monitoring | ✅ Provenance, data lineage | ✅ Logs, metrics, SLA |
+| UI-first flow design | Visual canvas | Code-only |
+| Real-time streaming | ListenHTTP, polling | Batch-oriented |
+| Error recovery | Built-in retry/backpressure | Retries + DAG rerun |
+| Data transformation | Limited (ExecuteScript) | Python operators |
+| Monitoring | Provenance, data lineage | Logs, metrics, SLA |
 
 **Decision**: NiFi handles the real-time ingestion path (scraper → Bigtable). Airflow handles the batch transformation path (Bigtable → BigQuery → dbt → API). They converge at Bigtable.
 
