@@ -53,6 +53,77 @@ The architecture spans **five data layers** — ingestion, streaming, batch, tra
 
 ## 2. Architecture Overview
 
+## Global  Architecture
+
+```mermaid
+flowchart TD
+    %% DATA SOURCES
+    SOURCES[("🌐 E-Commerce Websites\nAmazon · eBay · Others")]
+
+    %% SCRAPING
+    SCRAPING["🕷️ Web Scraping\nScrapy + BeautifulSoup/Selenium"]
+
+    %% SPLIT
+    SOURCES --> SCRAPING
+    SCRAPING --> REALTIME
+    SCRAPING --> BATCH
+
+    %% TWO PATHS
+    REALTIME[["⚡ Real-Time Events\nKafka Topic"]]
+    BATCH[["📦 Batch Files\nCSV / JSON Dumps"]]
+
+    %% NIFI
+    NIFI["🔀 Apache NiFi\nStreaming Ingestion & Routing"]
+    REALTIME --> NIFI
+    NIFI -->|"big price change"| ALERT["🔔 Real-Time\nPrice Alert"]
+    NIFI -->|"all data"| BigTable
+
+    %% AIRFLOW
+    AIRFLOW["⚙️ Apache Airflow\nBatch Orchestration & Scheduling"]
+    BATCH --> AIRFLOW
+    AIRFLOW --> BigTable
+
+    %% BigTable
+    BigTable[("🗄️ Google Cloud Bigtable \n Time-Series Storage")]
+
+    %% DBT
+    DBT["🔧 dbt Transformations\nClean → Aggregate → Model"]
+    BigTable--> DBT
+    
+     %% BigQuery
+    BigQuery[("Google Cloud BigQuery")]
+    DBT-->BigQuery
+    
+
+    %% ANALYSIS
+    ANALYSIS["📊 Python Analysis\nDescriptive & Inferential Statistics"]
+    BigQuery--> ANALYSIS
+
+    %% DASHBOARD
+    DASHBOARD["🖥️ Streamlit Dashboard\nLive Prices + Charts + Reports"]
+    ANALYSIS --> DASHBOARD
+
+    %% DATAOPS (side)
+    DATAOPS["🛠️ DataOps\nDocker · GitHub · CI/CD · Monitoring"]
+    DATAOPS -. "supports everything" .-> NIFI
+    DATAOPS -. "supports everything" .-> AIRFLOW
+    DATAOPS -. "supports everything" .-> DBT
+
+    %% STYLES
+    classDef default fill:#1e293b,stroke:#475569,color:#f1f5f9,stroke-width:2px
+    classDef highlight fill:#0f172a,stroke:#38bdf8,color:#f1f5f9,stroke-width:2.5px
+    classDef alert fill:#7f1d1d,stroke:#ef4444,color:#fff,stroke-width:2px
+    classDef ops fill:#1a1a1a,stroke:#64748b,color:#94a3b8,stroke-width:1.5px,stroke-dasharray:4 4
+
+    class SOURCES,STORAGE highlight
+    class ALERT alert
+    class DATAOPS ops
+```
+
+
+
+## Detailed Architecture
+
 ```mermaid
 flowchart TD
     subgraph SCRAPERS["SCRAPER LAYER"]
@@ -86,91 +157,7 @@ flowchart TD
     FA --> ANG["Angular Frontend<br/>Real-time Dashboard"]
 ```
 
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│                         SCRAPER LAYER                                   │
-│  ┌────────┐ ┌─────────┐ ┌──────────┐ ┌────────┐ ┌──────────┐ ┌───────┐  │
-│  │ Jumia  │ │ BestBuy │ │ Newegg   │ │ PC21   │ │ UltraPC  │ │Materiel│  │
-│  │ .ma    │ │ .com    │ │ .com     │ │ .fr    │ │ .ma      │ │ .net   │  │
-│  │ BS4+   │ │ REST    │ │ BS4+    │ │ BS4+   │ │ BS4+     │ │ BS4+  │  │
-│  │ JSON-LD│ │ API     │ │ Session │ │ 3-level│ │ CSS      │ │ JS    │  │
-│  └───┬────┘ └────┬────┘ └────┬─────┘ └───┬────┘ └────┬─────┘ └───┬───┘  │
-│      │           │           │           │           │           │       │
-│      └───────────┴───────────┴───────────┴───────────┴───────────┘       │
-│                              │                                            │
-│                    Pydantic RawLandingRecord                               │
-│                              │                                            │
-└──────────────────────────────┼────────────────────────────────────────────┘
-                               │
-                    ┌──────────┴──────────┐
-                    │                     │
-               JSONL Files           NiFi HTTP
-             (/data/raw/date/)    (port 9090)
-                    │                     │
-                    ▼                     ▼
-            ┌──────────────┐    ┌──────────────────┐
-            │   Airflow    │    │  ExecuteStream    │
-            │   (batch)    │    │  Command          │
-            │              │    │  (nifi_ingest.py) │
-            │ingest_to_    │    │                  │
-            │bigtable.py   │    │  dual-write:     │
-            │              │    │  Bigtable + PG   │
-            └──────┬───────┘    └────────┬─────────┘
-                   │                     │
-                   └──────────┬──────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │    Bigtable      │
-                    │  ecommerce_prices│
-                    │  7 col families  │
-                    │  Max 10 versions │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │  Airflow Export  │
-                    │ bigtable_to_     │
-                    │ bigquery.py      │
-                    │ dedup + partit.  │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │   BigQuery       │
-                    │raw_ecommerce_    │
-                    │prices            │
-                    │(partitioned +    │
-                    │ clustered)       │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │  dbt Transform   │
-                    │ 6 staging views  │
-                    │ 4 cleaned views  │
-                    │ 11 mart tables   │
-                    │ 31 automated     │
-                    │   tests          │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │  FastAPI Backend  │
-                    │ 18 analytics     │
-                    │ endpoints        │
-                    │ Redis cache      │
-                    │ WebSocket push   │
-                    └────────┬─────────┘
-                             │
-                             ▼
-                    ┌──────────────────┐
-                    │ Angular Frontend │
-                    │ Real-time charts │
-                    │ Price alerts     │
-                    │ Dashboard        │
-                    └──────────────────┘
-```
+
 
 ---
 
@@ -204,44 +191,7 @@ flowchart LR
     FA --> ANG["Angular Frontend<br/>WebSocket alerts"]
 ```
 
-```
-SCRAPERS (requests + BeautifulSoup4)
-    │
-    ├──► JSONL files ──► Airflow DAG (ingest_ecommerce_prices)
-    │                          │
-    │                          ├──► docker exec → main.py (7169 records/batch)
-    │                          ├──► push_to_bigtable.py (Bigtable write)
-    │                          └──► trigger downstream DAG
-    │
-    ├──► NiFi ListenHTTP ──► nifi_ingest.py
-    │       │                    │
-    │       │                    ├──► Bigtable (real-time, ~seconds latency)
-    │       │                    └──► PostgreSQL alert_events (price drop ≥5%)
-    │       │                              │
-    │       │                              └──► Worker (fuzzy match → notification)
-    │
-    ▼
-BIGTABLE (ecommerce_prices, 7 column families)
-    │
-    ▼
-Airflow DAG (bigtable_to_bigquery_export)
-    │
-    ├──► Bigtable full scan (dedup by row_key)
-    ├──► BigQuery WRITE_APPEND (raw_ecommerce_prices)
-    ├──► CREATE OR REPLACE (dedup + partition + cluster)
-    │
-    ▼
-dbt PIPELINE
-    │
-    ├──► Staging (6 views): source-specific filters
-    ├──► Cleaned (4 views): currency norm, quality gate, history, changes
-    ├──► Marts (11 tables): platform perf, trends, KPIs, deals, drops, insights, etc.
-    │
-    ▼
-FastAPI Backend (18 analytics endpoints + Redis cache)
-    │
-    └──► Angular Frontend (real-time dashboard + WebSocket alerts)
-```
+
 
 ### 3.2 Dual-Pipeline Strategy
 
@@ -432,18 +382,7 @@ flowchart TD
     PG --> WK["Worker<br/>Fuzzy match → notification"]
 ```
 
-```
-ListenHTTP (port 9090, /contentListener)
-    │
-    ▼
-ExecuteStreamCommand (python /opt/nifi/scripts/nifi_ingest.py)
-    │
-    ├──► Bigtable (primary write)
-    │
-    └──► PostgreSQL alert_events (price drop ≥5%)
-           │
-           └──► Worker (fuzzy match → notification)
-```
+
 
 ### 5.3 NiFi Ingest Script (`nifi_ingest.py` — 385 lines)
 
@@ -522,24 +461,7 @@ flowchart TD
     TB --> TBn["Fire-and-forget to<br/>bigtable_to_bigquery_export DAG<br/>reset_dag_run=True"]
 ```
 
-```
-ensure_archive_dir
-    │
-    ▼
-run_scrapers_container (docker exec price_scraper python main.py)
-    │   7169 records → JSONL files → /data/raw/{date}/
-    │
-    ▼
-push_to_bigtable (PythonOperator — 237 lines)
-    │   Walks all JSONL files, parses, writes to Bigtable
-    │   7 column families, ingestion_type="batch"
-    │   Archives files ONLY on full write success
-    │
-    ▼
-trigger_bigquery_export_and_dbt (TriggerDagRunOperator)
-    │   Fire-and-forget to bigtable_to_bigquery_export DAG
-    │   reset_dag_run=True for clean retries
-```
+
 
 **Production-grade error handling:**
 ```python
@@ -570,33 +492,6 @@ flowchart LR
     S7 --> DR["dbt_run<br/>14 models"]
     DR --> DT["dbt_test<br/>31 tests"]
     DT --> DD["dbt_docs_generate<br/>Non-blocking"]
-```
-
-```
-export_bigtable_to_bigquery (PythonOperator)
-    │
-    ├── 1. Full Bigtable scan (with 500k-row memory warning)
-    ├── 2. In-memory row_key dedup (first occurrence wins)
-    ├── 3. Query BigQuery existing keys (SELECT DISTINCT row_key)
-    ├── 4. Flatten 7 column families → flat record (with safe type coercion)
-    ├── 5. Compute is_price_drop from converted_vs_original price
-    ├── 6. WRITE_APPEND to BigQuery (with ALLOW_FIELD_ADDITION)
-    └── 7. CREATE OR REPLACE TABLE with:
-           - PARTITION BY DATE(scraped_at)
-           - CLUSTER BY source, product_category
-           - ROW_NUMBER dedup (keep latest scraped_at)
-    │
-    ▼
-dbt_run (BashOperator: docker exec price_dbt dbt run)
-    │   14 models materialized
-    │
-    ▼
-dbt_test (BashOperator: docker exec price_dbt dbt test)
-    │   31 data quality tests
-    │
-    ▼
-dbt_docs_generate (BashOperator: trigger_rule="all_done")
-    │   Non-blocking documentation regeneration
 ```
 
 **Safe type coercion** — Every potential `None` or malformed cell is handled:
