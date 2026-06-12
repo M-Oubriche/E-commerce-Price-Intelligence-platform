@@ -1,4 +1,4 @@
-# PulsePrice — E-Commerce Price Intelligence Platform
+# PulsePrice Report — E-Commerce Price Intelligence Platform
 
 > **Module:** Data engineering & Data analysis  
 > **Academic Year:** 2025 – 2026  
