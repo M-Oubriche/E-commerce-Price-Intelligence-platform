@@ -32,6 +32,11 @@ export interface PriceDropRow {
   previous_price: number;
   absolute_drop_usd: number;
   drop_percentage: number;
+  avg_rating?: number;
+  total_reviews?: number;
+  total_platforms?: number;
+  platforms_in_stock?: number;
+  last_updated?: string;
 }
 
 export interface CategoryTrendRow {

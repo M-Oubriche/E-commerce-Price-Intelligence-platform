@@ -35,8 +35,8 @@ export class AnalyticsApiService {
     return this.http.get<CategoryTrendRow[]>(`${this.BASE}/trends${params}`);
   }
 
-  getFlashDeals(): Observable<DealAnalysisRow[]> {
-    return this.http.get<DealAnalysisRow[]>(`${this.BASE}/flash-deals`);
+  getFlashDeals(): Observable<PriceDropRow[]> {
+    return this.http.get<PriceDropRow[]>(`${this.BASE}/flash-deals`);
   }
 
   getTrendingDeals(): Observable<DealAnalysisRow[]> {

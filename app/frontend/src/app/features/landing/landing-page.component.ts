@@ -198,11 +198,11 @@ export class LandingPageComponent implements OnInit, OnDestroy {
             name: d.product_name,
             category: d.product_category,
             image: d.product_image_url || 'https://images.unsplash.com/photo-1591488320449-011701bb6704?w=400',
-            currentPrice: d.current_price || 0,
-            oldPrice: d.avg_price_30d || d.current_price || 0,
-            discount: d.discount_percent || 0,
+            currentPrice: d.latest_price || 0,
+            oldPrice: d.previous_price || d.latest_price || 0,
+            discount: Math.round(d.drop_percentage || 0),
             store: d.source,
-            isLowestEver: d.current_price && d.all_time_low_price ? d.current_price <= d.all_time_low_price : false,
+            isLowestEver: false, // PriceDropRow doesn't have all_time_low_price by default
             rating: d.avg_rating || 0,
             reviews: d.total_reviews || 0,
             stockPercent: d.total_platforms ? Math.round(((d.platforms_in_stock ?? 0) / d.total_platforms) * 100) : 0
