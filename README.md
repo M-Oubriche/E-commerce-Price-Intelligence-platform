@@ -16,7 +16,9 @@ A production-grade hybrid batch + streaming data platform for real-time e-commer
 
 ## Architecture Overview
 
-> Architecture diagram will be added here once the infrastructure phase is complete.
+![alt text](image.png)
+
+The platform collects ~7,000 price records daily across 6 e-commerce sources, ingests via dual NiFi (real-time) + Airflow (batch) pipelines into Bigtable, transforms through dbt with 31 automated quality tests, and serves through FastAPI + Redis to an Angular dashboard.
 
 ---
 
@@ -135,16 +137,45 @@ data/raw/
 
 ## Pipeline Overview
 
-> **Owner: Data Engineering**
-> This section will be filled once scrapers, NiFi flows, Airflow DAGs, and dbt models are working.
+**Owner: Data Engineering**
 
-<!--
-When ready, document:
-- How the scraper runs and what it collects
-- NiFi flow description and routing logic
-- Airflow DAGs names, schedule, and dependencies
-- dbt models: staging → cleaned → aggregated
--->
+### Sources
+6 e-commerce platforms across 17 product categories (GPU, CPU, RAM, SSD, HDD, Monitor, Keyboard, Mouse, PSU, Case, Cooling, Motherboard, Laptop, Desktop, Mobile, Peripheral).
+
+### Dual-Pipeline Design
+
+| Path | Engine | Trigger | Latency | Alerts |
+|------|--------|---------|---------|--------|
+| Real-time | NiFi ListenHTTP → `nifi_ingest.py` | Continuous (30s polling) | Seconds | Price drop ≥5% → PostgreSQL |
+| Batch | Airflow DAGs → scrapers → Bigtable | @daily | ~22 min | No (historical only) |
+
+### Airflow DAGs
+- **`ingest_ecommerce_prices`** (Stage 1+2): Scrapes 6 sources → Bigtable write → triggers downstream
+- **`bigtable_to_bigquery_export`** (Stage 3): Bigtable scan → dedup → BQ (partitioned+clustered) → dbt run → dbt test
+- **`init_bigtable_schema`**: One-time table creation (7 column families, 10 versions)
+- **`health_check`**: Verifies Airflow, volumes, env vars
+
+### dbt Pipeline (14 models, 31 tests)
+```
+6 staging views → stg_all_sources → int_currency_norm → int_clean_prices (30+ filters)
+    → int_price_history + int_price_changes → 11 mart tables
+```
+
+All 31 tests pass: `PASS=31 WARN=0 ERROR=0 SKIP=0 TOTAL=31`
+
+### Storage
+- **Bigtable** (`ecommerce_prices`): Row key `{category}#{brand}#{product_id}#{source}#{timestamp}`, 7 column families, 10 versions
+- **BigQuery** (`raw_ecommerce_prices`): Flat table, `PARTITION BY DATE(scraped_at)`, `CLUSTER BY source, product_category`
+
+### Key Metrics
+| Metric | Value |
+|--------|-------|
+| Daily records | ~7,000 |
+| Bigtable rows | ~100,000 |
+| dbt models | 14 (6 staging, 4 cleaned, 11 aggregated) |
+| Automated tests | 31 |
+| End-to-end latency (batch) | ~22 min |
+| Real-time latency | Seconds |
 
 ---
 
