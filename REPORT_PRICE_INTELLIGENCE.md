@@ -59,7 +59,9 @@
 ---
 
 ### C. DevOps / DataOps
-1. [Orchestration & Infrastructure](#10-orchestration--infrastructure)
+1. [Containerization & Orchestration](#1-containerization--orchestration)
+2. [Infrastructure & GCP Integration](#2-infrastructure--gcp-integration)
+3. [Continuous Integration & Delivery](#3-continuous-integration--delivery-cicd)
 
 ---
 
@@ -69,9 +71,9 @@
 ---
 
 ### Cross-Team
-1. [Key Metrics & Performance](#13-key-metrics--performance)
-2. [Architecture Decisions & Trade-Offs](#14-architecture-decisions--trade-offs)
-3. [Conclusion](#15-conclusion)
+1. [Key Metrics & Performance](#1-key-metrics--performance)
+2. [Architecture Decisions & Trade-Offs](#2-architecture-decisions--trade-offs)
+3. [Conclusion](#3-conclusion)
 
 ---
 
@@ -1180,125 +1182,98 @@ docker compose exec backend alembic upgrade head
 
 # C. DevOps / DataOps
 
-## 10. Orchestration & Infrastructure
+## 1. Containerization & Orchestration
 
-### 10.1 Docker Architecture
+### 1.1 Docker Architecture & Services
 
-**13 containers** managed by Docker Compose:
+The platform is fully containerized, comprising **13 specialized containers** orchestrated via Docker Compose. This microservices approach ensures isolation, reproducible environments, and seamless deployment across development and production.
 
-| Container | Role | Dependencies | Health Check |
-|-----------|------|-------------|--------------|
-| `airflow_postgres` | Airflow metastore | none | `pg_isready` (5s, 10 retries) |
-| `app_postgres` | Application DB | none | `pg_isready -U $USER -d $DB` |
-| `price_redis` | Cache + broker | none | `redis-cli ping` (5s, 5 retries) |
-| `price_scraper` | Scrapy spiders | none | None (interactive bash) |
-| `airflow_init` | DB migration | postgres_healthy | Run-once, exits 0 |
-| `airflow_webserver` | Airflow UI | airflow_init | `/health` (30s, 5 retries) |
-| `airflow_scheduler` | Task scheduling | airflow_init | None (docker.sock access) |
-| `price_nifi` | Real-time flow | app_postgres | `/nifi-api/system-diagnostics` (30s, 10 retries, 90s start) |
-| `price_backend` | FastAPI API | app_postgres + redis | None (hot-reload) |
-| `price_worker` | Background worker | app_postgres + redis | None |
-| `price_frontend` | Angular UI | backend | None |
-| `price_dbt` | dbt runtime | none | None (`tail -f /dev/null`) |
-| `price_dbt_docs` | dbt doc server | none | Waits for `target/index.html` |
+| Container | Role & Responsibility | Health Check Strategy |
+|-----------|------------------------|-----------------------|
+| `airflow_postgres` | **Airflow Metastore** — Relational database storing DAG definitions, run history, and user metadata. | `pg_isready` (5s interval, 10 retries) |
+| `app_postgres` | **Application DB** — Core database for the FastAPI backend, storing user data and price alert triggers. | `pg_isready -U $USER -d $DB` |
+| `price_redis` | **Cache & Broker** — High-speed caching for API responses and Pub/Sub broker for real-time WebSocket notifications. | `redis-cli ping` (5s, 5 retries) |
+| `price_scraper` | **Scraping Engine** — Executes the Scrapy/BeautifulSoup spiders to extract pricing data. | Interactive Bash |
+| `airflow_init` | **Database Migration** — Ephemeral container that runs database migrations and creates the admin user, exiting with code 0 upon success. | Run-once |
+| `airflow_webserver` | **Airflow UI** — Exposes the Airflow dashboard on port 8081 for DAG monitoring. | HTTP `/health` endpoint (30s) |
+| `airflow_scheduler` | **Task Scheduler** — Reads DAGs and schedules tasks using the `LocalExecutor` with Docker-in-Docker capabilities. | Docker Socket availability |
+| `price_nifi` | **Real-Time Streaming** — Single-node Apache NiFi 1.25.0 instance handling the real-time ingestion flow via HTTP Listeners. | `/nifi-api/system-diagnostics` HTTP 200 |
+| `price_backend` | **FastAPI Server** — Asynchronous backend API providing endpoints for analytics, search, and WebSockets. | Hot-reload native |
+| `price_worker` | **Background Worker** — Processes asynchronous tasks, such as fuzzy matching and price drop alert notifications. | None |
+| `price_frontend` | **Angular Dashboard** — The client-facing UI served on port 4200. | Hot-reload native |
+| `price_dbt` | **Transformation Engine** — dbt core runtime container executing BigQuery transformations. | `tail -f /dev/null` |
+| `price_dbt_docs` | **Data Lineage Server** — Generates and serves the dbt documentation website on port 8085. | Polls for `index.html` |
 
-```mermaid
-flowchart TD
-    AP["airflow_postgres<br/>Airflow Metastore"]
-    APP["app_postgres<br/>Application DB"]
-    RD["price_redis<br/>Cache + Broker"]
-    PS["price_scraper<br/>Scrapy Spiders"]
-    AI["airflow_init<br/>DB Migration"]
-    AW["airflow_webserver<br/>Airflow UI"]
-    AS["airflow_scheduler<br/>Task Scheduler"]
-    PN["price_nifi<br/>NiFi 1.25.0"]
-    PB["price_backend<br/>FastAPI API"]
-    PW["price_worker<br/>Alert Worker"]
-    PF["price_frontend<br/>Angular UI"]
-    PDT["price_dbt<br/>dbt Runtime"]
-    PDD["price_dbt_docs<br/>dbt Doc Server"]
+### 1.2 Storage Strategy: Bind Mounts vs. Persisted Volumes
 
-    AP --> AI
-    AI --> AW
-    AI --> AS
-    APP --> PN
-    APP --> PB
-    APP --> PW
-    RD --> PB
-    RD --> PW
-    PB --> PF
-    AS -.->|docker exec| PS
-    AS -.->|docker exec| PDT
-    PDT -.-> PDD
-```
+To manage data lifecycle and persistence, the Docker architecture leverages two distinct volume strategies:
 
-### 10.2 Docker Compose Patterns
+**1. Bind Mounts (Host-to-Container)**
+Bind mounts map a specific directory on the host machine to a directory inside the container. This is crucial for real-time code execution and shared data pipelines. Below are some notable examples from the project:
+- `./data/archive:/data/archive` — Mounted to `airflow_scheduler`. Once Airflow successfully ingests a batch to Bigtable, it moves the files here for historical auditing.
+- `./app/backend:/app` — A key example of hot-reload bind mounts, enabling FastAPI backend code changes to be reflected instantly inside the running container without requiring a rebuild.
+- `./infrastructure/keys:/secrets:ro` — A critical read-only security mount providing Google Cloud Service Account credentials (`bigquery-service-account.json`) to containers like Airflow, NiFi, and dbt without exposing them to the codebase.
+- `/var/run/docker.sock:/var/run/docker.sock` — Enables Docker-in-Docker capabilities, allowing the Airflow Scheduler to trigger scraper and dbt containers natively.
 
-**YAML Anchors for DRY configs:**
-```yaml
-x-airflow-env: &airflow-env
-  AIRFLOW__CORE__EXECUTOR: LocalExecutor
-  AIRFLOW__CORE__FERNET_KEY: ...
-  AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@airflow_postgres:5432/airflow
+**2. Named Persisted Volumes (Docker-Managed)**
+Named volumes are completely managed by Docker, ensuring that critical state data survives container restarts (`docker compose down/up`) while remaining isolated from the host filesystem. The following are the main volumes defined in the project:
+- `redis` and main volumes — Used to persist caching state, rate limiting keys, and real-time event broker data to prevent disruption during container restarts.
+- `postgres_data` & `app_postgres_data` — Persist the PostgreSQL databases, preventing data loss of Airflow metadata and application data.
+- `nifi_conf`, `nifi_database`, `nifi_provenance` — Ensure Apache NiFi flow configurations, component states, and data lineage tracking are persistently stored.
+- `airflow_logs` — Retains task execution logs for debugging past DAG runs.
 
-services:
-  airflow-webserver:
-    environment: *airflow-env
-  airflow-scheduler:
-    environment: *airflow-env
-```
+### 1.3 Networking
 
-**Read-only secrets mount:**
-```yaml
-volumes:
-  - ./infrastructure/keys:/opt/gcp_keys:ro  # GCP service account: read-only
-```
+All 13 containers communicate securely over a custom user-defined Docker bridge network named `platform_net`.
+- **DNS Resolution:** Containers address each other via their service names (e.g., the backend connects to the database via `postgresql://app_postgres:5432`) rather than IP addresses.
+- **Isolation:** Internal traffic remains confined within `platform_net`, and only explicitly required ports (like 8000 for backend, 4200 for frontend, 8081 for Airflow) are exposed to the host machine.
 
-**Hot-reload development:**
-```yaml
-volumes:
-  - ./app/backend:/app:ro  # Code reload on save
-  - /var/run/docker.sock:/var/run/docker.sock  # Docker-in-Docker for Airflow
-```
+---
 
-**Frontend node_modules isolation:**
-```yaml
-volumes:
-  - /app/node_modules  # Anonymous volume — prevents host node_modules overwrite
-```
+## 2. Infrastructure & GCP Integration
 
-### 10.3 Terraform Infrastructure
+The project's cloud infrastructure is built on Google Cloud Platform (GCP), combining Infrastructure as Code (Terraform) for core data storage provisioning with direct GCP Console configuration for identity, access, and analytics services.
 
-```hcl
-# Bigtable
-resource "google_bigtable_instance" "price_intelligence" {
-  name = "price-intelligence"
-  cluster { cluster_id = "main", zone = "us-central1-a", num_nodes = 1 }
-}
+### 2.1 Infrastructure as Code (Terraform): Bigtable
 
-resource "google_bigtable_table" "ecommerce_prices" {
-  name = "ecommerce_prices"
-  column_family { family = "price_cf" }
-  column_family { family = "metadata_cf" }
-  column_family { family = "ingestion_cf" }
-  column_family { family = "availability_cf" }
-  column_family { family = "seller_cf" }
-  column_family { family = "ratings_cf" }
-  column_family { family = "specs_cf" }
-  gc_policy = "max_version = 10"
-}
+To guarantee a reproducible and scalable environment for our primary high-throughput storage layer, the Bigtable infrastructure is fully codified using **Terraform**:
+- **Google Cloud Bigtable:** Provisioned as a single-node development cluster (`us-central1-a`). Terraform establishes the `ecommerce_prices` table and declares its complete schema through **7 column families** (`price_cf`, `metadata_cf`, `ingestion_cf`, `availability_cf`, `seller_cf`, `ratings_cf`, `specs_cf`). A Garbage Collection policy (`max_version = 10`) is enforced at the infrastructure level, ensuring Bigtable automatically prunes older price versions to keep storage costs in check.
+- **Google Cloud Storage (GCS) — Terraform State Backend:** A dedicated GCS bucket (`price-intelligence-terraform-state`) is used to store Terraform's remote state file. This ensures the infrastructure state is shared, consistent, and protected from local machine loss — a standard production practice for collaborative infrastructure management.
 
-# BigQuery
-resource "google_bigquery_dataset" "price_intelligence" {
-  dataset_id = "price_intelligence"
-  location   = "US"
-}
+### 2.2 GCP Console Configuration (BigQuery, IAM, OAuth)
 
-# IAM
-resource "google_service_account" "data_pipeline" {
-  account_id = "data-pipeline-sa"
-}
-```
+Several complementary GCP services were configured directly through the Google Cloud Console, establishing the identity, analytics, and access layers of the platform:
+- **Google Cloud BigQuery:** A centralized dataset (`price_intelligence`) was set up in the US multi-region. It serves as the primary destination for Airflow exports and forms the foundation for all dbt transformation models.
+- **Service Accounts & IAM:** Two dedicated service accounts were provisioned following the principle of least privilege:
+  - **`price-intelligence-sa`** — The pipeline service account, granted the roles needed to operate the data platform (Bigtable User, BigQuery Data Editor). Its JSON key is securely injected into all relevant containers (Airflow, NiFi, dbt, FastAPI backend) via a read-only Docker bind mount, keeping credentials entirely out of the codebase.
+  - **`terraform-sa`** — An isolated service account used exclusively by Terraform to provision and manage GCP infrastructure. Its JSON key was generated and used only during infrastructure setup operations, maintaining a clear separation from the runtime pipeline credentials.
+- **OAuth 2.0 & Gmail Integration:** An OAuth 2.0 consent screen was configured in GCP, enabling developers and users to authenticate via their Gmail accounts. This leverages Google's identity infrastructure to provide secure, frictionless access without the overhead of a separate credential management system.
+
+---
+
+## 3. Continuous Integration & Delivery (CI/CD)
+
+The project employs a robust, fully automated CI pipeline defined via **GitHub Actions** (`ci.yml`), triggered on pushes and pull requests to ensure code quality, security, and infrastructure stability.
+
+### 3.1 Pipeline Architecture (7-Stage Workflow)
+
+The pipeline is structured into specialized, parallelized jobs that converge into a final merge gate:
+
+| CI Job | Description & Tools |
+|--------|---------------------|
+| `lint` | **Syntax & Style:** Runs `flake8` across Python directories. Fails explicitly on critical syntax errors while reporting style warnings without blocking. |
+| `sast` | **Static Security:** Executes `bandit` to identify Python vulnerabilities (e.g., hardcoded passwords, unsafe exec) and `Trivy` to scan the filesystem for container and OS-level CVEs. |
+| `secrets` | **Credential Leak Prevention:** Utilizes `TruffleHog` to scan the entire git history to ensure no GCP keys or `.env` secrets are accidentally committed. |
+| `deps` | **Dependency Audit:** Runs `pip-audit` for Python requirements and `npm audit` for the Angular frontend to identify libraries with known vulnerabilities. |
+| `frontend` | **Build Verification:** Executes `npm ci` and `npm run build` to guarantee the Angular application compiles successfully. |
+| `logic-and-pipeline` | **Data Engineering Validation:**<br>1. Runs `pytest` on Pydantic scraper models.<br>2. Simulates an Airflow environment to verify DAG parsing and catch import errors.<br>3. Injects dummy credentials to run `dbt parse` and validate the transformation DAG. |
+| `docker-integration` | **End-to-End Orchestration Check:** Leverages `docker buildx bake` to rapidly build images using GitHub Actions caching. It spins up the core database and orchestration containers (`docker compose up -d`), monitoring native health checks to guarantee the environment boots cleanly before destroying it. |
+
+A final `merge-gate` job aggregates the statuses of all previous stages, ensuring that code can only be merged into the `main` branch if it passes every security, logic, and infrastructure check.
+
+---
+
+> **Note — Data Quality Expectations (DevOps / DataOps Contribution):** As part of this role's scope, data quality expectation enforcement was deliberately integrated into the dbt test suite via the `dbt_expectations` package (`metaplane/dbt_expectations`) — rather than building a separate standalone component. These expectation-based tests — including value range checks and set membership validations — are automatically executed by the `bigtable_to_bigquery_export` DAG, which triggers a full `dbt test` run at the end of every pipeline cycle. This design decision consolidates all data quality enforcement within the transformation layer, keeping validation logic co-located with the models it protects.
 
 ---
 
@@ -1310,9 +1285,9 @@ resource "google_service_account" "data_pipeline" {
 
 # Cross-Team
 
-## 13. Key Metrics & Performance
+## 1. Key Metrics & Performance
 
-### 13.1 Pipeline Performance
+### 1.1 Pipeline Performance
 
 | Operation | Duration | Frequency | Data Volume |
 |-----------|----------|-----------|-------------|
@@ -1323,7 +1298,7 @@ resource "google_service_account" "data_pipeline" {
 | dbt test (31 tests) | ~18s | Daily | Full validation |
 | End-to-end pipeline | ~22 min | Daily | All stages |
 
-### 13.2 Data Distribution by Source
+### 1.2 Data Distribution by Source
 
 | Source | Records/Day | Category Coverage | Status |
 |--------|-------------|-------------------|--------|
@@ -1334,7 +1309,7 @@ resource "google_service_account" "data_pipeline" {
 | PC21.fr | ~5,200 | 13 of 17 | ✅ Active (fixed: was silently dropped) |
 | Materiel.net | 0 | 0 of 17 | ❌ Timeout (site unreachable) |
 
-### 13.3 Cost Estimates
+### 1.3 Cost Estimates
 
 | Service | Estimated Monthly Cost | Purpose |
 |---------|----------------------|---------|
@@ -1346,9 +1321,9 @@ resource "google_service_account" "data_pipeline" {
 
 ---
 
-## 14. Architecture Decisions & Trade-Offs
+## 2. Architecture Decisions & Trade-Offs
 
-### 14.1 Why Bigtable + BigQuery (Dual Storage)?
+### 2.1 Why Bigtable + BigQuery (Dual Storage)?
 
 | Requirement | Bigtable | BigQuery |
 |-------------|----------|----------|
@@ -1359,7 +1334,7 @@ resource "google_service_account" "data_pipeline" {
 
 **Decision**: Use Bigtable as the real-time ingestion target (fast writes, key-based lookups) and BigQuery as the analytics target (SQL, joins, aggregations). The DAG bridges both worlds.
 
-### 14.2 Why NiFi + Airflow (Dual Orchestration)?
+### 2.2 Why NiFi + Airflow (Dual Orchestration)?
 
 | Characteristic | NiFi | Airflow |
 |---------------|------|---------|
@@ -1371,7 +1346,7 @@ resource "google_service_account" "data_pipeline" {
 
 **Decision**: NiFi handles the real-time ingestion path (scraper → Bigtable). Airflow handles the batch transformation path (Bigtable → BigQuery → dbt → API). They converge at Bigtable.
 
-### 14.3 Why dbt for Transformation?
+### 2.3 Why dbt for Transformation?
 
 - **Declarative SQL** — Analysts can contribute without Python
 - **Testing framework** — 31 built-in tests without custom code
@@ -1379,7 +1354,7 @@ resource "google_service_account" "data_pipeline" {
 - **Incremental models** — Ready for scale (though current setup uses full refresh)
 - **Package ecosystem** — `dbt_utils` for surrogate keys, `dbt_expectations` for ranged checks
 
-### 14.4 Why `requests` + `BeautifulSoup4` Instead of Scrapy?
+### 2.4 Why `requests` + `BeautifulSoup4` Instead of Scrapy?
 
 While Scrapy was installed and available, the team chose raw `requests` + BS4 for:
 - **Simpler debugging** — No async reactor to manage
@@ -1389,7 +1364,7 @@ While Scrapy was installed and available, the team chose raw `requests` + BS4 fo
 
 ---
 
-## 15. Conclusion
+## 3. Conclusion
 
 PulsePrice is a **production-grade, end-to-end price intelligence platform** that demonstrates mastery of:
 
