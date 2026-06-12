@@ -1243,7 +1243,7 @@ The final step of the analytical lifecycle is visual presentation via the Angula
 ---
 
 ## 6. Optional Sandbox: Jupyter Notebooks
-> ⚠️ **Note to Evaluators:** The core analytics of this platform are fully automated within the ELT pipeline (dbt + FastAPI).
+> **Note :** The core analytics of this platform are fully automated within the ELT pipeline (dbt + FastAPI).
 
 To supplement the production environment, an isolated **Jupyter Notebooks** directory (`/notebooks`) is maintained. This serves as an ad-hoc sandbox for the Data Analytics team. It connects securely to the BigQuery Data Marts to allow for Exploratory Data Analysis (EDA), statistical analysis, and anomaly hunting, prototyping prior to implementing those features into the main backend application.
 
