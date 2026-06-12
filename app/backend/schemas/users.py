@@ -32,3 +32,7 @@ class TokenData(BaseModel):
 
 class SingleUserResponse(BaseModel):
     data: UserOut
+
+class RegisterResponse(BaseModel):
+    data: UserOut
+    verification_token: str

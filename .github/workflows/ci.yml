@@ -207,7 +207,7 @@ jobs:
           
           python -m venv venv_dbt
           source venv_dbt/bin/activate
-          pip install dbt-bigquery==1.8.0
+          pip install dbt-core==1.8.0 dbt-bigquery==1.8.0
           dbt deps
           dbt parse
           deactivate
@@ -269,7 +269,7 @@ jobs:
           load: true
           set: |
             *.cache-from=type=gha
-            *.cache-to=type=gha,mode=max
+            *.cache-to=type=gha,mode=max,ignore-error=true
 
       - name: Verify Airflow Init (Optional Catch)
         # Catch airflow-init failures early before webserver hides them
@@ -278,12 +278,12 @@ jobs:
 
       - name: Start Essential Services
         # Explicitly excludes NiFi to prevent GitHub Runner OOM (Out Of Memory) kills
-        run: docker compose up -d postgres app_postgres redis bigtable-emulator airflow-webserver airflow-scheduler
+        run: docker compose up -d postgres app_postgres redis airflow-webserver airflow-scheduler
 
       - name: Verify Service Health
         run: |
           echo "Waiting for services to become healthy..."
-          SERVICES="postgres app_postgres redis bigtable-emulator airflow-webserver"
+          SERVICES="postgres app_postgres redis airflow-webserver"
           for SERVICE in $SERVICES; do
             echo "Waiting for $SERVICE..."
             TIMEOUT=180

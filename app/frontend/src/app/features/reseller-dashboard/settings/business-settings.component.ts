@@ -4,7 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { AuthService } from '../../../core/services/auth.service';
-import { PreferencesService, AlertPreferences, DisplayPreferences } from '../../../core/services/preferences.service';
+import { PreferencesService, AlertPreferences } from '../../../core/services/preferences.service';
 import { Router } from '@angular/router';
 import { UserRole } from '../../../core/models/user.model';
 
@@ -28,7 +28,6 @@ import { UserRole } from '../../../core/models/user.model';
               <div class="avatar-circle" [style.background]="getAvatarColor(user.email)">
                 {{ user.initials || (user.full_name || '').charAt(0).toUpperCase() }}
               </div>
-              <div class="role-badge">Admin</div>
             </div>
             <div class="form-col">
               <div class="form-row">
@@ -54,48 +53,13 @@ import { UserRole } from '../../../core/models/user.model';
           </div>
         </section>
 
-        <!-- Marketplaces Section -->
+        <!-- Notifications Section -->
         <section class="settings-section animate-in">
-          <h2 class="section-title">Tracked Marketplaces</h2>
-          <div class="loading-state" *ngIf="isLoadingDisplay">
-            <div class="spinner"></div>
-          </div>
-          <div class="category-grid" *ngIf="!isLoadingDisplay">
-            <div class="cat-card" *ngFor="let market of marketplaces" 
-                 [class.selected]="market.enabled"
-                 (click)="market.enabled = !market.enabled">
-              <div class="cat-icon">{{ market.icon }}</div>
-              <div class="cat-name">{{ market.name }}</div>
-              <div class="cat-status" *ngIf="market.enabled">Active</div>
-            </div>
-          </div>
-        </section>
-
-        <!-- Pricing Synchronization Section -->
-        <section class="settings-section animate-in">
-          <h2 class="section-title">Pricing & Synchronization</h2>
+          <h2 class="section-title">Notifications</h2>
           <div class="loading-state" *ngIf="isLoadingAlerts">
             <div class="spinner"></div>
           </div>
           <div class="toggle-list" *ngIf="!isLoadingAlerts && alertPrefs">
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <div class="toggle-label">Real-time Repricing</div>
-                <div class="toggle-desc">Sync catalog prices instantly as market moves.</div>
-              </div>
-              <div class="toggle" [class.on]="alertPrefs.websocket_live" (click)="toggleAlert('websocket_live')">
-                <div class="knob" [class.on]="alertPrefs.websocket_live"></div>
-              </div>
-            </div>
-            <div class="toggle-row">
-              <div class="toggle-info">
-                <div class="toggle-label">Market Trend Reports</div>
-                <div class="toggle-desc">Get weekly insights into market price movements.</div>
-              </div>
-              <div class="toggle" [class.on]="alertPrefs.market_trend_reports" (click)="toggleAlert('market_trend_reports')">
-                <div class="knob" [class.on]="alertPrefs.market_trend_reports"></div>
-              </div>
-            </div>
             <div class="toggle-row">
               <div class="toggle-info">
                 <div class="toggle-label">Email Notifications</div>
@@ -165,8 +129,6 @@ import { UserRole } from '../../../core/models/user.model';
       background: linear-gradient(135deg, var(--accent-blue), var(--accent-purple));
       box-shadow: 0 10px 25px rgba(59, 130, 246, 0.4);
     }
-    .role-badge { font-size: 10px; font-weight: 900; color: var(--accent-blue); background: var(--accent-blue-light); padding: 4px 12px; border-radius: 20px; text-transform: uppercase; }
-
     .form-col { flex: 1; display: flex; flex-direction: column; gap: 24px; }
     .form-row { display: flex; gap: 20px; }
     .flex-1 { flex: 1; }
@@ -211,29 +173,6 @@ import { UserRole } from '../../../core/models/user.model';
     }
     .toggle.on .knob { left: 26px; }
 
-    .category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
-    .cat-card {
-      padding: 24px 16px; border-radius: 18px; border: 1px solid var(--border);
-      background: var(--bg-primary); text-align: center; cursor: pointer; transition: all 0.3s ease;
-      position: relative;
-    }
-    .cat-icon { font-size: 32px; margin-bottom: 12px; }
-    .cat-name { font-size: 14px; font-weight: 800; color: var(--text-secondary); }
-    .cat-status {
-      position: absolute; top: 8px; right: 10px; font-size: 8px; font-weight: 900;
-      text-transform: uppercase; color: #10B981;
-    }
-    .cat-card.selected { background: rgba(59, 130, 246, 0.05); border-color: var(--accent-blue); box-shadow: 0 8px 24px -10px rgba(59, 130, 246, 0.4); }
-    .cat-card.selected .cat-name { color: var(--accent-blue); }
-
-    .loading-state { text-align: center; padding: 20px 0; }
-    .spinner {
-      width: 24px; height: 24px; border: 2px solid var(--border);
-      border-top-color: var(--accent-blue); border-radius: 50%;
-      margin: 0 auto; animation: spin 0.8s linear infinite;
-    }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
     .account-row { display: flex; align-items: center; justify-content: space-between; }
     .account-label { font-size: 15px; font-weight: 700; color: var(--text-primary); }
     .switch-link { font-size: 14px; font-weight: 750; color: var(--accent-blue); cursor: pointer; text-decoration: none; border-bottom: 2px solid rgba(59, 130, 246, 0.2); transition: all 0.2s; }
@@ -252,7 +191,6 @@ import { UserRole } from '../../../core/models/user.model';
 
     @media (max-width: 600px) {
       .profile-layout { flex-direction: column; align-items: center; gap: 32px; }
-      .category-grid { grid-template-columns: 1fr 1fr; }
       .danger-box { flex-direction: column; align-items: flex-start; }
       .form-row { flex-direction: column; }
     }
@@ -283,17 +221,8 @@ export class ResellerSettingsComponent implements OnInit {
   };
 
   alertPrefs: AlertPreferences | null = null;
-  displayPrefs: DisplayPreferences | null = null;
   isLoadingAlerts = true;
-  isLoadingDisplay = true;
   isSavingProfile = false;
-
-  marketplaces = [
-    { name: 'Amazon', icon: '📦', enabled: true },
-    { name: 'Walmart', icon: '🛒', enabled: true },
-    { name: 'Best Buy', icon: '🏷️', enabled: true },
-    { name: 'eBay', icon: '💎', enabled: false }
-  ];
 
   ngOnInit() {
     this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
@@ -308,7 +237,6 @@ export class ResellerSettingsComponent implements OnInit {
 
   loadData() {
     this.isLoadingAlerts = true;
-    this.isLoadingDisplay = true;
 
     this.prefsService.getAlertPreferences()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -318,16 +246,6 @@ export class ResellerSettingsComponent implements OnInit {
           this.isLoadingAlerts = false;
         },
         error: () => this.isLoadingAlerts = false
-      });
-
-    this.prefsService.getDisplayPreferences()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (prefs) => {
-          this.displayPrefs = prefs;
-          this.isLoadingDisplay = false;
-        },
-        error: () => this.isLoadingDisplay = false
       });
   }
 

@@ -19,9 +19,9 @@ class UltraPCScraper(BaseScraper):
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept-Language": "en-US,en;q=0.9",
         }
-        # UltraPC's advanced search route
-        self.base_url = "https://www.ultrapc.ma/recherche"
+        self.mad_to_usd = self.get_conversion_rate("MAD", "USD")
         
+
     def _parse_price(self, text: str) -> float:
         # Example format: "10 500,00 MAD"
         cleaned = text.replace("MAD", "").replace(" ", "").replace("\xa0", "").strip()
@@ -32,16 +32,17 @@ class UltraPCScraper(BaseScraper):
         except ValueError:
             return 0.0
 
-    def scrape(self, query: str, category: Category, max_pages: int = 1) -> Iterator[RawLandingRecord]:
+    def scrape(self, url: str, category: Category, max_pages: int = 1) -> Iterator[RawLandingRecord]:
+        if not url:
+            print(f"Skipping UltraPC {category}: no URL provided.")
+            return
+
         for page in range(1, max_pages + 1):
-            params = {
-                "controller": "search",
-                "s": query,
-                "page": page
-            }
+            # UltraPC category pages use ?page=X for pagination
+            params = {"page": page} if page > 1 else {}
             
             try:
-                response = requests.get(self.base_url, headers=self.headers, params=params, timeout=15)
+                response = requests.get(url, headers=self.headers, params=params, timeout=15)
                 
                 if response.status_code != 200:
                     print(f"Failed to fetch UltraPC HTML: Status {response.status_code}")
@@ -125,6 +126,7 @@ class UltraPCScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=external_id,
+                model_number=None, # UltraPC list view doesn't easily expose model number
                 name=title,
                 brand="Unknown", # Often buried in details page
                 description=description,
@@ -134,10 +136,10 @@ class UltraPCScraper(BaseScraper):
             pricing=Pricing(
                 raw_price=raw_price,
                 raw_currency=Currency.MAD,
-                converted_price_usd=round(raw_price * 0.1, 2), # rough estimate 1 MAD = 0.1 USD
-                original_price_usd=round(original_price * 0.1, 2),
+                converted_price_usd=round(raw_price * self.mad_to_usd, 2),
+                original_price_usd=round(original_price * self.mad_to_usd, 2),
                 discount_percent=discount_percent,
-                conversion_rate_used=0.1
+                conversion_rate_used=self.mad_to_usd
             ),
             availability=Availability(
                 in_stock=in_stock,

@@ -6,13 +6,13 @@ from typing import Optional
 from api import deps
 from core.rate_limit import rate_limit_auth, rate_limit_login, rate_limit_register
 from models.users import User
-from schemas.users import UserCreate, UserOut, Token, SingleUserResponse
+from schemas.users import UserCreate, UserOut, Token, SingleUserResponse, RegisterResponse
 from services.auth import AuthService
 from core.config import settings
 
 router = APIRouter()
 
-@router.post("/register", response_model=SingleUserResponse, status_code=status.HTTP_201_CREATED, dependencies=[Depends(rate_limit_register)])
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=RegisterResponse, dependencies=[Depends(rate_limit_register)])
 async def register(
     user_in: UserCreate, 
     db: AsyncSession = Depends(deps.get_db)
@@ -21,14 +21,13 @@ async def register(
     if user:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, 
-            detail="Cet email est déjà enregistré."
+            detail="This email is already registered."
         )
     new_user = await AuthService.create_user(db, user_in=user_in)
     
-    # Generate verification token (to be sent by email in production)
     verification_token = await AuthService.create_verification_token(db, new_user.id)
     
-    return {"data": new_user}
+    return RegisterResponse(data=UserOut.model_validate(new_user), verification_token=verification_token)
 
 
 @router.post("/login", dependencies=[Depends(rate_limit_login)])
@@ -46,7 +45,7 @@ async def login(
     if user == "lockout":
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-            detail="Trop de tentatives. Compte temporairement bloqué (15 min)."
+            detail="Too many attempts. Account temporarily locked (15 min)."
         )
     
     if user == "unverified":
@@ -55,7 +54,7 @@ async def login(
             detail={
                 "error": {
                     "code": "EMAIL_NOT_VERIFIED",
-                    "message": "Veuillez vérifier votre email avant de vous connecter.",
+                    "message": "Please verify your email before logging in.",
                     "status": 403
                 }
             }
@@ -64,7 +63,7 @@ async def login(
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email ou mot de passe incorrect.",
+            detail="Incorrect email or password.",
             headers={"WWW-Authenticate": "Bearer"},
         )
     
@@ -104,7 +103,7 @@ async def refresh(
     refresh_token = refresh_token_cookie or body.get("refresh_token")
     
     if not refresh_token:
-        raise HTTPException(status_code=401, detail="Session expirée ou invalide.")
+        raise HTTPException(status_code=401, detail="Session expired or invalid.")
     
     new_access_token = await AuthService.refresh_session(
         db, 
@@ -114,7 +113,7 @@ async def refresh(
     )
     
     if not new_access_token:
-        raise HTTPException(status_code=401, detail="Session invalide.")
+        raise HTTPException(status_code=401, detail="Invalid session.")
         
     return {
         "data": {
@@ -141,15 +140,15 @@ async def verify_email(token: str, db: AsyncSession = Depends(deps.get_db)):
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Lien de vérification invalide ou expiré."
+            detail="Invalid or expired verification link."
         )
-    return {"message": "Email vérifié avec succès."}
+    return {"message": "Email verified successfully."}
 
 @router.post("/forgot-password", dependencies=[Depends(rate_limit_auth)])
 async def forgot_password(email: str, db: AsyncSession = Depends(deps.get_db)):
     # Create token if user exists (always returns 200 to prevent enumeration)
     await AuthService.create_password_reset_token(db, email)
-    return {"message": "Si l'email existe, un lien de réinitialisation a été envoyé."}
+    return {"message": "If the email exists, a reset link has been sent."}
 
 @router.post("/reset-password", dependencies=[Depends(rate_limit_auth)])
 async def reset_password(token: str, new_password: str, db: AsyncSession = Depends(deps.get_db)):
@@ -157,13 +156,13 @@ async def reset_password(token: str, new_password: str, db: AsyncSession = Depen
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Lien de réinitialisation invalide ou expiré."
+            detail="Invalid or expired reset link."
         )
-    return {"message": "Mot de passe mis à jour et sessions révoquées."}
+    return {"message": "Password updated and sessions revoked."}
 
 @router.get("/test-token")
 async def test_token(token: str = Depends(deps.reusable_oauth2)):
-    return {"message": "Système JWT fonctionnel.", "token": token}
+    return {"message": "JWT system functional.", "token": token}
 
 @router.get("/me", response_model=SingleUserResponse)
 async def get_me(current_user: User = Depends(deps.get_current_user)):

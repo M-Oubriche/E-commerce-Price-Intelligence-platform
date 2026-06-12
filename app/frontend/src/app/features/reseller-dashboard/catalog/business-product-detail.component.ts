@@ -1,9 +1,15 @@
-import { Component, OnInit, inject, ViewChild, ElementRef, AfterViewInit } from '@angular/core';
+import { Component, OnInit, inject, ViewChild, ElementRef, AfterViewInit, DestroyRef } from '@angular/core';
 import { CommonModule, CurrencyPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterModule } from '@angular/router';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { Chart, registerables } from 'chart.js';
+import { forkJoin, of } from 'rxjs';
+import { catchError, map, switchMap } from 'rxjs/operators';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { ResellerService, SellerProduct } from '../../../core/services/reseller.service';
+import { AnalyticsApiService } from '../../../core/services/analytics-api.service';
+import { DealAnalysisRow } from '../../../core/models/analytics-api.model';
 
 Chart.register(...registerables);
 
@@ -76,7 +82,7 @@ interface CompDetail { seller: string; logo: string; price: number; stock: strin
             <span>Smart Insight</span>
             <h4>{{ product.insightTitle }}</h4>
             <p>{{ product.insightBody }}</p>
-            <button class="insight-btn" (click)="showToast('Recommended price applied: $949.00')">Apply Recommended Price</button>
+            <button class="insight-btn" *ngIf="product.recommendedPrice" (click)="applyRecommendedPrice()">Apply Recommended Price: {{ product.recommendedPrice | currency }}</button>
           </div>
         </div>
       </div>
@@ -113,7 +119,7 @@ interface CompDetail { seller: string; logo: string; price: number; stock: strin
               </span>
               <div class="sg-data">
                 <span class="sg-lbl">Volatility</span>
-                <span class="sg-val">Low</span>
+                <span class="sg-val">{{ volatilityLabel }}</span>
               </div>
             </div>
              <div class="sg-card">
@@ -137,7 +143,7 @@ interface CompDetail { seller: string; logo: string; price: number; stock: strin
               </span>
               <div class="sg-data">
                 <span class="sg-lbl">Market Visibility</span>
-                <span class="sg-val">84%</span>
+                <span class="sg-val">{{ product.margin }}%</span>
               </div>
             </div>
           </div>
@@ -442,7 +448,10 @@ interface CompDetail { seller: string; logo: string; price: number; stock: strin
 })
 export class ResellerProductDetailComponent implements OnInit, AfterViewInit {
   route = inject(ActivatedRoute);
-  
+  private resellerService = inject(ResellerService);
+  private analyticsApi = inject(AnalyticsApiService);
+  private destroyRef = inject(DestroyRef);
+
   @ViewChild('trendChart', { static: false }) chartRef!: ElementRef;
   chartInstance: any;
 
@@ -451,84 +460,248 @@ export class ResellerProductDetailComponent implements OnInit, AfterViewInit {
   toastTimeout: any;
 
   showPriceModal = false;
-  newPrice: number = 0;
+  newPrice = 0;
+  isLoading = true;
 
-  product = {
-    id: '2', name: 'iPhone 15 Pro 256GB Titanium', category: 'Smartphones', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400',
-    yourPrice: 999, lowestComp: 949, margin: 24, status: 'risk', rank: 2,
-    insightTitle: 'Action Required: Price Match', insightBody: 'BestBuy has undercut your price by $50. Drop to $949 to secure the Buy Box. This will reduce your margin to 19%.',
-    yourHistory: [1049, 1049, 1049, 1029, 999, 999, 999, 999, 999, 999],
-    marketHistory: [1029, 1029, 1019, 1019, 999, 989, 969, 949, 949, 949]
+  productId = '';
+  product: {
+    id: string; name: string; category: string; image: string;
+    yourPrice: number; lowestComp: number; margin: number;
+    status: 'healthy' | 'risk' | 'critical'; rank: number;
+    insightTitle: string; insightBody: string;
+    recommendedPrice: number | null;
+    yourHistory: number[]; historyLabels: string[]; marketHistory: number[];
+  } = {
+    id: '', name: 'Loading...', category: '', image: '',
+    yourPrice: 0, lowestComp: 0, margin: 50, status: 'healthy', rank: 1,
+    insightTitle: '', insightBody: '', recommendedPrice: null,
+    yourHistory: [], historyLabels: [], marketHistory: []
   };
 
-  competitors: CompDetail[] = [
-    { seller: 'BestBuy', logo: 'B', price: 949, stock: 'In Stock', shipping: 'Free Next Day', diff: -50, isYou: false },
-    { seller: 'PulsePrice', logo: 'P', price: 999, stock: 'In Stock', shipping: 'Free Standard', diff: 0, isYou: true },
-    { seller: 'Amazon', logo: 'A', price: 1049, stock: 'Low Stock', shipping: 'Free 2-Day', diff: 50, isYou: false },
-    { seller: 'Target', logo: 'T', price: 1099, stock: 'Out of Stock', shipping: 'Pick Up', diff: 100, isYou: false },
-    { seller: 'Walmart', logo: 'W', price: 1099, stock: 'In Stock', shipping: '$5.99 Ship', diff: 100, isYou: false },
-  ];
-
-  sortedCompetitors = this.competitors.sort((a,b) => a.price - b.price);
+  competitors: CompDetail[] = [];
+  sortedCompetitors: CompDetail[] = [];
+  bqSources: DealAnalysisRow[] = [];
 
   ngOnInit() {
-    this.route.paramMap.subscribe(params => {});
+    this.route.paramMap.subscribe(params => {
+      const id = params.get('id') || '';
+      if (id && id !== this.productId) {
+        this.productId = id;
+        this.loadProduct();
+      }
+    });
   }
 
   ngAfterViewInit() {
-    this.initChart();
+    // Chart inits after data loads
+  }
+
+  loadProduct() {
+    this.isLoading = true;
+    forkJoin({
+      products: this.resellerService.getProducts().pipe(catchError(() => of([]))),
+      history: this.resellerService.getProductHistory(this.productId).pipe(catchError(() => of([])))
+    }).pipe(
+      switchMap(({ products, history }) => {
+        const prod = products.find(p => p.id === this.productId);
+        if (!prod) return of({ prod: null as any, history, bqProduct: null as any, bqSources: [] as DealAnalysisRow[] });
+        return this.analyticsApi.searchProducts(prod.product_name).pipe(
+          catchError(() => of([])),
+          switchMap(results => {
+            const normalized = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
+            const searchName = normalized(prod.product_name);
+            const scored = results.map(r => {
+              const bqName = normalized(r.product_name);
+              const words = searchName.split(/\s+/).filter(w => w.length > 2);
+              const matches = words.filter(w => bqName.includes(w)).length;
+              const score = words.length > 0 ? matches / words.length : (bqName === searchName ? 1 : 0);
+              const exactBonus = bqName === searchName ? 10 : 0;
+              return { result: r, score: score + exactBonus };
+            });
+            scored.sort((a, b) => b.score - a.score);
+            const best = scored[0];
+            if (!best || best.score < 0.3) return of({ prod, history, bqProduct: null as any, bqSources: [] as DealAnalysisRow[] });
+            return this.analyticsApi.getProductDetail(best.result.product_unified_id).pipe(
+              catchError(() => of([])),
+              map(sources => ({ prod, history, bqProduct: best.result, bqSources: sources }))
+            );
+          })
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe({
+      next: ({ prod, history, bqProduct, bqSources }) => {
+        if (!prod) {
+          this.product.name = 'Product not found';
+          this.isLoading = false;
+          return;
+        }
+        this.buildProductView(prod, history, bqProduct, bqSources);
+      },
+      error: () => {
+        this.isLoading = false;
+        this.product.name = 'Failed to load product';
+      }
+    });
+  }
+
+  refreshInsight() {
+    const cur = this.product.yourPrice;
+    const cmp = this.product.lowestComp;
+    const cheaperCount = this.bqSources.filter(s => (s.current_price ?? Infinity) < cur).length;
+    const diffPct = cmp < cur ? ((cur - cmp) / cur) * 100 : 0;
+    const st: 'healthy' | 'risk' | 'critical' = diffPct > 10 ? 'critical' : diffPct > 0 ? 'risk' : 'healthy';
+
+    this.product.status = st;
+    this.product.recommendedPrice = cheaperCount > 0 ? cmp : null;
+    this.product.insightTitle = st === 'critical'
+      ? `Price Under Attack — $${(cur - cmp).toFixed(2)} gap`
+      : st === 'risk'
+      ? `Competition Closing In — ${cheaperCount} cheaper`
+      : 'Market Leader — Best Positioned';
+    this.product.insightBody = st === 'critical'
+      ? `${cheaperCount} competitor${cheaperCount > 1 ? 's' : ''} sell${cheaperCount === 1 ? 's' : ''} below you. Dropping to $${cmp.toFixed(2)} matches the lowest price and restores buy box eligibility.`
+      : st === 'risk'
+      ? `${cheaperCount} competitor${cheaperCount > 1 ? 's' : ''} ${cheaperCount === 1 ? 'is' : 'are'} undercutting by $${(cur - cmp).toFixed(2)}. A small adjustment may be needed soon.`
+      : `You are the market leader at $${cur.toFixed(2)} with no competitors lower. Keep monitoring for changes.`;
+  }
+
+  private buildProductView(
+    prod: SellerProduct,
+    history: { old_price: number; new_price: number; recorded_at: string }[],
+    bqProduct: DealAnalysisRow | null,
+    bqSources: DealAnalysisRow[]
+  ) {
+    this.bqSources = bqSources;
+    const bqLowest = bqSources.length > 0 ? Math.min(...bqSources.map(s => s.current_price ?? Infinity).filter(p => p > 0)) : Infinity;
+    const lowestComp = bqLowest < Infinity ? bqLowest : (prod.cached_lowest_comp_price || prod.my_price);
+    const cheaperCount = bqSources.filter(s => (s.current_price ?? Infinity) < prod.my_price).length;
+    const diffPct = lowestComp < prod.my_price ? ((prod.my_price - lowestComp) / prod.my_price) * 100 : 0;
+    const status: 'healthy' | 'risk' | 'critical' = diffPct > 10 ? 'critical' : diffPct > 0 ? 'risk' : 'healthy';
+    const margin = prod.cached_market_visibility_pct || 50;
+    const priceRank = lowestComp < prod.my_price ? 2 : 1;
+    const chronological = [...history].reverse();
+    const yourHistory = chronological.map(h => h.new_price);
+    const historyLabels = chronological.map(h => {
+      const d = new Date(h.recorded_at);
+      const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+      return `${months[d.getMonth()]} ${d.getDate()}`;
+    });
+
+    this.product = {
+      id: prod.id,
+      name: prod.product_name,
+      category: prod.category || (bqProduct?.product_category || 'Other'),
+      image: bqProduct?.product_image_url || prod.emoji_icon || 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400',
+      yourPrice: prod.my_price,
+      lowestComp,
+      margin,
+      status,
+      rank: priceRank,
+      recommendedPrice: bqSources.some(s => (s.current_price ?? Infinity) < prod.my_price) ? lowestComp : null,
+      insightTitle: status === 'critical'
+        ? `Price Under Attack — $${(prod.my_price - lowestComp).toFixed(2)} gap`
+        : status === 'risk'
+        ? `Competition Closing In — ${cheaperCount} cheaper`
+        : 'Market Leader — Best Positioned',
+      insightBody: status === 'critical'
+        ? `${cheaperCount} competitor${cheaperCount > 1 ? 's' : ''} sell${cheaperCount === 1 ? 's' : ''} below you. Dropping to $${lowestComp.toFixed(2)} matches the lowest price and restores buy box eligibility.`
+        : status === 'risk'
+        ? `${cheaperCount} competitor${cheaperCount > 1 ? 's' : ''} ${cheaperCount === 1 ? 'is' : 'are'} undercutting by $${(prod.my_price - lowestComp).toFixed(2)}. A small adjustment may be needed soon.`
+        : `You are the market leader at $${prod.my_price.toFixed(2)} with no competitors lower. Keep monitoring for changes.`,
+      yourHistory,
+      historyLabels,
+      marketHistory: []
+    };
+
+    // Build competitors table from all BQ sources + user's own listing
+    this.competitors = [
+      { seller: 'You (PulsePrice)', logo: 'P', price: prod.my_price, stock: 'In Stock', shipping: '—', diff: 0, isYou: true }
+    ];
+
+    const seenSources = new Set<string>();
+    bqSources.forEach(s => {
+      const key = s.source?.toLowerCase() || '';
+      if (!key || seenSources.has(key)) return;
+      seenSources.add(key);
+      const compPrice = s.current_price ?? 0;
+      this.competitors.push({
+        seller: s.source || 'Unknown',
+        logo: (s.source || 'U').charAt(0).toUpperCase(),
+        price: compPrice,
+        stock: s.in_stock === false ? 'Out of Stock' : 'In Stock',
+        shipping: '—',
+        diff: compPrice - prod.my_price,
+        isYou: false
+      });
+    });
+
+    this.sortedCompetitors = [...this.competitors].sort((a, b) => a.price - b.price);
+    this.isLoading = false;
+    if (this.chartRef) this.initChart();
+  }
+
+  deriveStatus(p: SellerProduct): 'healthy' | 'risk' | 'critical' {
+    if (!p.cached_lowest_comp_price) return 'healthy';
+    const diff = ((p.my_price - p.cached_lowest_comp_price) / p.my_price) * 100;
+    if (diff > 10) return 'critical';
+    if (diff > 0) return 'risk';
+    return 'healthy';
   }
 
   initChart() {
     if (!this.chartRef) return;
     const ctx = this.chartRef.nativeElement.getContext('2d');
-    
-    // Create Gradients
+    if (!ctx) return;
+
+    const labels = this.product.historyLabels.length > 0
+      ? this.product.historyLabels
+      : ['Today'];
+
+    const priceData = this.product.yourHistory.length > 0
+      ? this.product.yourHistory
+      : [this.product.yourPrice];
+
     const myGradient = ctx.createLinearGradient(0, 0, 0, 400);
     myGradient.addColorStop(0, 'rgba(59, 130, 246, 0.4)');
     myGradient.addColorStop(1, 'rgba(59, 130, 246, 0)');
-    
-    const mktGradient = ctx.createLinearGradient(0, 0, 0, 400);
-    mktGradient.addColorStop(0, 'rgba(16, 185, 129, 0.3)');
-    mktGradient.addColorStop(1, 'rgba(16, 185, 129, 0)');
 
-    const labels = ['Mar 1', 'Mar 4', 'Mar 8', 'Mar 12', 'Mar 15', 'Mar 18', 'Mar 21', 'Mar 25', 'Mar 28', 'Today'];
+    const datasets: any[] = [{
+      label: 'Your Price',
+      data: priceData,
+      borderColor: '#3B82F6',
+      backgroundColor: myGradient,
+      borderWidth: 3,
+      fill: true,
+      tension: 0.4,
+      pointBackgroundColor: '#3B82F6',
+      pointBorderColor: '#fff',
+      pointBorderWidth: 2,
+      pointRadius: 4,
+      pointHoverRadius: 7
+    }];
+
+    if (this.product.lowestComp > 0 && this.product.lowestComp !== this.product.yourPrice) {
+      datasets.push({
+        label: 'Market Low',
+        data: new Array(labels.length).fill(this.product.lowestComp),
+        borderColor: '#10B981',
+        borderWidth: 2,
+        borderDash: [6, 4],
+        fill: false,
+        pointRadius: 0,
+        pointHoverRadius: 4
+      });
+    }
+
+    const allPrices = datasets.flatMap((d: any) => d.data).filter((v: number) => v > 0) as number[];
+    const minPrice = Math.min(...allPrices) - 30;
+    const maxPrice = Math.max(...allPrices) + 30;
+    const padding = (maxPrice - minPrice) * 0.1;
 
     this.chartInstance = new Chart(ctx, {
       type: 'line',
-      data: {
-        labels: labels,
-        datasets: [
-          {
-            label: 'Your Price',
-            data: this.product.yourHistory,
-            borderColor: '#3B82F6',
-            backgroundColor: myGradient,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.4,
-            pointBackgroundColor: '#3B82F6',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 4,
-            pointHoverRadius: 7
-          },
-          {
-            label: 'Market Low',
-            data: this.product.marketHistory,
-            borderColor: '#10B981',
-            backgroundColor: mktGradient,
-            borderWidth: 2,
-            fill: true,
-            tension: 0.4,
-            pointBackgroundColor: '#10B981',
-            pointBorderColor: '#fff',
-            pointBorderWidth: 2,
-            pointRadius: 3,
-            pointHoverRadius: 6
-          }
-        ]
-      },
+      data: { labels, datasets },
       options: {
         responsive: true,
         maintainAspectRatio: false,
@@ -564,22 +737,28 @@ export class ResellerProductDetailComponent implements OnInit, AfterViewInit {
             grid: { color: 'rgba(255,255,255,0.05)' },
             border: { dash: [4, 4] },
             ticks: {
-              color: '#8b949e', 
+              color: '#8b949e',
               font: { family: 'Inter', size: 11 },
               callback: (value) => '$' + value
             },
-            suggestedMin: 900,
-            suggestedMax: 1060
+            suggestedMin: Math.max(0, minPrice - padding),
+            suggestedMax: maxPrice + padding
           }
         }
       }
     });
   }
 
-  getMarginColor(): string {
-    if (this.product.status === 'healthy') return '#10B981';
-    if (this.product.status === 'risk') return '#F59E0B';
-    return '#EF4444';
+  get volatilityLabel(): string {
+    if (this.product.historyLabels.length < 2) return '—';
+    const prices = this.product.yourHistory;
+    const changes = prices.slice(1).map((p, i) => Math.abs(p - prices[i]));
+    const avgChange = changes.reduce((s, c) => s + c, 0) / changes.length;
+    const avgPrice = prices.reduce((s, p) => s + p, 0) / prices.length;
+    const pct = avgPrice > 0 ? (avgChange / avgPrice) * 100 : 0;
+    if (pct < 2) return 'Low';
+    if (pct < 5) return 'Medium';
+    return 'High';
   }
 
   getDiffClass(diff: number): string {
@@ -596,6 +775,12 @@ export class ResellerProductDetailComponent implements OnInit, AfterViewInit {
     }, 3000);
   }
 
+  applyRecommendedPrice() {
+    if (!this.product.recommendedPrice) return;
+    this.newPrice = this.product.recommendedPrice;
+    this.saveNewPrice();
+  }
+
   openPriceModal() {
     this.newPrice = this.product.yourPrice;
     this.showPriceModal = true;
@@ -606,34 +791,43 @@ export class ResellerProductDetailComponent implements OnInit, AfterViewInit {
   }
 
   saveNewPrice() {
-    if (this.newPrice && this.newPrice > 0) {
-      this.product.yourPrice = this.newPrice;
-      
-      // Update the chart history dynamically to reflect the drop immediately
-      this.product.yourHistory[this.product.yourHistory.length - 1] = this.newPrice;
-      if (this.chartInstance) {
-        this.chartInstance.update();
-      }
+    if (!this.newPrice || this.newPrice <= 0) return;
+    this.resellerService.updateProduct(this.productId, { my_price: this.newPrice })
+      .subscribe({
+        next: () => {
+          this.product.yourPrice = this.newPrice;
+          this.refreshInsight();
+          const today = new Date();
+          const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+          const label = `${months[today.getMonth()]} ${today.getDate()}`;
+          if (this.product.historyLabels.length > 0 && this.product.historyLabels[this.product.historyLabels.length - 1] === label) {
+            this.product.yourHistory[this.product.yourHistory.length - 1] = this.newPrice;
+          } else {
+            this.product.historyLabels.push(label);
+            this.product.yourHistory.push(this.newPrice);
+          }
+          if (this.chartInstance) {
+            this.chartInstance.data.labels = this.product.historyLabels;
+            this.chartInstance.data.datasets[0].data = this.product.yourHistory;
+            this.chartInstance.update();
+          }
 
-      // Update competitor table "You" label price
-      const youIdx = this.sortedCompetitors.findIndex(c => c.isYou);
-      if (youIdx > -1) {
-        this.sortedCompetitors[youIdx].price = this.newPrice;
-        // Recalculate diffs based on lowest
-        const lowestExceptYou = Math.min(...this.sortedCompetitors.filter(c => !c.isYou).map(c => c.price));
-        this.sortedCompetitors.forEach(c => c.diff = c.price - lowestExceptYou);
-        this.sortedCompetitors.sort((a,b) => a.price - b.price);
-      }
+          const youIdx = this.sortedCompetitors.findIndex(c => c.isYou);
+          if (youIdx > -1) {
+            this.sortedCompetitors[youIdx].price = this.newPrice;
+            this.sortedCompetitors.sort((a, b) => a.price - b.price);
+          }
 
-      this.showToast(`Price successfully updated to $${this.newPrice.toFixed(2)}`);
-      this.closePriceModal();
-    }
+          this.showToast(`Price updated to $${this.newPrice.toFixed(2)}`);
+          this.closePriceModal();
+        },
+        error: (err) => this.showToast(err.error?.detail || 'Failed to update price.')
+      });
   }
 
   calculateNewMargin(): number {
-    if (!this.newPrice) return 0;
-    // Mock calculation: Your cost is roughly 750
-    const cost = 750;
+    if (!this.newPrice || !this.product.yourPrice) return 0;
+    const cost = this.product.yourPrice * 0.75;
     const margin = ((this.newPrice - cost) / this.newPrice) * 100;
     return Math.max(0, Math.round(margin * 10) / 10);
   }

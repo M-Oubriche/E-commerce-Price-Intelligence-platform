@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from airflow import DAG
 from airflow.operators.bash import BashOperator
 from airflow.operators.python import PythonOperator
+from airflow.operators.trigger_dagrun import TriggerDagRunOperator
 from google.cloud import bigtable
 
 # Default args for the DAG
@@ -31,8 +32,13 @@ def process_raw_files_to_bigtable():
     archive_dir = Path("/data/archive")
     
     # Initialize Bigtable Client
-    project_id = os.environ.get("BIGTABLE_PROJECT_ID", "ecommerce-platform-dev")
-    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID", "price-intelligence-db")
+    project_id  = os.environ.get("BIGTABLE_PROJECT_ID")
+    instance_id = os.environ.get("BIGTABLE_INSTANCE_ID")
+    if not project_id or not instance_id:
+        raise EnvironmentError(
+            "BIGTABLE_PROJECT_ID and BIGTABLE_INSTANCE_ID must be set. "
+            "Check your .env file and docker-compose.yml."
+        )
     table_id = "ecommerce_prices"
     
     client = bigtable.Client(project=project_id, admin=True)
@@ -93,16 +99,24 @@ def process_raw_files_to_bigtable():
                     row.set_cell("metadata_cf", b"category", prod.get("category", "").encode('utf-8'))
                     row.set_cell("metadata_cf", b"source", source.encode('utf-8'))
                     row.set_cell("metadata_cf", b"source_url", record.get("source_url", "").encode('utf-8'))
+                    row.set_cell("metadata_cf", b"external_id", prod.get("external_id", "Unknown").encode('utf-8')) # FIX: Bug 1
                     
+                    model_number = prod.get("model_number")
+                    if model_number:
+                        row.set_cell("metadata_cf", b"model_number", model_number.encode('utf-8'))
+                    
+                    if prod.get("description") is not None:
+                        row.set_cell("metadata_cf", b"description", prod.get("description").encode('utf-8')) # FIX: Bug 3
+
                     image_url = prod.get("image_url")
                     if image_url:
                         row.set_cell("metadata_cf", b"image_url", image_url.encode('utf-8'))
                         
                     # 3. Price CF
                     pricing = record.get("pricing", {})
-                    for p_field in ["raw_price", "converted_price_usd", "original_price_usd", "discount_percent", "conversion_rate"]:
+                    for p_field in ["raw_price", "converted_price_usd", "original_price_usd", "discount_percent", "conversion_rate_used"]: # FIX: Bug 2
                         if pricing.get(p_field) is not None:
-                            row.set_cell("price_cf", p_field.encode('utf-8'), str(pricing.get(p_field)).encode('utf-8'))
+                            row.set_cell("price_cf", p_field.encode('utf-8'), str(pricing.get(p_field)).encode('utf-8')) # FIX: Bug 2
                     
                     raw_currency = pricing.get("raw_currency")
                     if raw_currency:
@@ -114,13 +128,19 @@ def process_raw_files_to_bigtable():
                     
                     if avail.get("quantity") is not None:
                          row.set_cell("availability_cf", b"quantity", str(avail.get("quantity")).encode('utf-8'))
+                    if avail.get("shipping_available") is not None:
+                        row.set_cell("availability_cf", b"shipping_available", str(avail.get("shipping_available")).encode('utf-8')) # FIX: Bug 4
                     
                     # 5. Seller CF
                     seller = record.get("seller", {})
                     if seller.get("seller_name"):
                         row.set_cell("seller_cf", b"seller_name", seller.get("seller_name").encode('utf-8'))
+                    if seller.get("seller_type"):
+                        row.set_cell("seller_cf", b"seller_type", seller.get("seller_type").encode('utf-8')) # FIX: Bug 5
                     if seller.get("seller_rating") is not None:
                         row.set_cell("seller_cf", b"seller_rating", str(seller.get("seller_rating")).encode('utf-8'))
+                    if seller.get("seller_location"):
+                        row.set_cell("seller_cf", b"seller_location", seller.get("seller_location").encode('utf-8')) # FIX: Bug 5
                         
                     # 6. Ratings CF
                     ratings = record.get("ratings", {})
@@ -132,7 +152,19 @@ def process_raw_files_to_bigtable():
                     # 7. Specs CF
                     specs = record.get("specs", {})
                     if specs:
-                        row.set_cell("specs_cf", b"json_blob", json.dumps(specs).encode('utf-8'))
+                        valid_categories = {
+                            "GPU", "CPU", "RAM", "SSD", "HDD", "Monitor", "Keyboard",
+                            "Mouse", "PSU", "Case", "Cooling", "Motherboard", "Laptop",
+                            "Desktop", "Mobile", "Peripheral", "Other"
+                        }
+                        if isinstance(specs, dict) and all(
+                            k in valid_categories and (v is None or isinstance(v, dict))
+                            for k, v in specs.items()
+                        ):
+                            row.set_cell("specs_cf", b"json_blob", json.dumps(specs).encode('utf-8'))
+                        else:
+                            import sys
+                            print(f"WARNING: Malformed specs on line {line_no} in {file_path}. Skipping.", file=sys.stderr)
 
                     rows.append(row)
 
@@ -144,13 +176,16 @@ def process_raw_files_to_bigtable():
                 print(f"Writing {len(rows)} rows to Bigtable...")
                 # Note: table.mutate_rows handles batch operations
                 response = table.mutate_rows(rows)
-                # Check for errors
+                # Check for errors — archive only on full success
                 failed = sum(1 for status in response if status.code != 0)
                 if failed > 0:
-                    print(f"WARNING: {failed} mutations failed.")
-                total_processed += (len(rows) - failed)
+                    raise RuntimeError(
+                        f"{failed}/{len(rows)} Bigtable mutations failed for {file_path}. "
+                        "File NOT archived — retry on next DAG run."
+                    )
+                total_processed += len(rows)
 
-        # Archive file after processing
+        # Archive file after processing (only reached if no error above)
         dest_dir = archive_dir / datetime.now().strftime("%Y-%m-%d")
         dest_dir.mkdir(parents=True, exist_ok=True)
         dest_file = dest_dir / file_path.name
@@ -164,24 +199,39 @@ def process_raw_files_to_bigtable():
 with DAG(
     'ingest_ecommerce_prices',
     default_args=default_args,
-    description='Run scrapers and ingest to Bigtable',
+    description='Stage 1+2: Run scrapers → ingest JSONL files into Bigtable, then trigger export to BigQuery',
     schedule_interval='@daily',
     start_date=datetime(2026, 1, 1),
     catchup=False,
-    tags=['scraping', 'ingestion'],
+    tags=['scraping', 'ingestion', 'pipeline'],
 ) as dag:
 
-    # Task 1: Trigger the existing scraper docker container
-    # Since we mounted the docker.sock, we can run `docker exec`!
+    # Task 1: Ensure /data/archive exists
+    ensure_archive = BashOperator(
+        task_id='ensure_archive_dir',
+        bash_command='mkdir -p /data/archive',
+    )
+
+    # Task 2: Trigger the existing scraper docker container
     run_scrapers = BashOperator(
         task_id='run_scrapers_container',
         bash_command='docker exec -w /app/scrapers price_scraper python main.py'
     )
 
-    # Task 2: Process the resulting files
+    # Task 3: Process the resulting files → push to Bigtable
     ingest_to_bigtable = PythonOperator(
         task_id='push_to_bigtable',
         python_callable=process_raw_files_to_bigtable
     )
 
-    run_scrapers >> ingest_to_bigtable
+    # Task 4: Trigger the export DAG (Bigtable → BigQuery → dbt)
+    # This creates the end-to-end chain without coupling the two DAGs into one
+    trigger_export = TriggerDagRunOperator(
+        task_id='trigger_bigquery_export_and_dbt',
+        trigger_dag_id='bigtable_to_bigquery_export',
+        wait_for_completion=False,  # Fire-and-forget; export DAG has its own retries
+        reset_dag_run=True,
+    )
+
+    ensure_archive >> run_scrapers >> ingest_to_bigtable >> trigger_export
+

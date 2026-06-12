@@ -1,14 +1,16 @@
 import { Component, inject, HostListener, OnInit, DestroyRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router, NavigationEnd } from '@angular/router';
-import { filter, take } from 'rxjs/operators';
+import { filter, take, debounceTime, distinctUntilChanged, switchMap, catchError } from 'rxjs/operators';
 import { AuthService } from '../../core/services/auth.service';
+import { WatchlistService } from '../../core/services/watchlist.service';
 import { FormsModule } from '@angular/forms';
 import { ThemeToggleComponent } from '../../shared/components/theme-toggle/theme-toggle.component';
-import { PLATFORM_PRODUCT_LIBRARY } from '../../core/constants/product-library';
 import { WebSocketService } from '../../core/services/websocket.service';
 import { NotificationsService, Notification } from '../../core/services/notifications.service';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { AnalyticsApiService } from '../../core/services/analytics-api.service';
+import { Subject, of } from 'rxjs';
 
 @Component({
   selector: 'app-client-dashboard',
@@ -41,12 +43,12 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
         <a routerLink="/dashboard/tracked" routerLinkActive="active" class="nav-item">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"></path></svg>
           <span class="nav-label">Tracked Products</span>
-          <span class="nav-badge blue">6</span>
+          <span class="nav-badge blue">{{ trackedCount }}</span>
         </a>
         <a routerLink="/dashboard/alerts" routerLinkActive="active" class="nav-item">
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
           <span class="nav-label">My Alerts</span>
-          <span class="nav-badge amber">4</span>
+          <span class="nav-badge amber">{{ alertsCount }}</span>
         </a>
 
         <div class="nav-section-label">DISCOVER</div>
@@ -54,12 +56,6 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
           <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path></svg>
           <span class="nav-label">Deal Feed</span>
         </a>
-
-        <div class="savings-widget">
-          <div class="savings-label">TOTAL SAVED</div>
-          <div class="savings-amount">$340.00</div>
-          <div class="savings-sub">since you joined</div>
-        </div>
 
         <hr class="nav-divider">
         
@@ -86,11 +82,11 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
       
       <div class="topbar-search">
         <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
-        <input type="text" [(ngModel)]="searchQuery" (input)="showSuggestions = true" placeholder="Search for products..." (keydown.enter)="onSearch($event)" autocomplete="off">
+        <input type="text" [(ngModel)]="searchQuery" (input)="onSearchInput()" placeholder="Search for products..." (keydown.enter)="onSearch($event)" autocomplete="off">
         
         <!-- Suggestions Dropdown -->
-        <div class="suggestions-dropdown" *ngIf="showSuggestions && filteredSuggestions.length > 0">
-          <div class="suggestion-item" *ngFor="let prod of filteredSuggestions" (click)="selectSuggestion(prod)">
+        <div class="suggestions-dropdown" *ngIf="showSuggestions && suggestions.length > 0">
+          <div class="suggestion-item" *ngFor="let prod of suggestions" (click)="selectSuggestion(prod)">
             <img [src]="prod.image" class="s-img">
             <div class="s-info">
               <span class="s-name">{{ prod.name }}</span>
@@ -569,8 +565,12 @@ export class ClientDashboardComponent implements OnInit {
   currentPageTitle = 'Dashboard';
   searchQuery = '';
   showSuggestions = false;
+  suggestions: any[] = [];
   showNotifications = false;
   unreadCount = 0;
+  trackedCount = 0;
+  alertsCount = 0;
+  private searchSubject = new Subject<string>();
 
   notifications: any[] = [];
 
@@ -579,6 +579,8 @@ export class ClientDashboardComponent implements OnInit {
   private wsService = inject(WebSocketService);
   private notifService = inject(NotificationsService);
   private destroyRef = inject(DestroyRef);
+  private analyticsApi = inject(AnalyticsApiService);
+  private watchlistService = inject(WatchlistService);
 
   ngOnInit() {
     this.authService.currentUser$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(user => {
@@ -587,9 +589,37 @@ export class ClientDashboardComponent implements OnInit {
           this.wsService.connect(user.id, token!);
         });
         this.loadNotifications();
+        this.loadCounts();
       } else {
         this.wsService.disconnect();
       }
+    });
+
+    this.watchlistService.watchlistChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadCounts());
+
+    this.searchSubject.pipe(
+      debounceTime(300),
+      distinctUntilChanged(),
+      switchMap(q => {
+        if (!q || q.length < 2) {
+          this.suggestions = [];
+          return of([]);
+        }
+        return this.analyticsApi.searchProducts(q).pipe(
+          catchError(() => of([]))
+        );
+      }),
+      takeUntilDestroyed(this.destroyRef)
+    ).subscribe(results => {
+      this.suggestions = results.map(r => ({
+        id: r.product_unified_id,
+        name: r.product_name,
+        category: r.product_category,
+        image: r.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200'
+      })).slice(0, 5);
+      this.showSuggestions = true;
     });
 
     this.wsService.messages$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(msg => {
@@ -686,6 +716,18 @@ export class ClientDashboardComponent implements OnInit {
     else this.currentPageTitle = 'Dashboard';
   }
 
+  loadCounts() {
+    this.watchlistService.getWatchlist()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(items => {
+        this.trackedCount = items.length;
+        this.alertsCount = items.reduce(
+          (sum, item) => sum + (item.shopper_alerts?.filter(a => a.status === 'active').length || 0),
+          0
+        );
+      });
+  }
+
   onSearch(event: any) {
     if (this.searchQuery) {
       this.showSuggestions = false;
@@ -693,10 +735,8 @@ export class ClientDashboardComponent implements OnInit {
     }
   }
 
-  get filteredSuggestions() {
-    if (!this.searchQuery || this.searchQuery.length < 1) return [];
-    const q = this.searchQuery.toLowerCase();
-    return PLATFORM_PRODUCT_LIBRARY.filter(p => p.name.toLowerCase().includes(q)).slice(0, 5);
+  onSearchInput() {
+    this.searchSubject.next(this.searchQuery);
   }
 
   selectSuggestion(prod: any) {

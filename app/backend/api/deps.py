@@ -1,5 +1,5 @@
 from typing import AsyncGenerator, Optional
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,12 +10,32 @@ from core.config import settings
 from models.users import User
 
 reusable_oauth2 = OAuth2PasswordBearer(
-    tokenUrl="api/v1/auth/login"
+    tokenUrl="api/v1/auth/login", auto_error=False
 )
 
 async def get_db() -> AsyncGenerator:
     async with AsyncSessionLocal() as session:
         yield session
+
+async def get_optional_current_user(
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+) -> User | None:
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        if payload.get("type") != "access":
+            return None
+        user_id: str = payload.get("sub")
+        if not user_id:
+            return None
+        result = await db.execute(select(User).filter(User.id == user_id))
+        user = result.scalars().first()
+        return user if user and user.is_active else None
+    except JWTError:
+        return None
 
 async def get_current_user(
     db: AsyncSession = Depends(get_db),
@@ -25,6 +45,11 @@ async def get_current_user(
         payload = jwt.decode(
             token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM]
         )
+        if payload.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token type.",
+            )
         user_id: str = payload.get("sub")
         if user_id is None:
             raise HTTPException(

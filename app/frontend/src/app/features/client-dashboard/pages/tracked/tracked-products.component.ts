@@ -37,17 +37,17 @@ import { WatchlistService, WatchlistItem } from '../../../../core/services/watch
 
       <ng-container *ngIf="!isLoading && !error">
         <div class="filter-bar animate-in" *ngIf="trackedProducts.length > 0">
-          <button class="filter-pill active">All</button>
-          <button class="filter-pill">Price Dropped</button>
-          <button class="filter-pill">Price Rising</button>
-          <button class="filter-pill">Has Alert</button>
-          <button class="filter-pill">No Alert</button>
+          <button class="filter-pill" [class.active]="activeFilter === 'all'" (click)="setFilter('all')">All</button>
+          <button class="filter-pill" [class.active]="activeFilter === 'price-dropped'" (click)="setFilter('price-dropped')">Price Dropped</button>
+          <button class="filter-pill" [class.active]="activeFilter === 'price-rising'" (click)="setFilter('price-rising')">Price Rising</button>
+          <button class="filter-pill" [class.active]="activeFilter === 'has-alert'" (click)="setFilter('has-alert')">Has Alert</button>
+          <button class="filter-pill" [class.active]="activeFilter === 'no-alert'" (click)="setFilter('no-alert')">No Alert</button>
         </div>
 
-        <div class="products-grid" *ngIf="trackedProducts.length > 0; else emptyState">
-          <div class="product-card animate-in" *ngFor="let product of trackedProducts" [routerLink]="['/product', product.id]">
+        <div class="products-grid" *ngIf="filteredProducts.length > 0; else emptyState">
+          <div class="product-card animate-in" *ngFor="let product of filteredProducts" [routerLink]="['/product', product.productId]">
             <div class="card-image">
-              <img [src]="product.image" [alt]="product.name">
+              <img [src]="product.image" [alt]="product.name" (error)="product.image='https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400'">
               <div class="floating-score" [class]="getScoreClass(product.dealScore)">
                 {{ product.dealScore }}
               </div>
@@ -68,7 +68,7 @@ import { WatchlistService, WatchlistItem } from '../../../../core/services/watch
               <h3 class="product-name">{{ product.name }}</h3>
               
               <div class="price-row">
-                <div class="product-price">{{ product.currentPrice | currency }}</div>
+                <div class="product-price">{{ product.currentPrice != null ? (product.currentPrice | currency) : '—' }}</div>
                 <div class="product-platform">at {{ product.platform }}</div>
               </div>
             </div>
@@ -83,7 +83,7 @@ import { WatchlistService, WatchlistItem } from '../../../../core/services/watch
                 <button
                   class="icon-btn"
                   [class.bell-active]="product.hasAlert"
-                  (click)="$event.stopPropagation(); router.navigate(['/dashboard/alerts'], { queryParams: { product: product.id } })"
+                  (click)="$event.stopPropagation(); toggleAlert(product)"
                 >
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path></svg>
                 </button>
@@ -297,32 +297,54 @@ export class TrackedProductsComponent implements OnInit {
   trackedProducts: any[] = [];
   isLoading = true;
   error: string | null = null;
+  activeFilter = 'all';
+
+  get filteredProducts() {
+    switch (this.activeFilter) {
+      case 'price-dropped': return this.trackedProducts.filter(p => p.currentPrice != null && p.priceWhenAdded != null && p.currentPrice < p.priceWhenAdded);
+      case 'price-rising': return this.trackedProducts.filter(p => p.currentPrice != null && p.priceWhenAdded != null && p.currentPrice > p.priceWhenAdded);
+      case 'has-alert': return this.trackedProducts.filter(p => p.hasAlert);
+      case 'no-alert': return this.trackedProducts.filter(p => !p.hasAlert);
+      default: return this.trackedProducts;
+    }
+  }
+
+  setFilter(filter: string) {
+    this.activeFilter = filter;
+  }
 
   constructor(public router: Router) {}
 
   ngOnInit() {
     this.fetchWatchlist();
+    this.watchlistService.watchlistChanged$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.fetchWatchlist());
   }
 
   fetchWatchlist() {
     this.isLoading = true;
     this.error = null;
-    
+
+    const fallbackImage = 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400';
+
     this.watchlistService.getWatchlist()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) => {
           this.trackedProducts = items.map(item => ({
             id: item.id,
+            productId: item.product_id,
             name: item.product_name,
-            category: item.category,
-            currentPrice: item.current_price,
-            originalPrice: item.original_price,
-            priceWhenAdded: item.original_price, // Mapping this for price change tag
-            platform: item.platform,
-            dealScore: this.calculateDealScore(item), // Mocking deal score logic
+            category: item.category || this.inferCategory(item.product_name),
+            currentPrice: item.current_price != null ? Number(item.current_price) : null,
+            originalPrice: item.original_price != null ? Number(item.original_price) : (item.current_price != null ? Number(item.current_price) : null),
+            priceWhenAdded: item.original_price != null ? Number(item.original_price) : (item.current_price != null ? Number(item.current_price) : null),
+            platform: item.platform || 'Unknown',
+            dealScore: item.deal_score ?? this.safeDealScore(item),
             hasAlert: (item.shopper_alerts?.length || 0) > 0,
-            image: item.image_url
+            alertId: item.shopper_alerts?.[0]?.id || null,
+            image: item.image_url || fallbackImage,
           }));
           this.isLoading = false;
         },
@@ -335,7 +357,7 @@ export class TrackedProductsComponent implements OnInit {
 
   removeFromWatchlist(id: string) {
     if (!confirm('Are you sure you want to stop tracking this product?')) return;
-    
+
     this.watchlistService.removeFromWatchlist(id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -346,11 +368,50 @@ export class TrackedProductsComponent implements OnInit {
       });
   }
 
-  private calculateDealScore(item: WatchlistItem): number {
-    // Simple mock logic: percentage drop from original price
-    const drop = ((item.original_price - item.current_price) / item.original_price) * 100;
+  toggleAlert(product: any) {
+    if (product.hasAlert && product.alertId) {
+      this.watchlistService.deleteAlert(product.alertId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            product.hasAlert = false;
+            product.alertId = null;
+          }
+        });
+    } else {
+      this.watchlistService.createAlertForWatchlistItem(product.id, product.currentPrice || 0)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (alert) => {
+            product.hasAlert = true;
+            product.alertId = alert.id;
+          }
+        });
+    }
+  }
+
+  private safeDealScore(item: WatchlistItem): number {
+    const orig = item.original_price ?? 0;
+    const curr = item.current_price ?? 0;
+    if (orig <= 0) return 0;
+    const drop = ((orig - curr) / orig) * 100;
     const score = 5 + (drop / 10);
-    return Math.min(Math.round(score * 10) / 10, 10);
+    return Math.min(Math.max(Math.round(score * 10) / 10, 0), 10);
+  }
+
+  private inferCategory(name: string): string {
+    const lower = name.toLowerCase();
+    if (lower.includes('laptop') || lower.includes('macbook') || lower.includes('chromebook') || lower.includes('notebook') || lower.includes('thinkpad') || lower.includes('elitebook') || lower.includes('latitude') || lower.includes('probook')) return 'Laptop';
+    if (lower.includes('mouse') || lower.includes('ironclaw') || lower.includes('gladius') || lower.includes('scimitar') || lower.includes('spacemouse')) return 'Mouse';
+    if (lower.includes('keyboard') || lower.includes('k780') || lower.includes('mx keys')) return 'Keyboard';
+    if (lower.includes('headphone') || lower.includes('headset') || lower.includes('airpods') || lower.includes('earphone')) return 'Audio';
+    if (lower.includes('monitor') || lower.includes('display') || lower.includes('screen')) return 'Monitor';
+    if (lower.includes('phone') || lower.includes('iphone') || lower.includes('galaxy') || lower.includes('pixel')) return 'Smartphone';
+    if (lower.includes('tablet') || lower.includes('ipad')) return 'Tablet';
+    if (lower.includes('watch') || lower.includes('apple watch')) return 'Wearable';
+    if (lower.includes('printer') || lower.includes('scanner')) return 'Printer';
+    if (lower.includes('cable') || lower.includes('charger') || lower.includes('adapter') || lower.includes('hub') || lower.includes('dock')) return 'Accessories';
+    return 'Electronics';
   }
 
   getAbsChange(current: number, added: number): number {

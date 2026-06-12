@@ -20,16 +20,17 @@ class MaterielNetScraper(BaseScraper):
     """
 
     def __init__(self):
-        self.headers = {
+        self.session = requests.Session()
+        self.session.headers.update({
             "User-Agent": (
                 "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
                 "AppleWebKit/537.36 (KHTML, like Gecko) "
                 "Chrome/120.0.0.0 Safari/537.36"
             ),
             "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
-        }
-        # 1 EUR ≈ 1.08 USD (approximate, stable enough for price indexing)
-        self.eur_to_usd = 1.08
+        })
+        # Fetch dynamic conversion rate via API
+        self.eur_to_usd = self.get_conversion_rate("EUR", "USD")
 
     def _parse_price(self, text: str) -> float:
         # e.g. "3 299,00 €" → 3299.0 or "4 999€95" -> 4999.95
@@ -50,7 +51,7 @@ class MaterielNetScraper(BaseScraper):
         for page in range(1, max_pages + 1):
             page_url = f"{url}?page={page}" if page > 1 else url
             try:
-                response = requests.get(page_url, headers=self.headers, timeout=30)
+                response = self.session.get(page_url, timeout=30)
                 if response.status_code != 200:
                     print(f"Failed to fetch materiel.net ({response.status_code}): {page_url}")
                     break
@@ -65,20 +66,30 @@ class MaterielNetScraper(BaseScraper):
                     # Extract price text from HTML snippet
                     soup_snippet = BeautifulSoup(mhtml, "html.parser")
                     price_text = soup_snippet.get_text(" ").strip()
-                    price_val = self._parse_price(price_text)
-                    if price_val > 0:
-                        price_mappings[mid] = price_val
+                    
+                    price_matches = re.findall(r"[\d\s\xa0]+[,\.€]\s*\d{2}(?:\s*€)?", price_text)
+                    if not price_matches:
+                        price_matches = re.findall(r"[\d\s\xa0]+€", price_text)
+
+                    prices = [self._parse_price(p) for p in price_matches if self._parse_price(p) > 0]
+                    
+                    if prices:
+                        price_mappings[mid] = {
+                            "raw_price": min(prices),
+                            "original_price": max(prices)
+                        }
 
                 soup = BeautifulSoup(response.text, "html.parser")
                 items = soup.select(".c-products-list__item")
+                if not items:
+                    items = soup.select(".c-product-block")
                 if not items:
                     # Alternative selector if class changes
                     items = soup.select("li[data-offer-id]")
 
                 if not items:
-                    print(f"No items found on {page_url}")
                     break
-
+                
                 for item in items:
                     record = self._parse_item(item, category, price_mappings)
                     if record:
@@ -137,13 +148,15 @@ class MaterielNetScraper(BaseScraper):
 
         # 1. Try memory mappings from scripts first (since raw HTML is often empty)
         if price_mappings and external_id in price_mappings:
-            raw_price = price_mappings[external_id]
+            mapping = price_mappings[external_id]
+            raw_price = mapping["raw_price"]
+            original_price = mapping["original_price"]
 
         # 2. Try raw HTML parsing if mapping failed
         if raw_price == 0.0:
             all_text = item.get_text(" ", strip=True)
-            # Find all patterns like "1 234,56 €" or "123€45"
-            price_matches = re.findall(r"[\d\s]+[,\.€]\d{2}(?:\s*€)?", all_text)
+            # Find all patterns like "1 234,56 €" or "123€45" or "1 234€ 95"
+            price_matches = re.findall(r"[\d\s\xa0]+[,\.€]\s*\d{2}(?:\s*€)?", all_text)
             if price_matches:
                 prices = [self._parse_price(p) for p in price_matches if self._parse_price(p) > 0]
                 if prices:
@@ -168,8 +181,56 @@ class MaterielNetScraper(BaseScraper):
         # Check if there is an availability injection in the HTML snippet if we had it
         # (Though usually 'En stock' is the default if not found)
 
-        # --- Specs (extracted from description text) ---
+        # --- Model Number & Deep Specs ---
+        model_number = None
+        detail_specs = {}
+
+        if source_url:
+            try:
+                # Visit detail page for model number and better specs
+                detail_resp = self.session.get(source_url, timeout=15)
+                if detail_resp.status_code == 200:
+                    detail_soup = BeautifulSoup(detail_resp.text, "html.parser")
+                    
+                    # 1. Extract model number from specs tables
+                    # We look for a table cell with "Modèle" label
+                    for tr in detail_soup.select("tr"):
+                        tds = tr.select("td")
+                        if len(tds) >= 2:
+                            label = tds[0].get_text(strip=True)
+                            value = tds[1].get_text(strip=True)
+                            detail_specs[label.lower()] = value
+                            if "modèle" in label.lower():
+                                model_number = value
+                    
+                    # 2. Also try the specific selector provided by user if model_number still None
+                    if not model_number:
+                        # table.table:nth-child(1) > tbody:nth-child(2) > tr:nth-child(3) > td:nth-child(2)
+                        # We use a slightly more flexible version of the CSS selector
+                        alt_ref = detail_soup.select_one("table.c-specs__table tr:nth-child(3) td.value")
+                        if alt_ref:
+                            model_number = alt_ref.get_text(strip=True)
+
+            except Exception as e:
+                print(f"Error fetching detail page {source_url}: {e}")
+
+        # Fallback to description regex if still None
+        if not model_number and description:
+            # Often Materiel.net has "Ref : [REF]" or similar in description
+            ref_match = re.search(r"(?:Ref\s*:|R\xe9f\xe9rence\s*:)\s*([A-Za-z0-9\-]+)", description, re.I)
+            if ref_match:
+                model_number = ref_match.group(1)
+        
+        if not model_number:
+            # Check for specific span if available in the snippet
+            ref_tag = item.select_one("span.reference")
+            if ref_tag:
+                model_number = ref_tag.get_text(strip=True).replace("Ref :", "").strip()
+
+        # --- Specs (extracted from detail page or description) ---
         specs = self._parse_specs_from_description(description, category)
+        # If we have detail_specs, we could potentially override/enhance specs here
+        # For now, let's keep the regex logic but the model_number is now much better.
 
         return RawLandingRecord(
             ingestion_type=IngestionType.BATCH,
@@ -177,6 +238,7 @@ class MaterielNetScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=external_id or source_url.split("/")[-1].replace(".html", ""),
+                model_number=model_number,
                 name=title,
                 brand=brand,
                 category=category,

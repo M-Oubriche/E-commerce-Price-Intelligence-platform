@@ -11,7 +11,7 @@
         </div>
         <div class="sort-wrapper">
           <label>Sort by:</label>
-          <select [(ngModel)]="sortBy" (change)="sortResults()">
+          <select [ngModel]="sortBy" (ngModelChange)="setSort($event)">
             <option>Best Match</option>
             <option>Lowest Price</option>
             <option>Highest Price</option>
@@ -77,23 +77,13 @@
         </div>
       </div>
 
-      <div class="filter-group">
-        <h4>Availability</h4>
-        <label class="toggle-item">
-          <input type="checkbox" [(ngModel)]="inStockOnly">
-          <span class="toggle-label">In stock only</span>
-        </label>
-        <label class="toggle-item">
-          <input type="checkbox" [(ngModel)]="freeShipping">
-          <span class="toggle-label">Free shipping</span>
-        </label>
-      </div>
+      
     </aside>
 
     <!-- Results Grid -->
     <main class="results-content">
       <div *ngIf="filteredResults.length > 0" class="results-grid" [@staggerFade]="filteredResults.length">
-        <div class="product-card" *ngFor="let p of filteredResults" [routerLink]="['/product', p.id]">
+        <div class="product-card" *ngFor="let p of filteredResults" [routerLink]="productUrl(p.id)">
           <div class="card-img">
             <img [src]="p.image" [alt]="p.name" loading="lazy" onerror="this.style.display='none'">
             <div class="fake-badge" *ngIf="p.isFakeDeal">Fake discount detected</div>
@@ -117,7 +107,7 @@
                 </span>
               </div>
               <p class="store-name">on {{ p.bestPlatform }}</p>
-              <p class="range-info">From ${{ p.bestPrice }} to ${{ p.highestPrice }} across {{ p.platformCount }} platforms</p>
+              <p class="range-info">{{ p.allTimeLow ? 'Lowest: $' + p.allTimeLow : 'From $' + p.bestPrice }} across {{ p.platformCount }} platforms</p>
             </div>
             <button class="btn-primary w-full">View deals</button>
           </div>

@@ -1,5 +1,7 @@
 import { Component, OnInit, DestroyRef, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Router } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger } from '@angular/animations';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { WatchlistService } from '../../../../core/services/watchlist.service';
@@ -20,7 +22,7 @@ interface AlertDisplayItem {
 @Component({
   selector: 'app-alerts',
   standalone: true,
-  imports: [CommonModule],
+  imports: [CommonModule, FormsModule],
   template: `
     <div class="alerts-page" [@pageEnter]>
       <header class="page-header animate-in">
@@ -96,10 +98,10 @@ interface AlertDisplayItem {
                 <div class="toggle-switch" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'" (click)="toggleStatus(alert)">
                   <div class="knob" [class.on]="alert.status === 'active'" [class.off]="alert.status !== 'active'"></div>
                 </div>
-                <button class="icon-btn">
+                <button class="icon-btn" (click)="editAlert(alert)">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"></path></svg>
                 </button>
-                <button class="icon-btn trash">
+                <button class="icon-btn trash" (click)="deleteAlert(alert)">
                   <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
                 </button>
               </div>
@@ -161,41 +163,54 @@ interface AlertDisplayItem {
         </header>
 
         <div class="drawer-content">
-          <div class="drawer-section">
-            <label>1. Pick from tracked products</label>
-            <select class="drawer-input">
-              <option *ngFor="let p of trackedProducts">{{ p.product_name }}</option>
+          <!-- Product card -->
+          <div class="drawer-product-card" *ngIf="getSelectedProduct() as prod">
+            <img [src]="prod.image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=200'" [alt]="prod.product_name">
+            <div class="drawer-product-info">
+              <div class="drawer-product-name">{{ prod.product_name }}</div>
+              <div class="drawer-product-price">Current: {{ prod.current_price | currency }}</div>
+            </div>
+          </div>
+
+          <!-- Product selector (create mode only) -->
+          <div class="drawer-section" *ngIf="!isEditingDrawer">
+            <label>Pick a tracked product</label>
+            <select class="drawer-input" [(ngModel)]="createAlertForm.productId" (change)="onProductSelect()">
+              <option value="">Select a product...</option>
+              <option *ngFor="let p of trackedProducts" [value]="p.id">{{ p.product_name }}</option>
             </select>
           </div>
 
-          <div class="mode-tabs">
-            <div class="mode-tab active">Simple</div>
-            <div class="mode-tab">Advanced</div>
-          </div>
-
-          <div class="condition-cards">
-            <div class="condition-card active">
-              <div class="cond-icon">📉</div>
-              <div class="cond-label">Drop to price</div>
-              <div class="cond-desc">Alert at specific value</div>
-            </div>
-            <div class="condition-card">
-              <div class="cond-icon">%</div>
-              <div class="cond-label">Drop by %</div>
-              <div class="cond-desc">Relative decrease</div>
-            </div>
-          </div>
-
+          <!-- Target price -->
           <div class="drawer-section">
-            <label>Target Price</label>
-            <input type="number" value="800" class="drawer-input">
+            <label>Alert me when price drops below</label>
+            <div class="price-input-row">
+              <span class="currency-symbol">$</span>
+              <input type="number" [(ngModel)]="createAlertForm.targetPrice" class="drawer-input price-input" placeholder="0.00">
+            </div>
           </div>
 
-          <div class="preview-sentence">
-            "We'll alert you when your product drops to target price on any store via email."
+          <!-- Quick presets -->
+          <div class="preset-row" *ngIf="getSelectedProduct() as prod">
+            <button class="preset-btn" (click)="setTarget(prod.current_price * 0.95)">−5%</button>
+            <button class="preset-btn" (click)="setTarget(prod.current_price * 0.90)">−10%</button>
+            <button class="preset-btn" (click)="setTarget(prod.current_price * 0.80)">−20%</button>
+            <button class="preset-btn" (click)="setTarget(prod.current_price * 0.50)">−50%</button>
           </div>
 
-          <button class="drawer-submit">Create alert</button>
+          <!-- Savings preview -->
+          <ng-container *ngIf="getSelectedProduct() as prod">
+            <div class="savings-preview" *ngIf="createAlertForm.targetPrice > 0">
+              <div class="savings-amount">
+                You could save <strong>{{ prod.current_price - createAlertForm.targetPrice | currency }}</strong>
+              </div>
+              <div class="savings-pct" *ngIf="prod.current_price > 0">
+                {{ ((prod.current_price - createAlertForm.targetPrice) / prod.current_price * 100) | number:'1.0-0' }}% off
+              </div>
+            </div>
+          </ng-container>
+
+          <button class="drawer-submit" (click)="submitAlert()">{{ isEditingDrawer ? 'Save changes' : 'Create alert' }}</button>
         </div>
       </aside>
     </div>
@@ -429,28 +444,54 @@ interface AlertDisplayItem {
     .drawer-input:focus { border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--accent-blue-light); }
 
     .mode-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .mode-tab {
-      height: 42px; border-radius: 10px; border: 1px solid var(--border);
-      background: var(--bg-secondary); font-size: 14px; font-weight: 600; color: var(--text-muted);
-      cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center;
+    /* Product card in drawer */
+    .drawer-product-card {
+      display: flex; align-items: center; gap: 16px;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px;
     }
-    .mode-tab.active { background: var(--accent-blue-light); border-color: var(--accent-blue); color: var(--accent-blue); }
+    .drawer-product-card img {
+      width: 60px; height: 60px; border-radius: 10px;
+      object-fit: cover; border: 1px solid var(--border);
+    }
+    .drawer-product-info { flex: 1; min-width: 0; }
+    .drawer-product-name { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+    .drawer-product-price { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
 
-    .condition-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-    .condition-card {
-      padding: 16px; border-radius: 14px; border: 1px solid var(--border);
-      background: var(--bg-secondary); cursor: pointer; transition: all 0.2s;
+    /* Price input with $ */
+    .price-input-row {
+      display: flex; align-items: center;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      border-radius: 12px; overflow: hidden;
     }
-    .condition-card.active { background: var(--accent-blue-light); border-color: var(--accent-blue); }
-    .cond-icon { font-size: 20px; margin-bottom: 8px; }
-    .cond-label { font-size: 13px; font-weight: 700; color: var(--text-primary); }
-    .cond-desc { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+    .price-input-row:focus-within { border-color: var(--accent-blue); box-shadow: 0 0 0 3px var(--accent-blue-light); }
+    .currency-symbol {
+      padding: 0 12px; font-size: 16px; font-weight: 700;
+      color: var(--text-muted); border-right: 1px solid var(--border);
+    }
+    .price-input {
+      border: none !important; background: transparent !important;
+      box-shadow: none !important; flex: 1;
+    }
 
-    .preview-sentence {
-      background: var(--accent-blue-light); border-left: 4px solid var(--accent-blue);
-      border-radius: 4px 12px 12px 4px; padding: 16px;
-      font-size: 14px; font-style: italic; color: var(--text-secondary); line-height: 1.6;
+    /* Preset buttons */
+    .preset-row { display: flex; gap: 8px; flex-wrap: wrap; }
+    .preset-btn {
+      height: 36px; padding: 0 14px; border-radius: 20px;
+      background: var(--bg-secondary); border: 1px solid var(--border);
+      font-size: 13px; font-weight: 600; color: var(--text-secondary);
+      cursor: pointer; transition: all 0.2s;
     }
+    .preset-btn:hover { background: var(--accent-blue-light); border-color: var(--accent-blue); color: var(--accent-blue); }
+
+    /* Savings preview */
+    .savings-preview {
+      background: var(--accent-green-light); border-radius: 12px;
+      padding: 16px; text-align: center;
+    }
+    .savings-amount { font-size: 14px; color: var(--text-secondary); }
+    .savings-amount strong { color: var(--accent-green); font-size: 18px; }
+    .savings-pct { font-size: 12px; color: var(--accent-green); font-weight: 700; margin-top: 4px; }
 
     .drawer-submit {
       width: 100%; height: 52px;
@@ -481,8 +522,10 @@ export class AlertsComponent implements OnInit {
   private notificationsService = inject(NotificationsService);
   private wsService = inject(WebSocketService);
   private destroyRef = inject(DestroyRef);
+  public router = inject(Router);
   
   showDrawer = false;
+  isEditingDrawer = false;
   alerts: AlertDisplayItem[] = [];
   notifications: Notification[] = [];
   unreadCount = 0;
@@ -492,10 +535,68 @@ export class AlertsComponent implements OnInit {
   isLoading = true;
   error: string | null = null;
 
+  createAlertForm = {
+    productId: '',
+    targetPrice: 0
+  };
+
   ngOnInit() {
     this.fetchAlerts();
     this.fetchNotifications();
     this.listenToRealTimeUpdates();
+  }
+
+  getProductNameById(id: string): string {
+    const p = this.trackedProducts.find(tp => tp.id === id);
+    return p ? p.product_name : 'Unknown product';
+  }
+
+  getSelectedProduct(): any {
+    return this.trackedProducts.find(p => p.id === this.createAlertForm.productId);
+  }
+
+  onProductSelect() {
+    const prod = this.getSelectedProduct();
+    if (prod && prod.current_price) {
+      // Default target to 10% below current price
+      this.createAlertForm.targetPrice = Math.round(prod.current_price * 0.9 * 100) / 100;
+    }
+  }
+
+  setTarget(val: number) {
+    this.createAlertForm.targetPrice = Math.round(val * 100) / 100;
+  }
+
+  submitAlert() {
+    if (!this.createAlertForm.productId) {
+      alert('Please select a product first.');
+      return;
+    }
+
+    const onSuccess = () => {
+      this.toggleDrawer();
+      this.fetchAlerts();
+    };
+
+    if (this.isEditingDrawer) {
+      // Editing existing alert via watchlist item update (syncs linked alert)
+      const payload = {
+        target_price: this.createAlertForm.targetPrice,
+      };
+      this.watchlistService.updateWatchlistItem(this.createAlertForm.productId, payload).subscribe({
+        next: onSuccess,
+        error: () => alert('Failed to update alert.')
+      });
+    } else {
+      // Creating new alert on existing watchlist item
+      this.watchlistService.createAlertForWatchlistItem(
+        this.createAlertForm.productId,
+        this.createAlertForm.targetPrice
+      ).subscribe({
+        next: onSuccess,
+        error: () => alert('Failed to create alert.')
+      });
+    }
   }
 
   listenToRealTimeUpdates() {
@@ -534,7 +635,7 @@ export class AlertsComponent implements OnInit {
               id: alert.id,
               productId: item.id,
               productName: item.product_name,
-              image: item.image_url,
+              image: item.image_url || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100',
               currentPrice: item.current_price,
               targetPrice: alert.target_value,
               progress: alert.progress_pct,
@@ -599,6 +700,14 @@ export class AlertsComponent implements OnInit {
   }
 
   toggleDrawer() {
+    if (!this.showDrawer) {
+      // Opening for create — reset form
+      this.isEditingDrawer = false;
+      this.createAlertForm = {
+        productId: '',
+        targetPrice: 0
+      };
+    }
     this.showDrawer = !this.showDrawer;
   }
 
@@ -613,6 +722,26 @@ export class AlertsComponent implements OnInit {
           alert.status = updated.status;
         },
         error: () => window.alert('Failed to update alert status.')
+      });
+  }
+
+  editAlert(alert: AlertDisplayItem) {
+    this.isEditingDrawer = true;
+    this.createAlertForm.productId = alert.productId;
+    this.createAlertForm.targetPrice = alert.targetPrice;
+    this.showDrawer = true;
+  }
+
+  deleteAlert(alert: AlertDisplayItem) {
+    if (!confirm('Delete this alert?')) return;
+
+    this.watchlistService.deleteAlert(alert.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.alerts = this.alerts.filter(a => a.id !== alert.id);
+        },
+        error: () => window.alert('Failed to delete alert.')
       });
   }
 

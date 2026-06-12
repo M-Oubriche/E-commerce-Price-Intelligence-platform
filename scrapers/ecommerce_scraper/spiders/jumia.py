@@ -19,7 +19,7 @@ class JumiaScraper(BaseScraper):
     Uses requests and BeautifulSoup to extract product data from a given category URL.
     """
     
-    def __init__(self, conversion_rate_to_usd: float = 0.10):
+    def __init__(self):
         self.headers = {
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
@@ -27,7 +27,7 @@ class JumiaScraper(BaseScraper):
             "Referer": "https://www.jumia.ma/",
             "Connection": "keep-alive"
         }
-        self.conversion_rate = conversion_rate_to_usd
+        self.conversion_rate = self.get_conversion_rate("MAD", "USD")
         
     def _parse_price(self, price_str: str) -> float:
         # e.g., "1,500.00 Dhs" -> 1500.00
@@ -170,6 +170,7 @@ class JumiaScraper(BaseScraper):
             source_url=source_url,
             product=Product(
                 external_id=item_id,
+                model_number=specs_data.get("Modèle") or specs_data.get("SKU"),
                 name=name,
                 brand=brand,
                 category=category,

@@ -3,9 +3,11 @@ import { CommonModule, isPlatformBrowser } from '@angular/common';
 import { Router, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { trigger, transition, style, animate, query, stagger, state } from '@angular/animations';
+import { forkJoin } from 'rxjs';
 import { PublicNavbarComponent } from '../../shared/components/public-navbar/public-navbar.component';
 import { AuthService } from '../../core/services/auth.service';
 import { ToastService } from '../../core/services/toast.service';
+import { AnalyticsApiService } from '../../core/services/analytics-api.service';
 
 export interface Deal {
   id: string;
@@ -23,6 +25,7 @@ export interface Deal {
   upvotes: number;
   isUpvoted: boolean;
   timeAgo: string;
+  timestamp: number;
   isFeatured?: boolean;
   isFakeDeal?: boolean;
   isNew?: boolean;
@@ -64,204 +67,60 @@ export class DealFeedComponent implements OnInit, OnDestroy {
   authService = inject(AuthService);
   private toastService = inject(ToastService);
   private platformId = inject(PLATFORM_ID);
+  private analyticsApi = inject(AnalyticsApiService);
 
   activeTab = 'All';
-  tabs = ['All', 'Price Drops', 'Verified Drops', 'Fake Deal Alerts'];
+  tabs = ['All', 'Price Drops', 'Fake Deal Alerts'];
   
   activeCategory = 'All';
-  filterCategories = ['All', 'Smartphones', 'Laptops', 'Gaming', 'Audio', 'Monitors', 'Tablets', 'Components'];
+  filterCategories = ['All'];
   
   sortOption = 'Newest';
-  sortOptions = ['Newest', 'Most upvoted', 'Biggest saving', 'Best deal score'];
+  sortOptions = ['Newest', 'Best deal score'];
 
   showNewDealToast = false;
   itemsToShow = 8;
   isLoading = true;
+  loadError = false;
+  dealsCount = 0;
+  lastUpdated = '';
   private intervalId: any;
 
-  deals: Deal[] = [
-    {
-      id: '1', type: 'price_drop', isFeatured: true,
-      category: 'Gaming', productName: 'PS5 Console',
-      headline: 'PS5 Console hits lowest price since launch — grab it now',
-      image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=600',
-      currentPrice: 449, originalPrice: 599,
-      savingsAmount: 150, savingsPercent: 25,
-      platform: 'Amazon',
-      dealScore: 9.4,
-      upvotes: 342, isUpvoted: false, timeAgo: '2 hours ago'
-    },
-    {
-      id: '2', type: 'price_drop', isFeatured: false,
-      category: 'Smartphones', productName: 'iPhone 15 Pro',
-      headline: 'iPhone 15 Pro drops to 6-month low on eBay',
-      image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400',
-      currentPrice: 949, originalPrice: 1099,
-      savingsAmount: 150, savingsPercent: 14,
-      platform: 'eBay', dealScore: 8.9,
-      upvotes: 218, isUpvoted: false, timeAgo: '3 hours ago'
-    },
-    {
-      id: '3', type: 'fake_deal_exposed', isFeatured: false,
-      category: 'Laptops', productName: 'MacBook Pro 14"',
-      headline: 'MacBook Pro "40% off" sale is misleading — price unchanged',
-      image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400',
-      currentPrice: 1899, originalPrice: 1999,
-      savingsAmount: 100, savingsPercent: 5,
-      platform: 'BestBuy', dealScore: 2.1,
-      upvotes: 89, isUpvoted: false, timeAgo: '4 hours ago',
-      isFakeDeal: true
-    },
-    {
-      id: '4', type: 'price_drop', isFeatured: false,
-      category: 'Audio', productName: 'Sony WH-1000XM5',
-      headline: 'Found Sony XM5 at incredible price on Newegg — verified',
-      image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400',
-      currentPrice: 279, originalPrice: 399,
-      savingsAmount: 120, savingsPercent: 30,
-      platform: 'Newegg', dealScore: 9.1,
-      upvotes: 156, isUpvoted: false, timeAgo: '5 hours ago'
-    },
-    {
-      id: '5', type: 'price_drop', isFeatured: false,
-      category: 'Components', productName: 'RTX 4080 GPU',
-      headline: 'RTX 4080 drops $200 — best price in 3 months',
-      image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400',
-      currentPrice: 899, originalPrice: 1099,
-      savingsAmount: 200, savingsPercent: 18,
-      platform: 'Newegg', dealScore: 8.7,
-      upvotes: 203, isUpvoted: false, timeAgo: '6 hours ago'
-    },
-    {
-      id: '6', type: 'price_drop', isFeatured: false,
-      category: 'Monitors', productName: 'LG 27" 4K Monitor',
-      headline: 'LG 4K Monitor at lowest price ever — limited stock',
-      image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=400',
-      currentPrice: 299, originalPrice: 449,
-      savingsAmount: 150, savingsPercent: 33,
-      platform: 'Amazon', dealScore: 9.2,
-      upvotes: 134, isUpvoted: false, timeAgo: '7 hours ago'
-    },
-    {
-      id: '7', type: 'fake_deal_exposed', isFeatured: false,
-      category: 'Monitors', productName: 'Samsung 65" QLED TV',
-      headline: 'Samsung TV "Black Friday" price is a scam — been same all year',
-      image: 'https://images.unsplash.com/photo-1593359677879-a4bb92f829e1?w=400',
-      currentPrice: 1299, originalPrice: 1499,
-      savingsAmount: 200, savingsPercent: 13,
-      platform: 'Samsung', dealScore: 1.8,
-      upvotes: 445, isUpvoted: false, timeAgo: '8 hours ago',
-      isFakeDeal: true
-    },
-    {
-      id: '8', type: 'price_drop', isFeatured: false,
-      category: 'Tablets', productName: 'iPad Pro 12.9"',
-      headline: 'iPad Pro 12.9 hits new low — $300 off original price',
-      image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=400',
-      currentPrice: 799, originalPrice: 1099,
-      savingsAmount: 300, savingsPercent: 27,
-      platform: 'Apple', dealScore: 9.0,
-      upvotes: 178, isUpvoted: false, timeAgo: '9 hours ago'
-    },
-    {
-      id: '9', type: 'price_drop', isFeatured: false,
-      category: 'Périphériques', productName: 'Logitech G Pro X',
-      headline: 'The world\'s best esports mouse at an all-time low price',
-      image: 'https://images.unsplash.com/photo-1629429464245-487019807575?w=400',
-      currentPrice: 129, originalPrice: 159,
-      savingsAmount: 30, savingsPercent: 19,
-      platform: 'Amazon', dealScore: 9.3,
-      upvotes: 142, isUpvoted: false, timeAgo: '10 hours ago'
-    },
-    {
-      id: '10', type: 'price_drop', isFeatured: false,
-      category: 'Laptops', productName: 'Dell XPS 15',
-      headline: 'Dell XPS 15 drops to best price of 2026',
-      image: 'https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400',
-      currentPrice: 1299, originalPrice: 1599,
-      savingsAmount: 300, savingsPercent: 19,
-      platform: 'Dell', dealScore: 8.5,
-      upvotes: 167, isUpvoted: false, timeAgo: '11 hours ago'
-    },
-    {
-      id: '11', type: 'price_drop', isFeatured: false,
-      category: 'Gaming', productName: 'Xbox Series X',
-      headline: 'Xbox Series X bundle deal — best value right now',
-      image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=400',
-      currentPrice: 399, originalPrice: 499,
-      savingsAmount: 100, savingsPercent: 20,
-      platform: 'Walmart', dealScore: 8.1,
-      upvotes: 143, isUpvoted: false, timeAgo: '12 hours ago'
-    },
-    {
-      id: '12', type: 'price_drop', isFeatured: false,
-      category: 'Smartphones', productName: 'Samsung Galaxy S24',
-      headline: 'Galaxy S24 Ultra — massive discount spotted on Amazon',
-      image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400',
-      currentPrice: 899, originalPrice: 1199,
-      savingsAmount: 300, savingsPercent: 25,
-      platform: 'Amazon', dealScore: 8.8,
-      upvotes: 201, isUpvoted: false, timeAgo: '13 hours ago'
-    }
-  ];
+  deals: Deal[] = [];
 
-  trendingItems = [
-    { id: '4', name: 'iPhone 15 Pro', category: 'Smartphones', drop: '↓ 14%', image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=100' },
-    { id: '6', name: 'Sony WH-1000XM5', category: 'Audio', drop: '↓ 25%', image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=100' },
-    { id: '5', name: 'RTX 4080 GPU', category: 'Components', drop: '↓ 16%', image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=100' },
-    { id: '7', name: 'iPad Air M2', category: 'Tablets', drop: '↓ 8%', image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=100' },
-    { id: '1', name: 'PS5 Console', category: 'Gaming', drop: '↓ 25%', image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=100' }
-  ];
+  trendingItems: { id: string; name: string; category: string; drop: string; image: string | null }[] = [];
 
-  biggestDrops = [
-    { productName: 'PS5 Console', platform: 'Amazon', savingsPercent: 25, savingsAmount: 150, image: 'https://images.unsplash.com/photo-1593118247619-e2d6f056869e?w=80' },
-    { productName: 'Sony WH-1000XM5', platform: 'Newegg', savingsPercent: 30, savingsAmount: 120, image: 'https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=80' },
-    { productName: 'iPad Pro 12.9"', platform: 'Apple', savingsPercent: 27, savingsAmount: 300, image: 'https://images.unsplash.com/photo-1544244015-0df4b3ffc6b0?w=80' },
-    { productName: 'RTX 4080 GPU', platform: 'Newegg', savingsPercent: 18, savingsAmount: 200, image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=80' },
-    { productName: 'LG 27" 4K Monitor', platform: 'Amazon', savingsPercent: 33, savingsAmount: 150, image: 'https://images.unsplash.com/photo-1527443224154-c4a3942d3acf?w=80' }
-  ];
+  biggestDrops: { productName: string; platform: string; savingsPercent: number; savingsAmount: number; image: string | null }[] = [];
 
-  browseCategories = [
-    { name: 'Smartphones', count: 124 },
-    { name: 'Laptops', count: 86 },
-    { name: 'Gaming', count: 215 },
-    { name: 'Audio', count: 94 },
-    { name: 'Monitors', count: 42 },
-    { name: 'Tablets', count: 58 },
-    { name: 'Components', count: 112 },
-    { name: 'Périphériques', count: 35 },
-  ];
+  browseCategories: { name: string; count: number }[] = [];
 
   ngOnInit() {
-    // Initial load skeleton
-    setTimeout(() => this.isLoading = false, 500);
+    this.fetchData();
 
     if (isPlatformBrowser(this.platformId)) {
       this.intervalId = setInterval(() => {
-        const newDeal: Deal = {
-          id: Date.now().toString(),
-          type: 'price_drop',
-          category: 'Smartphones',
-          productName: 'Samsung Galaxy S24',
-          headline: 'Samsung Galaxy S24 drops to new low on Amazon',
-          image: 'https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400',
-          currentPrice: 699,
-          originalPrice: 849,
-          savingsAmount: 150,
-          savingsPercent: 18,
-          platform: 'Amazon',
-          dealScore: 8.7,
-          upvotes: 1,
-          isUpvoted: false,
-          timeAgo: 'Just now',
-          isFeatured: false,
-          isNew: true
-        };
-        this.deals.splice(1, 0, newDeal); // Insert after featured
-        this.showNewDealToast = true;
-        setTimeout(() => this.showNewDealToast = false, 3000);
-        setTimeout(() => newDeal.isNew = false, 3000);
-      }, 15000);
+        this.analyticsApi.getDealAnalysis().subscribe({
+          next: (rows) => {
+            const newRows = rows.filter(
+              r => !this.deals.some(d => d.id === r.product_unified_id)
+            );
+            for (const row of newRows) {
+              const deal = this.mapDeal(row);
+              deal.isNew = true;
+              this.deals.splice(1, 0, deal);
+              setTimeout(() => deal.isNew = false, 3000);
+            }
+            if (newRows.length > 0) {
+              this._fetchedAt = Date.now();
+              this.dealsCount = this.deals.length;
+              this.lastUpdated = 'Just now';
+              this.showNewDealToast = true;
+              setTimeout(() => this.showNewDealToast = false, 3000);
+            }
+          },
+          error: () => {}
+        });
+      }, 30000);
     }
   }
 
@@ -269,6 +128,112 @@ export class DealFeedComponent implements OnInit, OnDestroy {
     if (this.intervalId) {
       clearInterval(this.intervalId);
     }
+  }
+
+  private fetchData() {
+    forkJoin([
+      this.analyticsApi.getDealAnalysis(),
+      this.analyticsApi.getPriceDrops(),
+      this.analyticsApi.getCategoryTrends(),
+    ]).subscribe({
+      next: ([dealsData, dropsData, trendsData]) => {
+        this.deals = this.mapDeals(dealsData);
+        this.biggestDrops = this.mapBiggestDrops(dropsData);
+        this.trendingItems = this.mapTrendingItems(dealsData);
+        this.filterCategories = ['All', ...new Set(dealsData.map(d => d.product_category))];
+        this.browseCategories = trendsData
+          .filter(t => t.product_count > 0)
+          .map(t => ({ name: t.product_category, count: t.product_count }));
+
+        if (this.deals.length > 0) {
+          this.deals[0].isFeatured = true;
+        }
+
+        this.dealsCount = dealsData.length;
+        this._fetchedAt = Date.now();
+        this.lastUpdated = 'Just now';
+        this.isLoading = false;
+      },
+      error: () => {
+        this.loadError = true;
+        this.isLoading = false;
+      }
+    });
+  }
+
+  private _fetchedAt = 0;
+
+  private mapDeals(rows: import('../../core/models/analytics-api.model').DealAnalysisRow[]): Deal[] {
+    return rows.map((r, i) => ({
+      ...this.mapDeal(r),
+      isFeatured: i === 0,
+    }));
+  }
+
+  private mapDeal(r: import('../../core/models/analytics-api.model').DealAnalysisRow): Deal {
+    const timestamp = r.last_updated ? new Date(r.last_updated).getTime() : Date.now();
+    return {
+      id: r.product_unified_id || `deal-${timestamp}-${Math.random()}`,
+      type: r.is_fake_deal ? 'fake_deal_exposed' as const : 'price_drop' as const,
+      category: r.product_category,
+      productName: r.product_name,
+      headline: r.is_fake_deal
+        ? `${r.product_name} — price spike detected, not a real deal`
+        : `${r.product_name} dropped — best price spotted on ${r.source}`,
+      image: r.product_image_url || 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=400',
+      currentPrice: r.current_price ?? 0,
+      originalPrice: r.avg_price_30d ?? r.current_price ?? 0,
+      savingsAmount: r.avg_price_30d && r.current_price ? Math.max(0, r.avg_price_30d - r.current_price) : 0,
+      savingsPercent: r.discount_percent ?? (r.avg_price_30d && r.current_price
+        ? Math.round((1 - r.current_price / r.avg_price_30d) * 100)
+        : 0),
+      platform: r.source,
+      dealScore: r.deal_score,
+      upvotes: 0,
+      isUpvoted: false,
+      timeAgo: this.getTimeAgo(timestamp),
+      timestamp: timestamp,
+      isFeatured: false,
+      isFakeDeal: r.is_fake_deal,
+      isNew: false,
+    };
+  }
+
+  private getTimeAgo(timestamp: number): string {
+    const seconds = Math.floor((Date.now() - timestamp) / 1000);
+    if (seconds < 60) return 'Just now';
+    const minutes = Math.floor(seconds / 60);
+    if (minutes < 60) return `${minutes}m ago`;
+    const hours = Math.floor(minutes / 60);
+    if (hours < 24) return `${hours}h ago`;
+    return Math.floor(hours / 24) + 'd ago';
+  }
+
+  private mapBiggestDrops(rows: import('../../core/models/analytics-api.model').PriceDropRow[]) {
+    return rows.slice(0, 5).map(r => ({
+      productName: r.product_name,
+      platform: r.source,
+      savingsPercent: r.drop_percentage,
+      savingsAmount: r.absolute_drop_usd,
+      image: r.product_image_url,
+    }));
+  }
+
+  private mapTrendingItems(rows: import('../../core/models/analytics-api.model').DealAnalysisRow[]) {
+    return [...rows]
+      .sort((a, b) => b.deal_score - a.deal_score)
+      .slice(0, 5)
+      .map(r => ({
+        id: r.product_unified_id,
+        name: r.product_name,
+        category: r.product_category,
+        drop: r.discount_percent 
+          ? `↓ ${Math.round(r.discount_percent)}%`
+          : (r.avg_price_30d && r.current_price
+            ? `↓ ${Math.round((1 - r.current_price / r.avg_price_30d) * 100)}%`
+            : ''),
+        image: r.product_image_url,
+      }));
   }
 
   get featuredDeal(): Deal | undefined {
@@ -282,8 +247,6 @@ export class DealFeedComponent implements OnInit, OnDestroy {
     if (this.activeTab !== 'All') {
       if (this.activeTab === 'Price Drops') {
         filtered = filtered.filter(d => d.type === 'price_drop');
-      } else if (this.activeTab === 'Verified Drops') {
-        filtered = filtered.filter(d => d.dealScore >= 8.5);
       } else if (this.activeTab === 'Fake Deal Alerts') {
         filtered = filtered.filter(d => d.type === 'fake_deal_exposed');
       }
@@ -296,9 +259,7 @@ export class DealFeedComponent implements OnInit, OnDestroy {
     
     // Sort
     filtered.sort((a, b) => {
-      if (this.sortOption === 'Newest') return parseInt(b.id) - parseInt(a.id);
-      if (this.sortOption === 'Most upvoted') return b.upvotes - a.upvotes;
-      if (this.sortOption === 'Biggest saving') return b.savingsAmount - a.savingsAmount;
+      if (this.sortOption === 'Newest') return b.timestamp - a.timestamp;
       if (this.sortOption === 'Best deal score') return b.dealScore - a.dealScore;
       return 0;
     });
@@ -308,6 +269,12 @@ export class DealFeedComponent implements OnInit, OnDestroy {
 
   get hasMoreDeals() {
     return this.itemsToShow < this.deals.filter(d => !d.isFeatured).length;
+  }
+
+  retryLoad() {
+    this.loadError = false;
+    this.isLoading = true;
+    this.fetchData();
   }
 
   loadMore() {
